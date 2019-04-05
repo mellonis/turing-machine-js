@@ -1,0 +1,23 @@
+{
+  "name": "turing-machine-js",
+  "version": "0.1.0",
+  "description": "A convenient Turing machine",
+  "main": "TuringMachine.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mellonis/turing-machine-js.git"
+  },
+  "keywords": [
+    "turing",
+    "machine"
+  ],
+  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/mellonis/turing-machine-js/issues"
+  },
+  "homepage": "https://github.com/mellonis/turing-machine-js#readme"
+}
