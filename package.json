@@ -2,8 +2,9 @@
   "name": "turing-machine-js",
   "version": "0.1.0",
   "description": "A convenient Turing machine",
-  "main": "TuringMachine.js",
+  "main": "src/TuringMachine.js",
   "scripts": {
+    "build": "babel ./src -d ./lib",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -19,5 +20,15 @@
   "bugs": {
     "url": "https://github.com/mellonis/turing-machine-js/issues"
   },
-  "homepage": "https://github.com/mellonis/turing-machine-js#readme"
+  "homepage": "https://github.com/mellonis/turing-machine-js#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.4.3",
+    "@babel/core": "^7.4.3",
+    "@babel/plugin-proposal-class-properties": "^7.4.0"
+  },
+  "babel": {
+    "plugins": [
+      "@babel/plugin-proposal-class-properties"
+    ]
+  }
 }
