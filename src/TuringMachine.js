@@ -274,7 +274,7 @@ class State {
         return !this[stateSymbolToCommandMapKey];
     }
 
-    get name () {
+    get name() {
         return this[stateNameKey] || void 0;
     }
 
@@ -348,7 +348,7 @@ class TuringMachine {
                     this.#tape.left();
                     break;
                 case movements.right:
-                    this.#tape.right()
+                    this.#tape.right();
                     break;
 
                 //no default
@@ -415,7 +415,7 @@ class TuringMachine {
 
                 yield {
                     step: i,
-                    state,
+                    state: state,
                     currentSymbol,
                     nextSymbol,
                     nextMovement,
@@ -434,7 +434,7 @@ class TuringMachine {
                     this.#tape.left();
                     break;
                 case movements.right:
-                    this.#tape.right()
+                    this.#tape.right();
                     break;
 
                     //no default
