@@ -96,28 +96,21 @@ const invertNumber = new State({
   },
 }, 'invertNumber');
 
-const normalizeNumberDeleteOldNumberStart = new State({
-  '^': {
-    symbol: symbolCommands.erase,
-    movement: movements.right,
+const normalizeNumberPutNewStartSymbol = new State({
+  [alphabet.blankSymbol]: {
+    symbol: '^',
     nextState: goToNumber,
   },
-}, 'normalizeNumberDeleteOldNumberStart');
+}, 'normalizeNumberPutNewStartSymbol');
 
 const normalizeNumberMoveNumberStart = new State({
-  '^': {
+  '^0': {
+    symbol: symbolCommands.erase,
     movement: movements.right,
   },
-  0: {
-    symbol: '^',
-    movement: movements.left,
-    nextState: normalizeNumberDeleteOldNumberStart,
-  },
   '1$': {
-    nextState: goToNumber,
-  },
-  [ifOtherSymbol]: {
     movement: movements.left,
+    nextState: normalizeNumberPutNewStartSymbol,
   },
 }, 'normalizeNumberMoveNumberStart');
 
