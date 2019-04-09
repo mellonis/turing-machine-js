@@ -44,7 +44,7 @@ class Alphabet {
 
 class Tape {
     #alphabet;
-    #tape = [];
+    #tapeSymbolList = [];
     #position;
     #viewportWidth;
 
@@ -71,12 +71,12 @@ class Tape {
                     throw new Error('Invalid tapeSymbolList');
                 }
             }
-
-            tapeSymbolList = tapeSymbolList.map(symbol => alphabet.index(symbol));
         }
 
+        tapeSymbolList = tapeSymbolList.map(symbol => alphabet.index(symbol));
+
         this.#alphabet = alphabet;
-        this.#tape = tapeSymbolList;
+        this.#tapeSymbolList = tapeSymbolList;
         this.#position = position;
         this.viewportWidth = viewportWidth;
     }
@@ -90,15 +90,15 @@ class Tape {
             throw new Error('Invalid symbol');
         }
 
-        this.#tape[this.#position] = this.#alphabet.index(symbol);
+        this.#tapeSymbolList[this.#position] = this.#alphabet.index(symbol);
     }
 
     get symbol() {
-        return this.#alphabet.get(this.#tape[this.#position]);
+        return this.#alphabet.get(this.#tapeSymbolList[this.#position]);
     }
 
     get symbolList() {
-        return this.#tape
+        return this.#tapeSymbolList
             .slice(this.#position - this.extraCellsCount, this.#position + this.extraCellsCount + 1)
             .map(index => this.#alphabet.get(index));
     }
@@ -127,12 +127,12 @@ class Tape {
 
     normalise() {
         while (this.#position - this.extraCellsCount < 0) {
-            this.#tape.unshift(0);
+            this.#tapeSymbolList.unshift(0);
             this.#position += 1;
         }
 
-        while (this.#position + this.extraCellsCount >= this.#tape.length) {
-            this.#tape.push(0);
+        while (this.#position + this.extraCellsCount >= this.#tapeSymbolList.length) {
+            this.#tapeSymbolList.push(0);
         }
     }
 
