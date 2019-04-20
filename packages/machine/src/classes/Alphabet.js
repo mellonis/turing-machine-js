@@ -33,7 +33,7 @@ export default class Alphabet {
   }
 
   get(index) {
-    if (index < 0 && index >= this[alphabetSymbolListKey].length) {
+    if (index < 0 || index >= this[alphabetSymbolListKey].length) {
       throw new Error('Invalid index');
     }
 
