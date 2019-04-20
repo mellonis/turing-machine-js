@@ -8,11 +8,14 @@ export default class Alphabet {
     const uniqueSymbolList = symbolList.filter(uniquePredicate);
 
     if (uniqueSymbolList.length < 2) {
-      throw new Error('Symbols array is too short');
+      throw new Error('Invalid symbolList length');
     }
 
-    // todo: throw an error when invalid symbol
-    uniqueSymbolList.every(symbol => typeof symbol === 'string' && symbol.length === 1);
+    const isSymbolListValid = uniqueSymbolList.every(symbol => typeof symbol === 'string' && symbol.length === 1);
+
+    if (!isSymbolListValid) {
+      throw new Error('symbolList contains invalid symbol');
+    }
 
     this[alphabetSymbolListKey] = Array.from(uniqueSymbolList);
   }
