@@ -1449,17 +1449,17 @@
     universal-user-agent "^2.0.0"
     url-template "^2.0.8"
 
-"@turing-machine-js/library-binary-numbers@^0.2.0":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@turing-machine-js/library-binary-numbers/-/library-binary-numbers-0.2.1.tgz#0fce5f5ab4c42916c8cba5e8af2408810a99c8b4"
-  integrity sha512-3jwkgUyyoKCHIgUpXYpUABDG4LbvWZRKGGYmsdRg6OkmIktWBmYtkRtpoxSfMgMm+F56QKqbMezoxup9F2Rt5g==
+"@turing-machine-js/library-binary-numbers@^0.2.2":
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/@turing-machine-js/library-binary-numbers/-/library-binary-numbers-0.2.2.tgz#5609d2aeda0242870e0690d8ff1fbd85cc7543fa"
+  integrity sha512-tInHEoR8uz61hwNWnnvsISlRNgChBUIOzSAfoU11JfaEVoFzBi8kxnmqhsyzMPjR3yc5c1CtApfeU0FfunwaCg==
   dependencies:
-    "@turing-machine-js/machine" "^0.2.1"
+    "@turing-machine-js/machine" "^0.2.2"
 
-"@turing-machine-js/machine@^0.2.0", "@turing-machine-js/machine@^0.2.1":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@turing-machine-js/machine/-/machine-0.2.1.tgz#a54f2d611ce51c1c11456ccd4dd04cf13a8328d6"
-  integrity sha512-PXuFa66zpZ9UDq1hTbEwjb08MdoN/lW/NYG5vUGytuzvbIoB/Pfl97W3a6w0Ywy8vamk60RfhAbwQ8DS3uQyvQ==
+"@turing-machine-js/machine@^0.2.2":
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/@turing-machine-js/machine/-/machine-0.2.2.tgz#f7f7eb3e5712dcb8af1d277af0e8938209141fca"
+  integrity sha512-tgileejMTdvYQyoJSfa7zHVxSD4Qp+b86QgT6UCVJ3QkP2KsCTMtrVXHWnHb4K470ZUsC4lt7LKsW4h6AGicLQ==
 
 "@types/babel__core@^7.1.0":
   version "7.1.1"
