@@ -1,5 +1,15 @@
-import State from './State';
-import { movements, symbolCommands } from './Command'; // keys for private properties of the TuringMachine class
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _State = _interopRequireDefault(require("./State"));
+
+var _Command = require("./Command");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const tapeTapeKey = Symbol('commandSymbolKey');
 const tapeStackKey = Symbol('commandMovementKey');
@@ -11,7 +21,7 @@ class TuringMachine {
   }
 
   run(initialState, stepsLimit = 1e5, onStep = null) {
-    const iterator = this.runStepByStep(initialState, stepsLimit); // eslint-disable-next-line no-restricted-syntax
+    const iterator = this.runStepByStep(initialState, stepsLimit);
 
     for (const machineState of iterator) {
       if (onStep instanceof Function) {
@@ -21,7 +31,7 @@ class TuringMachine {
   }
 
   *runStepByStep(initialState, stepsLimit = 1e5) {
-    if (!(initialState instanceof State)) {
+    if (!(initialState instanceof _State.default)) {
       throw new Error('Invalid parameters');
     }
 
@@ -44,11 +54,11 @@ class TuringMachine {
       let nextSymbol;
 
       switch (command.symbol) {
-        case symbolCommands.erase:
+        case _Command.symbolCommands.erase:
           nextSymbol = this[tapeTapeKey].alphabet.blankSymbol;
           break;
 
-        case symbolCommands.keep:
+        case _Command.symbolCommands.keep:
           nextSymbol = currentSymbol;
           break;
 
@@ -62,10 +72,9 @@ class TuringMachine {
         nextState
       } = command;
 
-      if (!(nextState instanceof State)) {
+      if (!(nextState instanceof _State.default)) {
         throw new Error('Invalid nextState');
-      } // before apply
-
+      }
 
       try {
         const nextStateForYield = nextState.isHalt && this[tapeStackKey].length ? this[tapeStackKey].slice(-1)[0] : nextState;
@@ -79,20 +88,18 @@ class TuringMachine {
         };
       } catch (e) {
         throw new Error(`Execution halted because of ${e.message}`);
-      } // apply
-
+      }
 
       this[tapeTapeKey].symbol = nextSymbol;
 
       switch (nextMovement) {
-        case movements.left:
+        case _Command.movements.left:
           this[tapeTapeKey].left();
           break;
 
-        case movements.right:
+        case _Command.movements.right:
           this[tapeTapeKey].right();
           break;
-        // no default
       }
 
       let finalNextState = nextState;
@@ -111,4 +118,4 @@ class TuringMachine {
 
 }
 
-export { TuringMachine as default };
+exports.default = TuringMachine;

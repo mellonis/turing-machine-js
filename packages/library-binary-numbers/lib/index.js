@@ -1,165 +1,181 @@
-import { Alphabet, State, haltState, ifOtherSymbol, movements, symbolCommands } from '@turing-machine-js/machine';
-const alphabet = new Alphabet(' ^$01'.split(''));
-const goToNumber = new State({
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+function _machine() {
+  const data = require("@turing-machine-js/machine");
+
+  _machine = function () {
+    return data;
+  };
+
+  return data;
+}
+
+const alphabet = new (_machine().Alphabet)(' ^$01'.split(''));
+const goToNumber = new (_machine().State)({
   $: {
-    nextState: haltState
+    nextState: _machine().haltState
   },
-  [ifOtherSymbol]: {
-    movement: movements.right
+  [_machine().ifOtherSymbol]: {
+    movement: _machine().movements.right
   }
 }, 'goToNumber');
-const goToNextNumber = new State({
-  [ifOtherSymbol]: {
-    movement: movements.right,
+const goToNextNumber = new (_machine().State)({
+  [_machine().ifOtherSymbol]: {
+    movement: _machine().movements.right,
     nextState: goToNumber
   }
 }, 'goToNextNumber');
-const goToPreviousNumberTrue = new State({
+const goToPreviousNumberTrue = new (_machine().State)({
   $: {
-    nextState: haltState
+    nextState: _machine().haltState
   },
-  [ifOtherSymbol]: {
-    movement: movements.left
+  [_machine().ifOtherSymbol]: {
+    movement: _machine().movements.left
   }
 }, 'goToPreviousNumberTrue');
-const goToPreviousNumber = new State({
-  [ifOtherSymbol]: {
-    movement: movements.left,
+const goToPreviousNumber = new (_machine().State)({
+  [_machine().ifOtherSymbol]: {
+    movement: _machine().movements.left,
     nextState: goToPreviousNumberTrue
   }
 }, 'goToPreviousNumber');
-const goToNumbersStart = new State({
+const goToNumbersStart = new (_machine().State)({
   '^': {
-    nextState: haltState
+    nextState: _machine().haltState
   },
-  [ifOtherSymbol]: {
-    movement: movements.left
+  [_machine().ifOtherSymbol]: {
+    movement: _machine().movements.left
   }
 }, 'goToNumberStart');
-const deleteNumberTrue = new State({
+const deleteNumberTrue = new (_machine().State)({
   $: {
-    symbol: symbolCommands.erase,
-    nextState: haltState
+    symbol: _machine().symbolCommands.erase,
+    nextState: _machine().haltState
   },
-  [ifOtherSymbol]: {
-    symbol: symbolCommands.erase,
-    movement: movements.right
+  [_machine().ifOtherSymbol]: {
+    symbol: _machine().symbolCommands.erase,
+    movement: _machine().movements.right
   }
 }, 'deleteNumberTrue');
-const deleteNumber = new State({
+const deleteNumber = new (_machine().State)({
   '^10$': {
     nextState: goToNumbersStart.withOverrodeHaltState(deleteNumberTrue)
   },
-  [ifOtherSymbol]: {
-    nextState: haltState
+  [_machine().ifOtherSymbol]: {
+    nextState: _machine().haltState
   }
 }, 'deleteNumber');
-const invertNumberGoToNumberWithInversion = new State({
+const invertNumberGoToNumberWithInversion = new (_machine().State)({
   '^': {
-    movement: movements.right
+    movement: _machine().movements.right
   },
   1: {
     symbol: '0',
-    movement: movements.right
+    movement: _machine().movements.right
   },
   0: {
     symbol: '1',
-    movement: movements.right
+    movement: _machine().movements.right
   },
   $: {
-    nextState: haltState
+    nextState: _machine().haltState
   }
 }, 'invertNumberGoToNumberWithInversion');
-const invertNumber = new State({
+const invertNumber = new (_machine().State)({
   '^10$': {
     nextState: goToNumbersStart.withOverrodeHaltState(invertNumberGoToNumberWithInversion)
   },
-  [ifOtherSymbol]: {
-    nextState: haltState
+  [_machine().ifOtherSymbol]: {
+    nextState: _machine().haltState
   }
 }, 'invertNumber');
-const normalizeNumberPutNewStartSymbol = new State({
+const normalizeNumberPutNewStartSymbol = new (_machine().State)({
   [alphabet.blankSymbol]: {
     symbol: '^',
     nextState: goToNumber
   }
 }, 'normalizeNumberPutNewStartSymbol');
-const normalizeNumberMoveNumberStart = new State({
+const normalizeNumberMoveNumberStart = new (_machine().State)({
   '^0': {
-    symbol: symbolCommands.erase,
-    movement: movements.right
+    symbol: _machine().symbolCommands.erase,
+    movement: _machine().movements.right
   },
   '1$': {
-    movement: movements.left,
+    movement: _machine().movements.left,
     nextState: normalizeNumberPutNewStartSymbol
   }
 }, 'normalizeNumberMoveNumberStart');
-const normalizeNumber = new State({
+const normalizeNumber = new (_machine().State)({
   '^10$': {
     nextState: goToNumbersStart.withOverrodeHaltState(normalizeNumberMoveNumberStart)
   },
-  [ifOtherSymbol]: {
-    nextState: haltState
+  [_machine().ifOtherSymbol]: {
+    nextState: _machine().haltState
   }
 }, 'normalizeNumber');
-const plusOneFillZeros = new State({
+const plusOneFillZeros = new (_machine().State)({
   1: {
     symbol: '0',
-    movement: movements.right
+    movement: _machine().movements.right
   },
   $: {
-    nextState: haltState
+    nextState: _machine().haltState
   }
 }, 'plusOneFillZeros');
-const plusOneAddNumberStart = new State({
+const plusOneAddNumberStart = new (_machine().State)({
   [alphabet.blankSymbol]: {
     symbol: '^',
-    movement: movements.right
+    movement: _machine().movements.right
   },
   1: {
-    movement: movements.right,
+    movement: _machine().movements.right,
     nextState: plusOneFillZeros
   }
 }, 'plusOneAddNumberStart');
-const plusOneCaryOne = new State({
+const plusOneCaryOne = new (_machine().State)({
   0: {
     symbol: '1',
-    movement: movements.right,
+    movement: _machine().movements.right,
     nextState: plusOneFillZeros
   },
   1: {
-    movement: movements.left
+    movement: _machine().movements.left
   },
   '^': {
     symbol: '1',
-    movement: movements.left,
+    movement: _machine().movements.left,
     nextState: plusOneAddNumberStart
   }
 }, 'plusOneCaryOne');
-const plusOne = new State({
+const plusOne = new (_machine().State)({
   '^10': {
-    movement: movements.right
+    movement: _machine().movements.right
   },
   $: {
-    movement: movements.left,
+    movement: _machine().movements.left,
     nextState: plusOneCaryOne
   },
-  [ifOtherSymbol]: {
-    nextState: haltState
+  [_machine().ifOtherSymbol]: {
+    nextState: _machine().haltState
   }
 }, 'plusOne');
-const minusOne = new State({
+const minusOne = new (_machine().State)({
   '^10': {
-    movement: movements.right
+    movement: _machine().movements.right
   },
   $: {
     nextState: invertNumber.withOverrodeHaltState(plusOne.withOverrodeHaltState(invertNumber.withOverrodeHaltState(normalizeNumber)))
   },
-  [ifOtherSymbol]: {
-    nextState: haltState
+  [_machine().ifOtherSymbol]: {
+    nextState: _machine().haltState
   }
 }, 'minusOne');
-export default {
+var _default = {
   alphabet,
   states: {
     goToNumber,
@@ -173,3 +189,4 @@ export default {
     minusOne
   }
 };
+exports.default = _default;

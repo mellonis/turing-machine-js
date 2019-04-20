@@ -1,10 +1,20 @@
-import Alphabet from './Alphabet'; // keys for private properties of the Tape class
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _Alphabet = _interopRequireDefault(require("./Alphabet"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const tapeAlphabetKey = Symbol('tapeAlphabetKey');
 const tapeSymbolListKey = Symbol('tapeSymbolListKey');
 const tapePositionKey = Symbol('tapePositionKey');
 const tapeViewportWidthKey = Symbol('tapeViewportWidthKey');
-export default class Tape {
+
+class Tape {
   constructor({
     tapeSymbolList = [],
     position = 0,
@@ -18,13 +28,13 @@ export default class Tape {
       if (!alphabetSymbolList) {
         throw new Error('Invalid parameters');
       } else {
-        this[tapeAlphabetKey] = new Alphabet(alphabetSymbolList);
+        this[tapeAlphabetKey] = new _Alphabet.default(alphabetSymbolList);
         this[tapeSymbolListKey].push(this[tapeAlphabetKey].blankSymbol);
       }
     } else if (!alphabetSymbolList) {
-      this[tapeAlphabetKey] = new Alphabet(this[tapeSymbolListKey]);
+      this[tapeAlphabetKey] = new _Alphabet.default(this[tapeSymbolListKey]);
     } else {
-      this[tapeAlphabetKey] = new Alphabet(alphabetSymbolList);
+      this[tapeAlphabetKey] = new _Alphabet.default(alphabetSymbolList);
       const isValidTape = this[tapeSymbolListKey].every(symbol => this[tapeAlphabetKey].has(symbol));
 
       if (!isValidTape) {
@@ -103,3 +113,5 @@ export default class Tape {
   }
 
 }
+
+exports.default = Tape;

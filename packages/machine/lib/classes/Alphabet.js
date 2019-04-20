@@ -1,14 +1,21 @@
-import { uniquePredicate } from '../utilities/functions'; // keys for private properties of the Alphabet class
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _functions = require("../utilities/functions");
 
 const alphabetSymbolListKey = Symbol('alphabetSymbolListKey');
-export default class Alphabet {
+
+class Alphabet {
   constructor(symbolList = []) {
-    const uniqueSymbolList = symbolList.filter(uniquePredicate);
+    const uniqueSymbolList = symbolList.filter(_functions.uniquePredicate);
 
     if (uniqueSymbolList.length < 2) {
       throw new Error('Symbols array is too short');
-    } // todo: throw an error when invalid symbol
-
+    }
 
     uniqueSymbolList.every(symbol => typeof symbol === 'string' && symbol.length === 1);
     this[alphabetSymbolListKey] = Array.from(uniqueSymbolList);
@@ -39,3 +46,5 @@ export default class Alphabet {
   }
 
 }
+
+exports.default = Alphabet;

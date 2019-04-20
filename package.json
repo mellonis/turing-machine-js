@@ -2,12 +2,13 @@
   "name": "turing-machine-js",
   "private": true,
   "scripts": {
-    "lint": "NODE_PATH=node_modules eslint",
+    "lint": "eslint",
     "test": "jest"
   },
   "devDependencies": {
-    "@turing-machine-js/library-binary-numbers": "^0.2.0",
-    "@turing-machine-js/machine": "^0.2.0",
+    "@babel/preset-env": "^7.4.3",
+    "@turing-machine-js/library-binary-numbers": "^0.2.1",
+    "@turing-machine-js/machine": "^0.2.1",
     "babel-jest": "^24.7.1",
     "chalk": "^2.4.2",
     "eslint": "^5.16.0",

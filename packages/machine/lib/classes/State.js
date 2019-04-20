@@ -1,9 +1,21 @@
-import { uniquePredicate } from '../utilities/functions';
-import Command from './Command';
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.ifOtherSymbol = exports.haltState = exports.default = void 0;
+
+var _functions = require("../utilities/functions");
+
+var _Command = _interopRequireDefault(require("./Command"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 const stateSymbolToCommandMapKey = Symbol('stateSymbolToCommandMapKey');
 const stateOverrodeHaltStateKey = Symbol('stateOverrodeHaltStateKey');
 const stateNameKey = Symbol('stateNameKey');
 const ifOtherSymbol = Symbol('other symbol');
+exports.ifOtherSymbol = ifOtherSymbol;
 
 class State {
   constructor(stateDefinition = null, name) {
@@ -19,7 +31,7 @@ class State {
 
       const symbolList = keyList.join('').split('');
 
-      if (symbolList.length !== symbolList.filter(uniquePredicate).length) {
+      if (symbolList.length !== symbolList.filter(_functions.uniquePredicate).length) {
         isValidStateDefinition = false;
       }
 
@@ -29,7 +41,7 @@ class State {
 
       keyList.forEach(key => {
         key.split('').forEach(symbol => {
-          this[stateSymbolToCommandMapKey].set(symbol, new Command({
+          this[stateSymbolToCommandMapKey].set(symbol, new _Command.default({
             nextState: this,
             ...stateDefinition[key]
           }));
@@ -37,7 +49,7 @@ class State {
       });
 
       if (stateDefinition[ifOtherSymbol]) {
-        this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new Command({
+        this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new _Command.default({
           nextState: this,
           ...stateDefinition[ifOtherSymbol]
         }));
@@ -85,5 +97,6 @@ class State {
 
 }
 
+exports.default = State;
 const haltState = new State(null);
-export { State as default, haltState, ifOtherSymbol };
+exports.haltState = haltState;

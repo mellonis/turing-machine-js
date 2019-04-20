@@ -1,13 +1,20 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.symbolCommands = exports.movements = exports.default = void 0;
 const movements = {
   left: Symbol('move caret left command'),
   right: Symbol('move caret right command'),
   stay: Symbol('do not move carer')
 };
+exports.movements = movements;
 const symbolCommands = {
   erase: Symbol('erase symbol command'),
   keep: Symbol('keep symbol command')
-}; // keys for private properties of the Command class
-
+};
+exports.symbolCommands = symbolCommands;
 const commandSymbolKey = Symbol('commandSymbolKey');
 const commandMovementKey = Symbol('commandMovementKey');
 const commandNextStateKey = Symbol('commandNextStateKey');
@@ -49,4 +56,4 @@ class Command {
 
 }
 
-export { Command as default, movements, symbolCommands };
+exports.default = Command;
