@@ -1,0 +1,30 @@
+{
+  "name": "@turing-machine-js/library-binary-numbers",
+  "version": "0.2.0",
+  "description": "A standard library for working with binary numbers",
+  "module": "binaryNumbers.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mellonis/turing-machine-js.git",
+    "directory": "src/packages/binary-numbers"
+  },
+  "keywords": [
+    "turing",
+    "machine",
+    "plugin",
+    "binary",
+    "numbers"
+  ],
+  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/mellonis/turing-machine-js/issues"
+  },
+  "homepage": "https://github.com/mellonis/turing-machine-js#readme",
+  "dependencies": {
+    "@turing-machine-js/machine": "^0.2.0"
+  }
+}

@@ -1,11 +1,6 @@
-import {
-  Alphabet,
-  haltState,
-  ifOtherSymbol,
-  movements,
-  State,
-  symbolCommands,
-} from '../TuringMachine';
+import Alphabet from '../../classes/Alphabet';
+import State, { haltState, ifOtherSymbol } from '../../classes/State';
+import { movements, symbolCommands } from '../../classes/Command';
 
 const alphabet = new Alphabet(' ^$01'.split(''));
 
