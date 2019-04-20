@@ -16,30 +16,27 @@ const tapeViewportWidthKey = Symbol('tapeViewportWidthKey');
 
 class Tape {
   constructor({
-    tapeSymbolList = [],
+    alphabet,
+    symbolList = [],
     position = 0,
-    alphabetSymbolList = null,
     viewportWidth = 1
-  }) {
+  } = {}) {
+    if (!(alphabet instanceof _Alphabet.default)) {
+      throw new Error('Invalid alphabet');
+    }
+
+    const isSymbolListValid = symbolList.every(symbol => alphabet.has(symbol));
+
+    if (!isSymbolListValid) {
+      throw new Error('symbolList contains invalid symbol');
+    }
+
+    this[tapeAlphabetKey] = new _Alphabet.default(alphabet);
+    this[tapeSymbolListKey] = Array.from(symbolList);
     this[tapePositionKey] = position;
-    this[tapeSymbolListKey] = Array.from(tapeSymbolList);
 
     if (this[tapeSymbolListKey].length === 0) {
-      if (!alphabetSymbolList) {
-        throw new Error('Invalid parameters');
-      } else {
-        this[tapeAlphabetKey] = new _Alphabet.default(alphabetSymbolList);
-        this[tapeSymbolListKey].push(this[tapeAlphabetKey].blankSymbol);
-      }
-    } else if (!alphabetSymbolList) {
-      this[tapeAlphabetKey] = new _Alphabet.default(this[tapeSymbolListKey]);
-    } else {
-      this[tapeAlphabetKey] = new _Alphabet.default(alphabetSymbolList);
-      const isValidTape = this[tapeSymbolListKey].every(symbol => this[tapeAlphabetKey].has(symbol));
-
-      if (!isValidTape) {
-        throw new Error('Invalid tapeSymbolList');
-      }
+      this[tapeSymbolListKey].push(this[tapeAlphabetKey].blankSymbol);
     }
 
     this[tapeSymbolListKey] = this[tapeSymbolListKey].map(symbol => this[tapeAlphabetKey].index(symbol));
@@ -50,6 +47,18 @@ class Tape {
     return this[tapeAlphabetKey];
   }
 
+  get extraCellsCount() {
+    return (this[tapeViewportWidthKey] - 1) / 2;
+  }
+
+  get position() {
+    return this[tapePositionKey];
+  }
+
+  get symbol() {
+    return this[tapeAlphabetKey].get(this[tapeSymbolListKey][this[tapePositionKey]]);
+  }
+
   set symbol(symbol) {
     if (!this[tapeAlphabetKey].has(symbol)) {
       throw new Error('Invalid symbol');
@@ -58,11 +67,11 @@ class Tape {
     this[tapeSymbolListKey][this[tapePositionKey]] = this[tapeAlphabetKey].index(symbol);
   }
 
-  get symbol() {
-    return this[tapeAlphabetKey].get(this[tapeSymbolListKey][this[tapePositionKey]]);
+  get symbolList() {
+    return this[tapeSymbolListKey].map(index => this[tapeAlphabetKey].get(index));
   }
 
-  get symbolList() {
+  get viewport() {
     const startIx = this[tapePositionKey] - this.extraCellsCount;
     const endIx = this[tapePositionKey] + this.extraCellsCount + 1;
     return this[tapeSymbolListKey].slice(startIx, endIx).map(index => this[tapeAlphabetKey].get(index));
@@ -76,7 +85,7 @@ class Tape {
     let finalWidth = width;
 
     if (finalWidth < 1) {
-      throw new Error('Invalid width');
+      throw new Error('Invalid viewportWidth');
     }
 
     if (finalWidth % 2 === 0) {
@@ -87,8 +96,9 @@ class Tape {
     this.normalise();
   }
 
-  get extraCellsCount() {
-    return (this[tapeViewportWidthKey] - 1) / 2;
+  left() {
+    this[tapePositionKey] -= 1;
+    this.normalise();
   }
 
   normalise() {
@@ -104,11 +114,6 @@ class Tape {
 
   right() {
     this[tapePositionKey] += 1;
-    this.normalise();
-  }
-
-  left() {
-    this[tapePositionKey] -= 1;
     this.normalise();
   }
 

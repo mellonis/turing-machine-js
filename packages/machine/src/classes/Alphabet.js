@@ -4,7 +4,7 @@ import { uniquePredicate } from '../utilities/functions';
 const alphabetSymbolListKey = Symbol('alphabetSymbolListKey');
 
 export default class Alphabet {
-  constructor(symbolList = []) {
+  constructor({ symbolList = [] } = {}) {
     const uniqueSymbolList = symbolList.filter(uniquePredicate);
 
     if (uniqueSymbolList.length < 2) {

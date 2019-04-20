@@ -10,7 +10,9 @@ var _functions = require("../utilities/functions");
 const alphabetSymbolListKey = Symbol('alphabetSymbolListKey');
 
 class Alphabet {
-  constructor(symbolList = []) {
+  constructor({
+    symbolList = []
+  } = {}) {
     const uniqueSymbolList = symbolList.filter(_functions.uniquePredicate);
 
     if (uniqueSymbolList.length < 2) {
