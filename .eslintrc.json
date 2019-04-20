@@ -15,6 +15,20 @@
     "ecmaVersion": 9,
     "sourceType": "module"
   },
-  "rules": {
-  }
+  "overrides": [
+    {
+      "files": [
+        "packages/*/test/**/*.js",
+        "codemods/*/test/**/*.js",
+        "packages/babel-helper-transform-fixture-test-runner/src/helpers.js",
+        "test/**/*.js"
+      ],
+      "env": {
+        "jest": true
+      },
+      "rules": {
+        "import/no-extraneous-dependencies": 0
+      }
+    }
+  ]
 }

@@ -3,12 +3,14 @@
   "private": true,
   "scripts": {
     "lint": "eslint",
-    "test": "jest"
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.4.3",
     "@turing-machine-js/library-binary-numbers": "^0.2.2",
     "@turing-machine-js/machine": "^0.2.2",
+    "@types/jest": "^24.0.11",
     "babel-jest": "^24.7.1",
     "chalk": "^2.4.2",
     "eslint": "^5.16.0",
@@ -56,7 +58,7 @@
       "/node_modules/"
     ],
     "moduleNameMapper": {
-      "^@turing-machine-js/([a-zA-Z0-9_-]+)$": "<rootDir>/package/$1/"
+      "^@turing-machine-js/([a-zA-Z0-9_-]+)$": "<rootDir>/packages/$1/"
     }
   }
 }
