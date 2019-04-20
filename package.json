@@ -1,32 +1,61 @@
 {
-  "name": "@turing-machine-js/machine",
-  "version": "0.2.0",
-  "description": "A convenient Turing machine",
-  "module": "lib/index.js",
+  "name": "turing-machine-js",
+  "private": true,
   "scripts": {
-    "lint": "eslint",
-    "build": "babel ./src -d ./lib",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "NODE_PATH=node_modules eslint",
+    "test": "jest"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mellonis/turing-machine-js.git"
-  },
-  "keywords": [
-    "turing",
-    "machine"
-  ],
-  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
-  "license": "GPL-3.0-or-later",
-  "bugs": {
-    "url": "https://github.com/mellonis/turing-machine-js/issues"
-  },
-  "homepage": "https://github.com/mellonis/turing-machine-js#readme",
   "devDependencies": {
-    "@babel/cli": "^7.4.3",
-    "@babel/core": "^7.4.3",
+    "@turing-machine-js/library-binary-numbers": "^0.2.0",
+    "@turing-machine-js/machine": "^0.2.0",
+    "babel-jest": "^24.7.1",
+    "chalk": "^2.4.2",
     "eslint": "^5.16.0",
     "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.16.0"
+    "eslint-plugin-import": "^2.16.0",
+    "fancy-log": "^1.3.3",
+    "gulp": "^4.0.0",
+    "gulp-babel": "^8.0.0",
+    "gulp-newer": "^1.4.0",
+    "gulp-plumber": "^1.2.1",
+    "gulp-watch": "^5.0.1",
+    "jest": "^24.7.1",
+    "lerna": "^3.13.3",
+    "merge-stream": "^1.0.1",
+    "through2": "^3.0.1"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --format=codeframe"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "packages/*/src/**/*.mjs",
+      "packages/*/src/**/*.js"
+    ],
+    "testRegex": "./packages/[^/]+/test/.+\\.m?js$",
+    "testPathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/test/testSetupFile.js"
+    ],
+    "transformIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/packages/[^/]+/lib/"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "moduleNameMapper": {
+      "^@turing-machine-js/([a-zA-Z0-9_-]+)$": "<rootDir>/package/$1/"
+    }
   }
 }
