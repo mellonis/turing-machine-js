@@ -15,7 +15,9 @@ function _machine() {
   return data;
 }
 
-const alphabet = new (_machine().Alphabet)(' ^$01'.split(''));
+const alphabet = new (_machine().Alphabet)({
+  symbolList: ' ^$01'.split('')
+});
 const goToNumber = new (_machine().State)({
   $: {
     nextState: _machine().haltState

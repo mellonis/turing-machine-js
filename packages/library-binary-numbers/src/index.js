@@ -7,7 +7,9 @@ import {
   symbolCommands,
 } from '@turing-machine-js/machine';
 
-const alphabet = new Alphabet(' ^$01'.split(''));
+const alphabet = new Alphabet({
+  symbolList: ' ^$01'.split(''),
+});
 
 const goToNumber = new State({
   $: {
