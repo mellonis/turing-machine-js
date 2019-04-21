@@ -21,11 +21,38 @@ yarn add @turing-machine-js/machine --dev
 
 ### Command
 
+### Reference
+
 ### State
 
 ### Tape
 
 ### TuringMachine
+
+## Special objects
+
+### haltState
+
+A special state which tells to the processor to stop
+
+### ifOtherSymbol
+
+A special symbol for representing the other symbols in `State` class definition
+
+### movements
+
+* left - move the head to the left
+* right - move the head to the right
+* stay - do not move the head
+
+### symbolCommands
+
+* erase - write the blank symbol
+* keep - leave the current symbol
+
+## Libraries
+
+- `@turing-machine-js/library-binary-numbers`
 
 ## Links
 
