@@ -57,6 +57,12 @@ Object.defineProperty(exports, "ifOtherSymbol", {
     return _State.ifOtherSymbol;
   }
 });
+Object.defineProperty(exports, "Reference", {
+  enumerable: true,
+  get: function () {
+    return _classes.Reference;
+  }
+});
 
 var _TuringMachine = _interopRequireDefault(require("./classes/TuringMachine"));
 
@@ -67,6 +73,8 @@ var _Tape = _interopRequireDefault(require("./classes/Tape"));
 var _Command = _interopRequireWildcard(require("./classes/Command"));
 
 var _State = _interopRequireWildcard(require("./classes/State"));
+
+var _classes = require("./utilities/classes");
 
 function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
 

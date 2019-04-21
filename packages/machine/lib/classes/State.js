@@ -7,20 +7,23 @@ exports.ifOtherSymbol = exports.haltState = exports.default = void 0;
 
 var _functions = require("../utilities/functions");
 
+var _classes = require("../utilities/classes");
+
 var _Command = _interopRequireDefault(require("./Command"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const stateSymbolToCommandMapKey = Symbol('stateSymbolToCommandMapKey');
 const stateOverrodeHaltStateKey = Symbol('stateOverrodeHaltStateKey');
-const stateNameKey = Symbol('stateNameKey');
+const stateIdKey = Symbol('stateNameKey');
 const ifOtherSymbol = Symbol('other symbol');
 exports.ifOtherSymbol = ifOtherSymbol;
 
 class State {
-  constructor(stateDefinition = null, name) {
+  constructor(stateDefinition = null) {
+    this[stateIdKey] = (0, _functions.id)(this);
+
     if (stateDefinition) {
-      this[stateNameKey] = typeof name === 'string' ? name : null;
       this[stateSymbolToCommandMapKey] = new Map();
       let isValidStateDefinition = true;
       const keyList = Object.keys(stateDefinition);
@@ -40,22 +43,30 @@ class State {
       }
 
       keyList.forEach(key => {
-        key.split('').forEach(symbol => {
-          this[stateSymbolToCommandMapKey].set(symbol, new _Command.default({
-            nextState: this,
-            ...stateDefinition[key]
-          }));
-        });
+        const nextState = stateDefinition[key].nextState || this;
+
+        if (nextState instanceof State || nextState instanceof _classes.Reference) {
+          key.split('').forEach(symbol => {
+            this[stateSymbolToCommandMapKey].set(symbol, new _Command.default({ ...stateDefinition[key],
+              nextState
+            }));
+          });
+        } else {
+          throw new Error('Invalid nextState');
+        }
       });
 
       if (stateDefinition[ifOtherSymbol]) {
-        this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new _Command.default({
-          nextState: this,
-          ...stateDefinition[ifOtherSymbol]
-        }));
+        const nextState = stateDefinition[ifOtherSymbol].nextState || this;
+
+        if (nextState instanceof State || nextState instanceof _classes.Reference) {
+          this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new _Command.default({ ...stateDefinition[ifOtherSymbol],
+            nextState
+          }));
+        } else {
+          throw new Error('Invalid nextState');
+        }
       }
-    } else {
-      this[stateNameKey] = '__HALT__';
     }
   }
 
@@ -72,26 +83,30 @@ class State {
       return this[stateSymbolToCommandMapKey].get(ifOtherSymbol);
     }
 
-    throw new Error(`No command for symbol '${symbol}' at state named ${this[stateNameKey]}`);
+    throw new Error(`No command for symbol '${symbol}' at state named ${this[stateIdKey]}`);
   }
 
   get isHalt() {
     return !this[stateSymbolToCommandMapKey];
   }
 
-  get name() {
-    return this[stateNameKey];
+  get id() {
+    return this[stateIdKey];
   }
 
   get overrodeHaltState() {
     return this[stateOverrodeHaltStateKey];
   }
 
+  get ref() {
+    return this;
+  }
+
   withOverrodeHaltState(overrodeHaltState) {
     const state = new State(null);
     state[stateSymbolToCommandMapKey] = this[stateSymbolToCommandMapKey];
     state[stateOverrodeHaltStateKey] = overrodeHaltState;
-    state[stateNameKey] = `${this[stateNameKey]}>${overrodeHaltState[stateNameKey]}`;
+    state[stateIdKey] = `${this[stateIdKey]}>${overrodeHaltState[stateIdKey]}`;
     return state;
   }
 

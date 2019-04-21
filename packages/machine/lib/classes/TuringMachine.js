@@ -9,6 +9,8 @@ var _State = _interopRequireDefault(require("./State"));
 
 var _Command = require("./Command");
 
+var _classes = require("../utilities/classes");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const tapeTapeKey = Symbol('commandSymbolKey');
@@ -35,10 +37,11 @@ class TuringMachine {
       throw new Error('Invalid parameters');
     }
 
+    const stack = this[tapeStackKey];
     let state = initialState;
 
     if (state.overrodeHaltState) {
-      this[tapeStackKey].push(state.overrodeHaltState);
+      stack.push(state.overrodeHaltState);
     }
 
     let i = 0;
@@ -49,13 +52,14 @@ class TuringMachine {
       }
 
       i += 1;
-      const currentSymbol = this[tapeTapeKey].symbol;
+      const tape = this[tapeTapeKey];
+      const currentSymbol = tape.symbol;
       const command = state.getCommand(currentSymbol);
       let nextSymbol;
 
       switch (command.symbol) {
         case _Command.symbolCommands.erase:
-          nextSymbol = this[tapeTapeKey].alphabet.blankSymbol;
+          nextSymbol = tape.alphabet.blankSymbol;
           break;
 
         case _Command.symbolCommands.keep:
@@ -67,17 +71,16 @@ class TuringMachine {
           break;
       }
 
-      const {
-        movement: nextMovement,
-        nextState
-      } = command;
+      const nextMovement = command.movement;
 
-      if (!(nextState instanceof _State.default)) {
+      if (!(command.nextState instanceof _State.default || command.nextState instanceof _classes.Reference)) {
         throw new Error('Invalid nextState');
       }
 
+      let nextState = command.nextState.ref;
+
       try {
-        const nextStateForYield = nextState.isHalt && this[tapeStackKey].length ? this[tapeStackKey].slice(-1)[0] : nextState;
+        const nextStateForYield = nextState.isHalt && stack.length ? stack.slice(-1)[0] : nextState;
         yield {
           step: i,
           state,
@@ -90,29 +93,27 @@ class TuringMachine {
         throw new Error(`Execution halted because of ${e.message}`);
       }
 
-      this[tapeTapeKey].symbol = nextSymbol;
+      tape.symbol = nextSymbol;
 
       switch (nextMovement) {
         case _Command.movements.left:
-          this[tapeTapeKey].left();
+          tape.left();
           break;
 
         case _Command.movements.right:
-          this[tapeTapeKey].right();
+          tape.right();
           break;
       }
 
-      let finalNextState = nextState;
-
-      if (finalNextState.isHalt && this[tapeStackKey].length) {
-        finalNextState = this[tapeStackKey].pop();
+      if (nextState.isHalt && stack.length) {
+        nextState = stack.pop();
       }
 
-      if (state !== finalNextState && finalNextState.overrodeHaltState) {
-        this[tapeStackKey].push(finalNextState.overrodeHaltState);
+      if (state !== nextState && nextState.overrodeHaltState) {
+        stack.push(nextState.overrodeHaltState);
       }
 
-      state = finalNextState;
+      state = nextState;
     }
   }
 

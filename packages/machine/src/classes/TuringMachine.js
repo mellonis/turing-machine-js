@@ -1,5 +1,6 @@
 import State from './State';
 import { movements, symbolCommands } from './Command';
+import { Reference } from '../utilities/classes';
 
 // keys for private properties of the TuringMachine class
 const tapeTapeKey = Symbol('commandSymbolKey');
@@ -27,10 +28,11 @@ class TuringMachine {
       throw new Error('Invalid parameters');
     }
 
+    const stack = this[tapeStackKey];
     let state = initialState;
 
     if (state.overrodeHaltState) {
-      this[tapeStackKey].push(state.overrodeHaltState);
+      stack.push(state.overrodeHaltState);
     }
 
     let i = 0;
@@ -42,14 +44,15 @@ class TuringMachine {
 
       i += 1;
 
-      const currentSymbol = this[tapeTapeKey].symbol;
+      const tape = this[tapeTapeKey];
+      const currentSymbol = tape.symbol;
       const command = state.getCommand(currentSymbol);
 
       let nextSymbol;
 
       switch (command.symbol) {
         case symbolCommands.erase:
-          nextSymbol = this[tapeTapeKey].alphabet.blankSymbol;
+          nextSymbol = tape.alphabet.blankSymbol;
           break;
         case symbolCommands.keep:
           nextSymbol = currentSymbol;
@@ -59,17 +62,22 @@ class TuringMachine {
           break;
       }
 
-      const { movement: nextMovement, nextState } = command;
+      const nextMovement = command.movement;
 
-      if (!(nextState instanceof State)) {
+      if (!(
+        command.nextState instanceof State
+        || command.nextState instanceof Reference
+      )) {
         throw new Error('Invalid nextState');
       }
+
+      let nextState = command.nextState.ref;
 
       // before apply
 
       try {
-        const nextStateForYield = nextState.isHalt && this[tapeStackKey].length
-          ? this[tapeStackKey].slice(-1)[0]
+        const nextStateForYield = nextState.isHalt && stack.length
+          ? stack.slice(-1)[0]
           : nextState;
 
         yield {
@@ -86,30 +94,28 @@ class TuringMachine {
 
       // apply
 
-      this[tapeTapeKey].symbol = nextSymbol;
+      tape.symbol = nextSymbol;
 
       switch (nextMovement) {
         case movements.left:
-          this[tapeTapeKey].left();
+          tape.left();
           break;
         case movements.right:
-          this[tapeTapeKey].right();
+          tape.right();
           break;
 
         // no default
       }
 
-      let finalNextState = nextState;
-
-      if (finalNextState.isHalt && this[tapeStackKey].length) {
-        finalNextState = this[tapeStackKey].pop();
+      if (nextState.isHalt && stack.length) {
+        nextState = stack.pop();
       }
 
-      if (state !== finalNextState && finalNextState.overrodeHaltState) {
-        this[tapeStackKey].push(finalNextState.overrodeHaltState);
+      if (state !== nextState && nextState.overrodeHaltState) {
+        stack.push(nextState.overrodeHaltState);
       }
 
-      state = finalNextState;
+      state = nextState;
     }
   }
 }
