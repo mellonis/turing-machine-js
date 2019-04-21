@@ -32,7 +32,7 @@ There is no ability to work with negative numbers a this time.
 
 This library provides following objects to work with binary numbers:
 - `alphabet` - an `Alphabet` class instance which contains following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
-- `steps` - following `States` class instances which represent some algorithms:
+- `states` - following `States` class instances which represent some algorithms:
     - `goToNumber` - move the head to the number's end
     - `goToNextNumber` - move the head to the next number (to the right)
     - `goToPreviousNumber` - move the head to the previous number (to the left)
