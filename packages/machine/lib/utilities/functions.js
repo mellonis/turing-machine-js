@@ -14,8 +14,8 @@ const idWeakMapKey = Symbol('idWeakMapKey');
 
 function id(object) {
   if (!id[idWeakMapKey].has(object)) {
-    id[idKey] += 1;
     id[idWeakMapKey].set(object, id[idKey]);
+    id[idKey] += 1;
   }
 
   return id[idWeakMapKey].get(object);
