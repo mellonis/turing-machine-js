@@ -3,7 +3,7 @@ import {
   State,
   ifOtherSymbol,
   movements,
-  symbolCommands,
+  symbolCommands, haltState,
 } from '@turing-machine-js/machine';
 
 describe('State constructor', () => {
@@ -145,5 +145,64 @@ describe('State constructor', () => {
       .toBe(movements.stay);
     expect(commandForZero.symbol)
       .toBe(symbolCommands.keep);
+  });
+
+  test('invalid symbol: zero length', () => {
+    expect(() => new State({
+      '': {},
+    })).toThrowError('Invalid state definition');
+  });
+
+  test('invalid symbol: duplication in one key', () => {
+    expect(() => new State({
+      aa: {},
+    })).toThrowError('Invalid state definition');
+  });
+
+  test('invalid symbol: duplication in different keys', () => {
+    expect(() => new State({
+      ab: {},
+      ba: {},
+    })).toThrowError('Invalid state definition');
+  });
+
+  test('invalid nextStep for ifOtherSymbol', () => {
+    expect(() => new State({
+      a: {
+        nextState: '',
+      },
+    })).toThrowError('Invalid nextState');
+  });
+
+  test('invalid nextStep for ifOtherSymbol', () => {
+    expect(() => new State({
+      [ifOtherSymbol]: {
+        nextState: '',
+      },
+    })).toThrowError('Invalid nextState');
+  });
+});
+
+describe('properties', () => {
+  test('has id', () => {
+    expect(new State().id).toBeDefined();
+  });
+});
+describe('methods', () => {
+  test('getCommand: invalid symbol', () => {
+    expect(() => new State().getCommand('')).toThrowError('Invalid symbol');
+    expect(() => new State().getCommand('AA')).toThrowError('Invalid symbol');
+  });
+
+  test('getCommand: no command for the symbol', () => {
+    expect(() => new State().getCommand(' ')).toThrowError(/^No command for symbol '.' at state named/);
+    expect(() => new State({}).getCommand(' ')).toThrowError(/^No command for symbol '.' at state named/);
+  });
+
+  test('withOverrodeHaltState', () => {
+    const state = new State();
+    const state2 = state.withOverrodeHaltState(haltState);
+
+    expect(state2.id).toBe(`${state.id}>${haltState.id}`);
   });
 });

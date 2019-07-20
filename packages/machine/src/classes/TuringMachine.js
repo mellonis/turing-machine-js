@@ -1,12 +1,11 @@
 import State from './State';
 import { movements, symbolCommands } from './Command';
-import { Reference } from '../utilities/classes';
 
 // keys for private properties of the TuringMachine class
 const tapeTapeKey = Symbol('commandSymbolKey');
 const tapeStackKey = Symbol('commandMovementKey');
 
-class TuringMachine {
+export default class TuringMachine {
   constructor(tape = null) {
     this[tapeTapeKey] = tape;
     this[tapeStackKey] = [];
@@ -63,14 +62,6 @@ class TuringMachine {
       }
 
       const nextMovement = command.movement;
-
-      if (!(
-        command.nextState instanceof State
-        || command.nextState instanceof Reference
-      )) {
-        throw new Error('Invalid nextState');
-      }
-
       let nextState = command.nextState.ref;
 
       // before apply
@@ -119,7 +110,3 @@ class TuringMachine {
     }
   }
 }
-
-export {
-  TuringMachine as default,
-};

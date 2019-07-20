@@ -74,6 +74,26 @@ describe('run tests', () => {
       .toBe(0);
   });
 
+  test('stepLimit', () => {
+    const symbolList = alphabet.symbolList.slice(1, alphabet.symbolList.length);
+    const tape = new Tape({
+      alphabet,
+      symbolList,
+    });
+    const machine = new TuringMachine(tape);
+    const initialState = new State({
+      [symbolList.join('')]: {
+        symbol: symbolCommands.erase,
+        movement: movements.right,
+      },
+      [ifOtherSymbol]: {
+        nextState: haltState,
+      },
+    });
+
+    expect(() => machine.run(initialState, 1)).toThrowError('Long execution');
+  });
+
   test('stepByStep', () => {
     const symbolList = alphabet.symbolList.slice(1, alphabet.symbolList.length);
     const tape = new Tape({
@@ -138,5 +158,29 @@ describe('run tests', () => {
 
     expect(tape.symbolList.join('').trim().length)
       .toBe(0);
+  });
+
+  test('stepByStep stop execution', () => {
+    const symbolList = alphabet.symbolList.slice(1, alphabet.symbolList.length);
+    const tape = new Tape({
+      alphabet,
+      symbolList,
+    });
+    const machine = new TuringMachine(tape);
+    const initialState = new State({
+      [symbolList.join('')]: {
+        symbol: symbolCommands.erase,
+        movement: movements.right,
+      },
+      [ifOtherSymbol]: {
+        nextState: haltState,
+      },
+    });
+    const iterator = machine.runStepByStep(initialState, 1e5);
+
+    expect(() => {
+      iterator.next();
+      iterator.throw(new Error('STOP'));
+    }).toThrowError('Execution halted because of STOP');
   });
 });

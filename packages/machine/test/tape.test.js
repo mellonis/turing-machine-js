@@ -44,6 +44,21 @@ describe('Tape constructor', () => {
     expect(tape.viewportWidth)
       .toEqual(tapeCopy.viewportWidth);
   });
+
+  test('invalid symbol', () => {
+    expect(() => {
+      const alphabet = new Alphabet({
+        symbolList: ['0', '1'],
+      });
+
+      // eslint-disable-next-line no-new
+      new Tape({
+        alphabet,
+        symbolList: ['a'],
+      });
+    })
+      .toThrowError('symbolList contains invalid symbol');
+  });
 });
 
 describe('Tape properties', () => {

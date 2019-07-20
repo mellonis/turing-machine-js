@@ -1,5 +1,6 @@
 import { id, uniquePredicate } from '../utilities/functions';
 import { Reference } from '../utilities/classes';
+// eslint-disable-next-line import/no-cycle
 import Command from './Command';
 
 const stateSymbolToCommandMapKey = Symbol('stateSymbolToCommandMapKey');
@@ -32,7 +33,9 @@ class State {
       }
 
       keyList.forEach((key) => {
-        const nextState = stateDefinition[key].nextState || this;
+        const nextState = stateDefinition[key].nextState == null
+          ? this
+          : stateDefinition[key].nextState;
 
         if (nextState instanceof State || nextState instanceof Reference) {
           key.split('').forEach((symbol) => {
@@ -47,7 +50,9 @@ class State {
       });
 
       if (stateDefinition[ifOtherSymbol]) {
-        const nextState = stateDefinition[ifOtherSymbol].nextState || this;
+        const nextState = stateDefinition[ifOtherSymbol].nextState == null
+          ? this
+          : stateDefinition[ifOtherSymbol].nextState;
 
         if (nextState instanceof State || nextState instanceof Reference) {
           this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new Command({
@@ -66,11 +71,11 @@ class State {
       throw new Error('Invalid symbol');
     }
 
-    if (this[stateSymbolToCommandMapKey].has(symbol)) {
+    if (this[stateSymbolToCommandMapKey] && this[stateSymbolToCommandMapKey].has(symbol)) {
       return this[stateSymbolToCommandMapKey].get(symbol);
     }
 
-    if (this[stateSymbolToCommandMapKey].has(ifOtherSymbol)) {
+    if (this[stateSymbolToCommandMapKey] && this[stateSymbolToCommandMapKey].has(ifOtherSymbol)) {
       return this[stateSymbolToCommandMapKey].get(ifOtherSymbol);
     }
 

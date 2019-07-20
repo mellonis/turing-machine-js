@@ -107,7 +107,7 @@ describe('Alphabet properties', () => {
       .toThrow('Invalid index');
   });
 
-  test('index', () => {
+  test('test.js', () => {
     const areAllIndexesCorrect = alphabetSymbols.split('')
       .every((symbol, index) => index === alphabet.index(symbol));
 
