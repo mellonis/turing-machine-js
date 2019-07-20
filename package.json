@@ -1,64 +1,26 @@
 {
   "name": "turing-machine-js",
   "private": true,
+  "version": "0.2.6",
+  "description": "",
   "scripts": {
     "lint": "eslint",
-    "test": "jest --coverage",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch"
   },
+  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
+  "workspaces": [
+    "packages/*"
+  ],
   "devDependencies": {
-    "@babel/preset-env": "^7.4.3",
-    "@turing-machine-js/library-binary-numbers": "^0.2.6",
-    "@turing-machine-js/machine": "^0.2.6",
-    "@types/jest": "^24.0.11",
-    "babel-jest": "^24.7.1",
-    "chalk": "^2.4.2",
-    "eslint": "^5.16.0",
-    "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.16.0",
-    "fancy-log": "^1.3.3",
-    "gulp": "^4.0.0",
-    "gulp-babel": "^8.0.0",
-    "gulp-newer": "^1.4.0",
-    "gulp-plumber": "^1.2.1",
-    "gulp-watch": "^5.0.1",
-    "jest": "^24.7.1",
-    "lerna": "^3.13.3",
-    "merge-stream": "^1.0.1",
-    "through2": "^3.0.1"
-  },
-  "lint-staged": {
-    "*.js": [
-      "eslint --format=codeframe"
-    ]
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
-  "jest": {
-    "collectCoverageFrom": [
-      "packages/*/src/**/*.mjs",
-      "packages/*/src/**/*.js"
-    ],
-    "testRegex": "./packages/[^/]+/test/.+\\.m?js$",
-    "testPathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "testEnvironment": "node",
-    "setupFilesAfterEnv": [
-      "<rootDir>/test/testSetupFile.js"
-    ],
-    "transformIgnorePatterns": [
-      "/node_modules/",
-      "<rootDir>/packages/[^/]+/lib/"
-    ],
-    "coveragePathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "moduleNameMapper": {
-      "^@turing-machine-js/([a-zA-Z0-9_-]+)$": "<rootDir>/packages/$1/"
-    }
+    "@babel/core": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
+    "@types/jest": "^24.0.15",
+    "babel-jest": "^24.8.0",
+    "eslint": "^6.0.1",
+    "eslint-config-airbnb": "^17.1.1",
+    "eslint-plugin-import": "^2.18.1",
+    "jest": "^24.8.0",
+    "lerna": "^3.16.0"
   }
 }

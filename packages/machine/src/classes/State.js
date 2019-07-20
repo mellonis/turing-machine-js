@@ -32,7 +32,7 @@ class State {
       }
 
       keyList.forEach((key) => {
-        const nextState = stateDefinition[key] || this;
+        const nextState = stateDefinition[key].nextState || this;
 
         if (nextState instanceof State || nextState instanceof Reference) {
           key.split('').forEach((symbol) => {
@@ -47,7 +47,7 @@ class State {
       });
 
       if (stateDefinition[ifOtherSymbol]) {
-        const nextState = stateDefinition[ifOtherSymbol] || this;
+        const nextState = stateDefinition[ifOtherSymbol].nextState || this;
 
         if (nextState instanceof State || nextState instanceof Reference) {
           this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new Command({
