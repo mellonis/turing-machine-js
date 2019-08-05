@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-cycle
 import State from './State';
 import Reference from './Reference';
 
@@ -13,7 +14,9 @@ const symbolCommands = {
 
 class Command {
   #symbol;
+
   #movement;
+
   #nextState;
 
   constructor({

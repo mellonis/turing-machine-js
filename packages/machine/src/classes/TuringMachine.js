@@ -3,6 +3,7 @@ import { movements, symbolCommands } from './Command';
 
 export default class TuringMachine {
   #tape;
+
   #stack;
 
   constructor(tape = null) {

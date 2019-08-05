@@ -1,12 +1,15 @@
 import { id, uniquePredicate } from '../utilities/functions';
 import Reference from './Reference';
+// eslint-disable-next-line import/no-cycle
 import Command from './Command';
 
 const ifOtherSymbol = Symbol('other symbol');
 
 class State {
   #stateId;
+
   #stateSymbolToCommandMap;
+
   #stateOverrodeHaltState;
 
   constructor(stateDefinition = null) {
