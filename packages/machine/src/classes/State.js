@@ -1,19 +1,19 @@
 import { id, uniquePredicate } from '../utilities/functions';
-import { Reference } from '../utilities/classes';
-// eslint-disable-next-line import/no-cycle
+import Reference from './Reference';
 import Command from './Command';
 
-const stateSymbolToCommandMapKey = Symbol('stateSymbolToCommandMapKey');
-const stateOverrodeHaltStateKey = Symbol('stateOverrodeHaltStateKey');
-const stateIdKey = Symbol('stateNameKey');
 const ifOtherSymbol = Symbol('other symbol');
 
 class State {
+  #stateId;
+  #stateSymbolToCommandMap;
+  #stateOverrodeHaltState;
+
   constructor(stateDefinition = null) {
-    this[stateIdKey] = id(this);
+    this.#stateId = id(this);
 
     if (stateDefinition) {
-      this[stateSymbolToCommandMapKey] = new Map();
+      this.#stateSymbolToCommandMap = new Map();
 
       let isValidStateDefinition = true;
       const keyList = Object.keys(stateDefinition);
@@ -39,7 +39,7 @@ class State {
 
         if (nextState instanceof State || nextState instanceof Reference) {
           key.split('').forEach((symbol) => {
-            this[stateSymbolToCommandMapKey].set(symbol, new Command({
+            this.#stateSymbolToCommandMap.set(symbol, new Command({
               ...stateDefinition[key],
               nextState,
             }));
@@ -55,7 +55,7 @@ class State {
           : stateDefinition[ifOtherSymbol].nextState;
 
         if (nextState instanceof State || nextState instanceof Reference) {
-          this[stateSymbolToCommandMapKey].set(ifOtherSymbol, new Command({
+          this.#stateSymbolToCommandMap.set(ifOtherSymbol, new Command({
             ...stateDefinition[ifOtherSymbol],
             nextState,
           }));
@@ -71,27 +71,27 @@ class State {
       throw new Error('Invalid symbol');
     }
 
-    if (this[stateSymbolToCommandMapKey] && this[stateSymbolToCommandMapKey].has(symbol)) {
-      return this[stateSymbolToCommandMapKey].get(symbol);
+    if (this.#stateSymbolToCommandMap && this.#stateSymbolToCommandMap.has(symbol)) {
+      return this.#stateSymbolToCommandMap.get(symbol);
     }
 
-    if (this[stateSymbolToCommandMapKey] && this[stateSymbolToCommandMapKey].has(ifOtherSymbol)) {
-      return this[stateSymbolToCommandMapKey].get(ifOtherSymbol);
+    if (this.#stateSymbolToCommandMap && this.#stateSymbolToCommandMap.has(ifOtherSymbol)) {
+      return this.#stateSymbolToCommandMap.get(ifOtherSymbol);
     }
 
-    throw new Error(`No command for symbol '${symbol}' at state named ${this[stateIdKey]}`);
+    throw new Error(`No command for symbol '${symbol}' at state named ${this.#stateId}`);
   }
 
   get isHalt() {
-    return !this[stateSymbolToCommandMapKey];
+    return !this.#stateSymbolToCommandMap;
   }
 
   get id() {
-    return this[stateIdKey];
+    return this.#stateId;
   }
 
   get overrodeHaltState() {
-    return this[stateOverrodeHaltStateKey];
+    return this.#stateOverrodeHaltState;
   }
 
   get ref() {
@@ -101,9 +101,9 @@ class State {
   withOverrodeHaltState(overrodeHaltState) {
     const state = new State(null);
 
-    state[stateSymbolToCommandMapKey] = this[stateSymbolToCommandMapKey];
-    state[stateOverrodeHaltStateKey] = overrodeHaltState;
-    state[stateIdKey] = `${this[stateIdKey]}>${overrodeHaltState[stateIdKey]}`;
+    state.#stateSymbolToCommandMap = this.#stateSymbolToCommandMap;
+    state.#stateOverrodeHaltState = overrodeHaltState;
+    state.#stateId = `${this.#stateId}>${overrodeHaltState.#stateId}`;
 
     return state;
   }

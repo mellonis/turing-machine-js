@@ -1,9 +1,8 @@
 import { uniquePredicate } from '../utilities/functions';
 
-// keys for private properties of the Alphabet class
-const alphabetSymbolListKey = Symbol('alphabetSymbolListKey');
-
 export default class Alphabet {
+  #symbolList;
+
   constructor({ symbolList = [] } = {}) {
     const uniqueSymbolList = symbolList.filter(uniquePredicate);
 
@@ -17,30 +16,30 @@ export default class Alphabet {
       throw new Error('symbolList contains invalid symbol');
     }
 
-    this[alphabetSymbolListKey] = Array.from(uniqueSymbolList);
+    this.#symbolList = Array.from(uniqueSymbolList);
   }
 
   get symbolList() {
-    return Array.from(this[alphabetSymbolListKey]);
+    return Array.from(this.#symbolList);
   }
 
   get blankSymbol() {
-    return this[alphabetSymbolListKey][0];
+    return this.#symbolList[0];
   }
 
   has(symbol) {
-    return this[alphabetSymbolListKey].indexOf(symbol) >= 0;
+    return this.#symbolList.indexOf(symbol) >= 0;
   }
 
   get(index) {
-    if (index < 0 || index >= this[alphabetSymbolListKey].length) {
+    if (index < 0 || index >= this.#symbolList.length) {
       throw new Error('Invalid index');
     }
 
-    return this[alphabetSymbolListKey][index];
+    return this.#symbolList[index];
   }
 
   index(symbol) {
-    return this[alphabetSymbolListKey].indexOf(symbol);
+    return this.#symbolList.indexOf(symbol);
   }
 }

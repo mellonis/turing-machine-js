@@ -1,6 +1,5 @@
-// eslint-disable-next-line import/no-cycle
 import State from './State';
-import { Reference } from '../utilities/classes';
+import Reference from './Reference';
 
 const movements = {
   left: Symbol('move caret left command'),
@@ -12,12 +11,11 @@ const symbolCommands = {
   keep: Symbol('keep symbol command'),
 };
 
-// keys for private properties of the Command class
-const commandSymbolKey = Symbol('commandSymbolKey');
-const commandMovementKey = Symbol('commandMovementKey');
-const commandNextStateKey = Symbol('commandNextStateKey');
-
 class Command {
+  #symbol;
+  #movement;
+  #nextState;
+
   constructor({
     movement = movements.stay,
     symbol = symbolCommands.keep,
@@ -33,7 +31,7 @@ class Command {
       throw new Error('Invalid movement');
     }
 
-    this[commandMovementKey] = movement;
+    this.#movement = movement;
 
     const isValidSymbol = (
       (typeof symbol === 'string' && symbol.length === 1)
@@ -45,7 +43,7 @@ class Command {
       throw new Error('Invalid symbol');
     }
 
-    this[commandSymbolKey] = symbol;
+    this.#symbol = symbol;
 
     const isValidNextState = (
       nextState instanceof State
@@ -56,19 +54,19 @@ class Command {
       throw new Error('Invalid nextStep');
     }
 
-    this[commandNextStateKey] = nextState;
+    this.#nextState = nextState;
   }
 
   get symbol() {
-    return this[commandSymbolKey];
+    return this.#symbol;
   }
 
   get movement() {
-    return this[commandMovementKey];
+    return this.#movement;
   }
 
   get nextState() {
-    return this[commandNextStateKey];
+    return this.#nextState;
   }
 }
 

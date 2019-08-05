@@ -1,14 +1,13 @@
 import State from './State';
 import { movements, symbolCommands } from './Command';
 
-// keys for private properties of the TuringMachine class
-const tapeTapeKey = Symbol('commandSymbolKey');
-const tapeStackKey = Symbol('commandMovementKey');
-
 export default class TuringMachine {
+  #tape;
+  #stack;
+
   constructor(tape = null) {
-    this[tapeTapeKey] = tape;
-    this[tapeStackKey] = [];
+    this.#tape = tape;
+    this.#stack = [];
   }
 
   run(initialState, stepsLimit = 1e5, onStep = null) {
@@ -27,7 +26,7 @@ export default class TuringMachine {
       throw new Error('Invalid parameters');
     }
 
-    const stack = this[tapeStackKey];
+    const stack = this.#stack;
     let state = initialState;
 
     if (state.overrodeHaltState) {
@@ -43,7 +42,7 @@ export default class TuringMachine {
 
       i += 1;
 
-      const tape = this[tapeTapeKey];
+      const tape = this.#tape;
       const currentSymbol = tape.symbol;
       const command = state.getCommand(currentSymbol);
 

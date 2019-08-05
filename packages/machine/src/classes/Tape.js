@@ -1,12 +1,11 @@
 import Alphabet from './Alphabet';
 
-// keys for private properties of the Tape class
-const tapeAlphabetKey = Symbol('tapeAlphabetKey');
-const tapeSymbolListKey = Symbol('tapeSymbolListKey');
-const tapePositionKey = Symbol('tapePositionKey');
-const tapeViewportWidthKey = Symbol('tapeViewportWidthKey');
-
 export default class Tape {
+  #alphabet;
+  #symbolList;
+  #position;
+  #viewportWidth;
+
   constructor({
     alphabet, symbolList = [], position = 0, viewportWidth = 1,
   } = {}) {
@@ -20,59 +19,59 @@ export default class Tape {
       throw new Error('symbolList contains invalid symbol');
     }
 
-    this[tapeAlphabetKey] = new Alphabet(alphabet);
-    this[tapeSymbolListKey] = Array.from(symbolList);
-    this[tapePositionKey] = position;
+    this.#alphabet = new Alphabet(alphabet);
+    this.#symbolList = Array.from(symbolList);
+    this.#position = position;
 
-    if (this[tapeSymbolListKey].length === 0) {
-      this[tapeSymbolListKey].push(this[tapeAlphabetKey].blankSymbol);
+    if (this.#symbolList.length === 0) {
+      this.#symbolList.push(this.#alphabet.blankSymbol);
     }
 
-    this[tapeSymbolListKey] = this[tapeSymbolListKey]
-      .map(symbol => this[tapeAlphabetKey].index(symbol));
+    this.#symbolList = this.#symbolList
+      .map(symbol => this.#alphabet.index(symbol));
     this.viewportWidth = viewportWidth;
   }
 
   get alphabet() {
-    return this[tapeAlphabetKey];
+    return this.#alphabet;
   }
 
   get extraCellsCount() {
-    return (this[tapeViewportWidthKey] - 1) / 2;
+    return (this.#viewportWidth - 1) / 2;
   }
 
   get position() {
-    return this[tapePositionKey];
+    return this.#position;
   }
 
   get symbol() {
-    return this[tapeAlphabetKey].get(this[tapeSymbolListKey][this[tapePositionKey]]);
+    return this.#alphabet.get(this.#symbolList[this.#position]);
   }
 
   set symbol(symbol) {
-    if (!this[tapeAlphabetKey].has(symbol)) {
+    if (!this.#alphabet.has(symbol)) {
       throw new Error('Invalid symbol');
     }
 
-    this[tapeSymbolListKey][this[tapePositionKey]] = this[tapeAlphabetKey].index(symbol);
+    this.#symbolList[this.#position] = this.#alphabet.index(symbol);
   }
 
   get symbolList() {
-    return this[tapeSymbolListKey]
-      .map(index => this[tapeAlphabetKey].get(index));
+    return this.#symbolList
+      .map(index => this.#alphabet.get(index));
   }
 
   get viewport() {
-    const startIx = this[tapePositionKey] - this.extraCellsCount;
-    const endIx = this[tapePositionKey] + this.extraCellsCount + 1;
+    const startIx = this.#position - this.extraCellsCount;
+    const endIx = this.#position + this.extraCellsCount + 1;
 
-    return this[tapeSymbolListKey]
+    return this.#symbolList
       .slice(startIx, endIx)
-      .map(index => this[tapeAlphabetKey].get(index));
+      .map(index => this.#alphabet.get(index));
   }
 
   get viewportWidth() {
-    return this[tapeViewportWidthKey];
+    return this.#viewportWidth;
   }
 
   set viewportWidth(width) {
@@ -86,29 +85,29 @@ export default class Tape {
       finalWidth += 1;
     }
 
-    this[tapeViewportWidthKey] = finalWidth;
+    this.#viewportWidth = finalWidth;
 
     this.normalise();
   }
 
   left() {
-    this[tapePositionKey] -= 1;
+    this.#position -= 1;
     this.normalise();
   }
 
   normalise() {
-    while (this[tapePositionKey] - this.extraCellsCount < 0) {
-      this[tapeSymbolListKey].unshift(0);
-      this[tapePositionKey] += 1;
+    while (this.#position - this.extraCellsCount < 0) {
+      this.#symbolList.unshift(0);
+      this.#position += 1;
     }
 
-    while (this[tapePositionKey] + this.extraCellsCount >= this[tapeSymbolListKey].length) {
-      this[tapeSymbolListKey].push(0);
+    while (this.#position + this.extraCellsCount >= this.#symbolList.length) {
+      this.#symbolList.push(0);
     }
   }
 
   right() {
-    this[tapePositionKey] += 1;
+    this.#position += 1;
     this.normalise();
   }
 }
