@@ -1,5 +1,5 @@
 import binaryNumbers from '@turing-machine-js/library-binary-numbers';
-import { Alphabet, State } from '@turing-machine-js/machine';
+import { State, TapeBlock } from '@turing-machine-js/machine';
 
 const alphabetSymbols = ' ^$01';
 const stateNameList = [
@@ -15,12 +15,15 @@ const stateNameList = [
 ];
 
 describe('general tests', () => {
-  test('has a correct alphabet', () => {
-    expect(binaryNumbers.alphabet instanceof Alphabet)
+  test('has a correct tapeBlock', () => {
+    expect(binaryNumbers.tapeBlock instanceof TapeBlock)
       .toBe(true);
-    expect(binaryNumbers.alphabet.symbolList.length)
+
+    const { alphabet } = binaryNumbers.tapeBlock.tapeList[0];
+
+    expect(alphabet.symbolList.length)
       .toBe(alphabetSymbols.length);
-    expect(alphabetSymbols.split('').every(symbol => binaryNumbers.alphabet.has(symbol)))
+    expect(alphabetSymbols.split('').every(symbol => alphabet.has(symbol)))
       .toBe(true);
   });
 

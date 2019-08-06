@@ -2,8 +2,11 @@ import Alphabet from './Alphabet';
 
 export default class Tape {
   #alphabet;
-  #symbolList;
+
   #position;
+
+  #symbolList;
+
   #viewportWidth;
 
   constructor({

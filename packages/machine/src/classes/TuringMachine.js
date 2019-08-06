@@ -1,5 +1,5 @@
-import TapeBlock from './TapeBlock';
 import State from './State';
+import TapeBlock from './TapeBlock';
 import { symbolCommands } from './TapeCommand';
 
 export default class TuringMachine {

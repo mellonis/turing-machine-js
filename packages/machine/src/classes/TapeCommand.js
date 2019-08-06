@@ -9,13 +9,14 @@ const symbolCommands = {
 };
 
 class TapeCommand {
-  #symbol;
   #movement;
+
+  #symbol;
 
   constructor({
     movement = movements.stay,
     symbol = symbolCommands.keep,
-  } = {}) {
+  }) {
     const isValidMovement = (
       movement === movements.left
       || movement === movements.stay

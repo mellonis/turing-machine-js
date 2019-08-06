@@ -1,11 +1,12 @@
 import Alphabet from './Alphabet';
+import { ifOtherSymbol } from './State';
 import Tape from './Tape';
 import { movements, symbolCommands } from './TapeCommand';
-import { ifOtherSymbol } from './State';
 import { uniquePredicate } from '../utilities/functions';
 
 export default class TapeBlock {
   #symbolToPatternListMap = new Map();
+
   #tapeList;
 
   constructor({ tapeList, alphabetList }) {

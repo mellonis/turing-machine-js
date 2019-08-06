@@ -14,7 +14,26 @@ export default class Command {
       throw new Error('invalid parameter');
     }
 
-    if (this.#tapeCommandList.some(tapeCommand => !(tapeCommand instanceof TapeCommand))) {
+    try {
+      this.#tapeCommandList = this.#tapeCommandList.map((tapeCommand) => {
+        let finalTapeCommand;
+
+        if (!(tapeCommand instanceof TapeCommand)) {
+          if (
+            !Object.prototype.hasOwnProperty.call(tapeCommand, 'movement')
+            && !Object.prototype.hasOwnProperty.call(tapeCommand, 'symbol')
+          ) {
+            throw new Error('invalid tapeCommand');
+          }
+
+          finalTapeCommand = new TapeCommand(tapeCommand);
+        } else {
+          finalTapeCommand = tapeCommand;
+        }
+
+        return finalTapeCommand;
+      });
+    } catch (e) {
       throw new Error('invalid tapeCommand');
     }
   }

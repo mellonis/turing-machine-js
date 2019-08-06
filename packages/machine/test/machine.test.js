@@ -36,12 +36,12 @@ describe('run tests', () => {
     const { symbol } = tapeBlock;
     initialState = new State({
       [symbol(symbolList)]: {
-        command: new Command([
-          new TapeCommand({
+        command: [
+          {
             symbol: symbolCommands.erase,
             movement: movements.right,
-          }),
-        ]),
+          },
+        ],
       },
       [ifOtherSymbol]: {
         nextState: haltState,

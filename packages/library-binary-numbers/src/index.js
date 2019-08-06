@@ -1,9 +1,7 @@
 import {
   Alphabet,
-  Command,
   State,
   TapeBlock,
-  TapeCommand,
   haltState,
   ifOtherSymbol,
   movements,
@@ -23,21 +21,17 @@ const goToNumber = new State({
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
   },
 }, 'goToNumber');
 
 const goToNextNumber = new State({
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
     nextState: goToNumber,
   },
 }, 'goToNextNumber');
@@ -47,21 +41,17 @@ const goToPreviousNumberTrue = new State({
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
   },
 }, 'goToPreviousNumberTrue');
 
 const goToPreviousNumber = new State({
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
     nextState: goToPreviousNumberTrue,
   },
 }, 'goToPreviousNumber');
@@ -71,29 +61,23 @@ const goToNumbersStart = new State({
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
   },
 }, 'goToNumberStart');
 
 const deleteNumberTrue = new State({
   [symbol('$')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: symbolCommands.erase,
-      }),
-    ]),
+    command: {
+      symbol: symbolCommands.erase,
+    },
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: symbolCommands.erase,
-      }),
-    ]),
+    command: {
+      symbol: symbolCommands.erase,
+    },
     movement: movements.right,
   },
 }, 'deleteNumberTrue');
@@ -109,27 +93,21 @@ const deleteNumber = new State({
 
 const invertNumberGoToNumberWithInversion = new State({
   [symbol('^')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
   },
   [symbol('1')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '0',
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: '0',
+      movement: movements.right,
+    },
   },
   [symbol('0')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '1',
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: '1',
+      movement: movements.right,
+    },
   },
   [symbol('$')]: {
     nextState: haltState,
@@ -147,30 +125,24 @@ const invertNumber = new State({
 
 const normalizeNumberPutNewStartSymbol = new State({
   [symbol(alphabet.blankSymbol)]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '^',
-      }),
-    ]),
+    command: {
+      symbol: '^',
+    },
     nextState: goToNumber,
   },
 }, 'normalizeNumberPutNewStartSymbol');
 
 const normalizeNumberMoveNumberStart = new State({
   [symbol('^0')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: symbolCommands.erase,
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: symbolCommands.erase,
+      movement: movements.right,
+    },
   },
   [symbol('1$')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
     nextState: normalizeNumberPutNewStartSymbol,
   },
 }, 'normalizeNumberMoveNumberStart');
@@ -186,12 +158,10 @@ const normalizeNumber = new State({
 
 const plusOneFillZeros = new State({
   [symbol('1')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '0',
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: '0',
+      movement: movements.right,
+    },
   },
   [symbol('$')]: {
     nextState: haltState,
@@ -200,65 +170,51 @@ const plusOneFillZeros = new State({
 
 const plusOneAddNumberStart = new State({
   [symbol(alphabet.blankSymbol)]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '^',
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: '^',
+      movement: movements.right,
+    },
   },
   [symbol('1')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
     nextState: plusOneFillZeros,
   },
 }, 'plusOneAddNumberStart');
 
 const plusOneCaryOne = new State({
   [symbol('0')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '1',
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      symbol: '1',
+      movement: movements.right,
+    },
     nextState: plusOneFillZeros,
   },
   [symbol('1')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
   },
   [symbol('^')]: {
-    command: new Command([
-      new TapeCommand({
-        symbol: '1',
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      symbol: '1',
+      movement: movements.left,
+    },
     nextState: plusOneAddNumberStart,
   },
 }, 'plusOneCaryOne');
 
 const plusOne = new State({
   [symbol('^10')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
   },
   [symbol('$')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.left,
-      }),
-    ]),
+    command: {
+      movement: movements.left,
+    },
     nextState: plusOneCaryOne,
   },
   [ifOtherSymbol]: {
@@ -268,11 +224,9 @@ const plusOne = new State({
 
 const minusOne = new State({
   [symbol('^10')]: {
-    command: new Command([
-      new TapeCommand({
-        movement: movements.right,
-      }),
-    ]),
+    command: {
+      movement: movements.right,
+    },
   },
   [symbol('$')]: {
     nextState: invertNumber
@@ -290,7 +244,7 @@ const minusOne = new State({
 }, 'minusOne');
 
 export default {
-  alphabet,
+  tapeBlock,
   states: {
     goToNumber,
     goToNextNumber,

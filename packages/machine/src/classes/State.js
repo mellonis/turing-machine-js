@@ -1,7 +1,7 @@
-import { id } from '../utilities/functions';
+import Command from './Command';
 import Reference from './Reference';
 import TapeCommand from './TapeCommand';
-import Command from './Command';
+import { id } from '../utilities/functions';
 
 const ifOtherSymbol = Symbol('other symbol');
 
@@ -37,8 +37,12 @@ class State {
 
         if (command == null) {
           command = new Command([
-            new TapeCommand(),
+            new TapeCommand({}),
           ]);
+        }
+
+        if (!(command instanceof Command) && !Array.isArray(command)) {
+          command = [command];
         }
 
         if (Array.isArray(command)) {
