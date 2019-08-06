@@ -1,97 +1,108 @@
-import { id, uniquePredicate } from '../utilities/functions';
+import { id } from '../utilities/functions';
 import Reference from './Reference';
+import TapeCommand from './TapeCommand';
 import Command from './Command';
 
 const ifOtherSymbol = Symbol('other symbol');
 
 class State {
-  #stateId;
-  #stateSymbolToCommandMap;
-  #stateOverrodeHaltState;
+  #id = id(this);
+
+  #symbolToDataMap = new Map();
+
+  #overrodeHaltState;
 
   constructor(stateDefinition = null) {
-    this.#stateId = id(this);
+    Object.defineProperty(this, 'id', {
+      get() {
+        return this.#id;
+      },
+    });
 
     if (stateDefinition) {
-      this.#stateSymbolToCommandMap = new Map();
+      const keyList = Object.getOwnPropertyNames(stateDefinition);
 
-      let isValidStateDefinition = true;
-      const keyList = Object.keys(stateDefinition);
-
-      if (keyList.some(symbol => symbol.length === 0)) {
-        isValidStateDefinition = false;
+      if (keyList.length) {
+        throw new Error(`invalid state definition while constructing state #${this.#id}`);
       }
 
-      const symbolList = keyList.join('').split('');
+      const symbolList = Object.getOwnPropertySymbols(stateDefinition);
 
-      if (symbolList.length !== symbolList.filter(uniquePredicate).length) {
-        isValidStateDefinition = false;
+      if (symbolList.length === 0) {
+        throw new Error(`invalid state definition while constructing state #${this.#id}`);
       }
 
-      if (!isValidStateDefinition) {
-        throw new Error('Invalid state definition');
-      }
+      symbolList.forEach((symbol) => {
+        let { command, nextState } = stateDefinition[symbol];
 
-      keyList.forEach((key) => {
-        const nextState = stateDefinition[key].nextState == null
-          ? this
-          : stateDefinition[key].nextState;
-
-        if (nextState instanceof State || nextState instanceof Reference) {
-          key.split('').forEach((symbol) => {
-            this.#stateSymbolToCommandMap.set(symbol, new Command({
-              ...stateDefinition[key],
-              nextState,
-            }));
-          });
-        } else {
-          throw new Error('Invalid nextState');
+        if (command == null) {
+          command = new Command([
+            new TapeCommand(),
+          ]);
         }
+
+        if (Array.isArray(command)) {
+          try {
+            command = new Command(command);
+          } catch (e) {
+            // ignore error
+          }
+        }
+
+        if (!(command instanceof Command)) {
+          throw new Error('invalid command');
+        }
+
+        if (nextState == null) {
+          nextState = this;
+        }
+
+        if (!(nextState instanceof State) && !(nextState instanceof Reference)) {
+          throw new Error('invalid nextState');
+        }
+
+        this.#symbolToDataMap.set(symbol, {
+          command,
+          nextState,
+        });
       });
-
-      if (stateDefinition[ifOtherSymbol]) {
-        const nextState = stateDefinition[ifOtherSymbol].nextState == null
-          ? this
-          : stateDefinition[ifOtherSymbol].nextState;
-
-        if (nextState instanceof State || nextState instanceof Reference) {
-          this.#stateSymbolToCommandMap.set(ifOtherSymbol, new Command({
-            ...stateDefinition[ifOtherSymbol],
-            nextState,
-          }));
-        } else {
-          throw new Error('Invalid nextState');
-        }
-      }
     }
+  }
+
+  getSymbol(tapeBlock) {
+    const symbol = [...this.#symbolToDataMap.keys()].find(currentSymbol => tapeBlock.isMatched({
+      symbol: currentSymbol,
+    }));
+
+    if (symbol) {
+      return symbol;
+    }
+
+    return ifOtherSymbol;
   }
 
   getCommand(symbol) {
-    if (symbol.length !== 1) {
-      throw new Error('Invalid symbol');
+    if (this.#symbolToDataMap.has(symbol)) {
+      return this.#symbolToDataMap.get(symbol).command;
     }
 
-    if (this.#stateSymbolToCommandMap && this.#stateSymbolToCommandMap.has(symbol)) {
-      return this.#stateSymbolToCommandMap.get(symbol);
+    throw new Error(`No command for symbol at state named ${this.#id}`);
+  }
+
+  getNextState(symbol) {
+    if (this.#symbolToDataMap.has(symbol)) {
+      return this.#symbolToDataMap.get(symbol).nextState;
     }
 
-    if (this.#stateSymbolToCommandMap && this.#stateSymbolToCommandMap.has(ifOtherSymbol)) {
-      return this.#stateSymbolToCommandMap.get(ifOtherSymbol);
-    }
-
-    throw new Error(`No command for symbol '${symbol}' at state named ${this.#stateId}`);
+    throw new Error(`No nextState for symbol at state named ${this.#id}`);
   }
 
   get isHalt() {
-    return !this.#stateSymbolToCommandMap;
-  }
-
-  get id() {
-    return this.#stateId;
+    return this.#id === 0;
   }
 
   get overrodeHaltState() {
-    return this.#stateOverrodeHaltState;
+    return this.#overrodeHaltState;
   }
 
   get ref() {
@@ -101,9 +112,9 @@ class State {
   withOverrodeHaltState(overrodeHaltState) {
     const state = new State(null);
 
-    state.#stateSymbolToCommandMap = this.#stateSymbolToCommandMap;
-    state.#stateOverrodeHaltState = overrodeHaltState;
-    state.#stateId = `${this.#stateId}>${overrodeHaltState.#stateId}`;
+    state.#symbolToDataMap = this.#symbolToDataMap;
+    state.#overrodeHaltState = overrodeHaltState;
+    state.#id = `${this.#id}>${overrodeHaltState.#id}`;
 
     return state;
   }

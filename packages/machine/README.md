@@ -27,6 +27,10 @@ yarn add @turing-machine-js/machine --dev
 
 ### Tape
 
+### TapeBlock
+
+### TapeCommand
+
 ### TuringMachine
 
 ## Special objects

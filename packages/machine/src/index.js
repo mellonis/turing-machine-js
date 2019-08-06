@@ -1,9 +1,11 @@
 import TuringMachine from './classes/TuringMachine';
 import Alphabet from './classes/Alphabet';
 import Tape from './classes/Tape';
-import Command, { movements, symbolCommands } from './classes/Command';
+import TapeCommand, { movements, symbolCommands } from './classes/TapeCommand';
 import State, { haltState, ifOtherSymbol } from './classes/State';
 import Reference from './classes/Reference';
+import TapeBlock from './classes/TapeBlock';
+import Command from './classes/Command';
 
 export {
   TuringMachine as default,
@@ -12,6 +14,8 @@ export {
   Reference,
   State,
   Tape,
+  TapeBlock,
+  TapeCommand,
   haltState,
   ifOtherSymbol,
   movements,
