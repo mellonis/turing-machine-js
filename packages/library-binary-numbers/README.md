@@ -28,10 +28,10 @@ For example:
 - `^11$` stands for 3
 - etc.
 
-There is no ability to work with negative numbers a this time.
+There is no ability to work with negative numbers at this time.
 
 This library provides following objects to work with binary numbers:
-- `alphabet` - an `Alphabet` class instance which contains following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
+- `tapeBlock` - a `TapeBlock` class instance with single tape. An alphabet of the tape contains following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
 - `states` - following `States` class instances which represent some algorithms:
     - `goToNumber` - move the head to the number's end
     - `goToNextNumber` - move the head to the next number (to the right)
@@ -45,6 +45,6 @@ This library provides following objects to work with binary numbers:
 
 ## Links
 
-- The information about `Alphabet` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
+- The information about `TapeBlock` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
 - [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
 
