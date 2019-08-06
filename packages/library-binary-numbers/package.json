@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/library-binary-numbers",
-  "version": "0.2.7",
+  "version": "0.3.0-alpha.0",
   "description": "A standard library for working with binary numbers",
   "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
   "homepage": "https://github.com/mellonis/turing-machine-js#readme",
@@ -24,7 +24,7 @@
     "numbers"
   ],
   "dependencies": {
-    "@turing-machine-js/machine": "^0.2.7"
+    "@turing-machine-js/machine": "^0.3.0-alpha.0"
   },
   "main": "src/index.js"
 }
