@@ -5,7 +5,7 @@
   "description": "",
   "scripts": {
     "lint": "eslint .",
-    "test": "jest --coverage",
+    "test": "jest",
     "test:watch": "jest --watch"
   },
   "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
