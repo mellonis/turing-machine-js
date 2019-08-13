@@ -2,7 +2,6 @@ import Alphabet from './Alphabet';
 import { ifOtherSymbol } from './State';
 import Tape from './Tape';
 import { movements, symbolCommands } from './TapeCommand';
-import { uniquePredicate } from '../utilities/functions';
 
 export default class TapeBlock {
   #symbolToPatternListMap = new Map();
@@ -115,7 +114,13 @@ export default class TapeBlock {
 
     const patternList = this.#symbolToPatternListMap.get(symbol);
 
-    return patternList.some(pattern => currentSymbolList.join('') === pattern);
+    return patternList.some(pattern => (
+      pattern
+        .every((symbol, ix) => (
+          symbol === ifOtherSymbol
+          || symbol === currentSymbolList[ix]
+        ))
+    ));
   }
 
   replaceTape(tape, tapeIx = 0) {
@@ -145,23 +150,38 @@ export default class TapeBlock {
       result[row].push(symbol);
 
       if (ix % this.#tapeList.length + 1 === this.#tapeList.length) {
-        result[row] = result[row].join('');
+        result[row] = result[row];
       }
 
       return result;
     }, [])
-      .filter(uniquePredicate)
-      .sort();
+      .filter((pattern, ix, patternList) => {
+          const samePatternIx = patternList.findIndex((otherPattern) => (
+            pattern
+              .every((symbol, symbolIx) => symbol === otherPattern[symbolIx])
+          ));
+
+        return samePatternIx === ix;
+      })
   }
 
   #getSymbolForPatternList(patternList) {
-    const [storedPatternListSymbol] = [...this.#symbolToPatternListMap.entries()].find(([_, storedPatternList]) => {
-      if (storedPatternList.length !== patternList.length) {
-        return false;
-      }
+    if (patternList.some((pattern) => pattern.every(symbol => symbol === ifOtherSymbol))) {
+      return ifOtherSymbol;
+    }
 
-      return patternList.every((pattern, ix) => pattern ===storedPatternList[ix]);
-    }) || [null, null];
+    const [storedPatternListSymbol] = [...this.#symbolToPatternListMap.entries()]
+      .find(([, storedPatternList]) => {
+        if (storedPatternList.length !== patternList.length) {
+          return false;
+        }
+
+        return patternList
+          .every((pattern, patternIx) => {
+            return pattern
+              .every((symbol, symbolIx) => symbol === storedPatternList[patternIx][symbolIx]);
+          });
+      }) || [null, null];
 
     let symbol;
 
@@ -179,6 +199,10 @@ export default class TapeBlock {
   #symbol(symbols) {
     let symbolList;
 
+    if (symbols === ifOtherSymbol) {
+      return ifOtherSymbol;
+    }
+
     if (typeof symbols === 'string') {
       symbolList = symbols.split('');
     } else if (Array.isArray(symbols)) {
@@ -193,10 +217,17 @@ export default class TapeBlock {
       throw new Error('invalid symbol parameter');
     }
 
-    const invalidSymbolIndex = symbolList.findIndex((symbol, ix) => !this.#tapeList[ix % this.#tapeList.length].alphabet.has(symbol));
+    const invalidSymbolIndex = symbolList.findIndex((symbol, ix) => (
+      symbol !== ifOtherSymbol
+      && !this.#tapeList[ix % this.#tapeList.length].alphabet.has(symbol)
+    ));
 
     if (invalidSymbolIndex >= 0) {
       throw new Error('invalid symbol parameter');
+    }
+
+    if (symbolList.every(symbol => symbol === ifOtherSymbol)) {
+      return ifOtherSymbol;
     }
 
     return this.#getSymbolForPatternList(this.#buildPatternList(symbolList));

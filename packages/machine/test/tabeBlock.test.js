@@ -93,7 +93,7 @@ describe('TapeBlock currentSymbolList property', () => {
       movement: movements.right,
     });
     const tapeCommandIdle = new TapeCommand({});
-    const rightCommand = new Command(tapeList.map(_ => tapeCommandRight));
+    const rightCommand = new Command(tapeList.map(() => tapeCommandRight));
 
     expect(tapeBlock.currentSymbolList)
       .toEqual(alphabetList.map(alphabet => alphabet.symbolList[0]));
@@ -219,17 +219,54 @@ describe('TapeBlock symbol method', () => {
       .toBe('symbol');
   });
 
+  test('symbol of ifOtherSymbol is ifOtherSymbol itself', () => {
+    expect(symbol(ifOtherSymbol))
+      .toBe(ifOtherSymbol);
+  });
+
+  test('symbol [ifOtherSymbol, ifOtherSymbol, ...] is ifOtherSymbol', () => {
+    expect(symbol(goodListParameter.map(() => ifOtherSymbol)))
+      .toBe(ifOtherSymbol);
+
+    expect(symbol([...goodListParameter, ...goodListParameter].map(() => ifOtherSymbol)))
+      .toBe(ifOtherSymbol);
+  });
+
+  test('symbol [ifOtherSymbol, ifOtherSymbol, ifOtherSymbol, <some symbol>, <some symbol>...] is ifOtherSymbol', () => {
+    expect(symbol([...[...goodListParameter].map(() => ifOtherSymbol), ...goodListParameter]))
+      .toBe(ifOtherSymbol);
+  });
+
   test('same symbols', () => {
     expect(symbol(goodStringParameter) === symbol(goodListParameter))
       .toBe(true);
 
     expect(symbol(goodStringParameter + goodStringParameter) === symbol(goodListParameter))
       .toBe(true);
+
+    expect(
+      // eslint-disable-next-line no-self-compare,max-len
+      symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]) === symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]),
+    )
+      .toBe(true);
+  });
+
+  test('different symbols', () => {
+    expect(
+      symbol(goodStringParameter) === symbol(alphabetList.map(alphabet => alphabet.symbolList[1])),
+    )
+      .toBe(false);
+
+    expect(
+      // eslint-disable-next-line no-self-compare,max-len
+      symbol([goodListParameter[0], goodListParameter[1], goodListParameter[2]]) === symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]),
+    )
+      .toBe(false);
   });
 });
 
 describe('TapeBlock replaceTape method', () => {
-  let tapeLists = {
+  const tapeLists = {
     original: null,
     surrogate: null,
   };
@@ -258,7 +295,7 @@ describe('TapeBlock replaceTape method', () => {
   });
 
   test('tapeIx must be from 0 to (currentSymbolList - 1)', () => {
-    const surrogateTape = new Tape({alphabet: alphabetList[0]});
+    const surrogateTape = new Tape({ alphabet: alphabetList[0] });
 
     Array.from(new Array(tapeBlock.currentSymbolList.length + 2)).forEach((_, ix) => {
       const tapeIx = ix - 1;
@@ -328,7 +365,24 @@ describe('TapeBlock isMatched method', () => {
       .toBe(true);
   });
 
-  test('isMatched returns valid value', () => {
+  test('isMatched + symbols', () => {
+    const patternAndIsMatchedList = [
+      [ifOtherSymbol, true],
+      [[ifOtherSymbol, ifOtherSymbol, ifOtherSymbol], true],
+      [[alphabetList[0].blankSymbol, alphabetList[0].blankSymbol, ifOtherSymbol], true],
+      [[alphabetList[0].get(1), alphabetList[0].blankSymbol, ifOtherSymbol], false],
+      [[alphabetList[0].blankSymbol, alphabetList[1].get(2), ifOtherSymbol], false],
+    ];
+
+    patternAndIsMatchedList.forEach(([pattern, isMatched]) => {
+      expect(tapeBlock.isMatched({
+        symbol: tapeBlock.symbol(pattern),
+      }))
+        .toBe(isMatched);
+    });
+  });
+
+  test('isMatched + tapeBlock.applyCommand', () => {
     const symbol = tapeBlock.symbol(goodListParameter);
 
     expect(() => tapeBlock.isMatched({
@@ -338,8 +392,19 @@ describe('TapeBlock isMatched method', () => {
       .not
       .toThrowError();
 
+    expect(() => tapeBlock.isMatched({
+      symbol,
+    }))
+      .not
+      .toThrowError();
+
     expect(tapeBlock.isMatched({
       currentSymbolList: tapeBlock.currentSymbolList,
+      symbol,
+    }))
+      .toBe(true);
+
+    expect(tapeBlock.isMatched({
       symbol,
     }))
       .toBe(true);
@@ -352,7 +417,7 @@ describe('TapeBlock isMatched method', () => {
     });
     const tapeCommandIdle = new TapeCommand({});
 
-    tapeBlock.applyCommand(new Command(tapeList.map(_ => tapeCommandRight)));
+    tapeBlock.applyCommand(new Command(tapeList.map(() => tapeCommandRight)));
 
     expect(tapeBlock.isMatched({
       currentSymbolList: tapeBlock.currentSymbolList,
@@ -360,10 +425,20 @@ describe('TapeBlock isMatched method', () => {
     }))
       .toBe(false);
 
-    tapeBlock.applyCommand(new Command(tapeList.map(_ => tapeCommandLeft)));
+    expect(tapeBlock.isMatched({
+      symbol,
+    }))
+      .toBe(false);
+
+    tapeBlock.applyCommand(new Command(tapeList.map(() => tapeCommandLeft)));
 
     expect(tapeBlock.isMatched({
       currentSymbolList: tapeBlock.currentSymbolList,
+      symbol,
+    }))
+      .toBe(true);
+
+    expect(tapeBlock.isMatched({
       symbol,
     }))
       .toBe(true);
@@ -383,6 +458,11 @@ describe('TapeBlock isMatched method', () => {
       }))
         .toBe(false);
 
+      expect(tapeBlock.isMatched({
+        symbol,
+      }))
+        .toBe(false);
+
       tapeCommandList = tapeList.map((_, ix) => (
         tapeIx === ix
           ? tapeCommandLeft
@@ -393,6 +473,11 @@ describe('TapeBlock isMatched method', () => {
 
       expect(tapeBlock.isMatched({
         currentSymbolList: tapeBlock.currentSymbolList,
+        symbol,
+      }))
+        .toBe(true);
+
+      expect(tapeBlock.isMatched({
         symbol,
       }))
         .toBe(true);
