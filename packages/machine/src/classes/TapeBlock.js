@@ -149,10 +149,6 @@ export default class TapeBlock {
 
       result[row].push(symbol);
 
-      if (ix % this.#tapeList.length + 1 === this.#tapeList.length) {
-        result[row] = result[row];
-      }
-
       return result;
     }, [])
       .filter((pattern, ix, patternList) => {
