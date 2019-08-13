@@ -228,6 +228,72 @@ describe('TapeBlock symbol method', () => {
   });
 });
 
+describe('TapeBlock replaceTape method', () => {
+  let tapeLists = {
+    original: null,
+    surrogate: null,
+  };
+  let tapeBlock;
+
+  beforeAll(() => {
+    tapeLists.original = alphabetList.map(alphabet => new Tape({
+      alphabet,
+    }));
+    tapeLists.surrogate = alphabetList.map(alphabet => new Tape({
+      alphabet,
+    }));
+    tapeBlock = new TapeBlock({
+      tapeList: tapeLists.original,
+    });
+  });
+
+  test('replaceTape exists', () => {
+    expect(tapeBlock.replaceTape)
+      .toBeTruthy();
+  });
+
+  test('tape must be an instance of Tape', () => {
+    expect(() => tapeBlock.replaceTape(null))
+      .toThrowError('invalid tape');
+  });
+
+  test('tapeIx must be from 0 to (currentSymbolList - 1)', () => {
+    const surrogateTape = new Tape({alphabet: alphabetList[0]});
+
+    Array.from(new Array(tapeBlock.currentSymbolList.length + 2)).forEach((_, ix) => {
+      const tapeIx = ix - 1;
+
+      if (tapeIx < 0 || tapeIx >= tapeBlock.currentSymbolList.length) {
+        expect(() => tapeBlock.replaceTape(surrogateTape, tapeIx))
+          .toThrowError('invalid tapeIx');
+      } else {
+        expect(() => tapeBlock.replaceTape(tapeLists.surrogate[tapeIx], tapeIx))
+          .not
+          .toThrowError();
+      }
+    });
+  });
+
+  test('can\'t replace tape with different alphabet', () => {
+    tapeLists.original.forEach((_, ix) => {
+      expect(() => {
+        tapeBlock.replaceTape(tapeLists.surrogate[(ix + 1) % tapeLists.surrogate.length], ix);
+      })
+        .toThrowError('invalid tape');
+    });
+  });
+
+  test('replace tape is successful', () => {
+    tapeLists.original.forEach((_, ix) => {
+      expect(() => {
+        tapeBlock.replaceTape(tapeLists.surrogate[ix], ix);
+      })
+        .not
+        .toThrowError('invalid tape');
+    });
+  });
+});
+
 describe('TapeBlock isMatched method', () => {
   const goodListParameter = alphabetList.map(alphabet => alphabet.symbolList[0]);
   let tapeList;

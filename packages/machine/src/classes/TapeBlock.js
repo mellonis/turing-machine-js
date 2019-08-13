@@ -119,12 +119,18 @@ export default class TapeBlock {
   }
 
   replaceTape(tape, tapeIx = 0) {
+    if (!(tape instanceof Tape)) {
+      throw new Error('invalid tape');
+    }
+
     if (this.#tapeList[tapeIx] == null) {
       throw new Error('invalid tapeIx');
     }
 
-    if (tape.alphabet.symbolList === this.#tapeList[tapeIx].alphabet.symbolList) {
+    if (tape.alphabet.symbolList.join('') === this.#tapeList[tapeIx].alphabet.symbolList.join('')) {
       this.#tapeList[tapeIx] = tape;
+    } else {
+      throw new Error('invalid tape');
     }
   }
 
