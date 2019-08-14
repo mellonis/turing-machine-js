@@ -1,7 +1,7 @@
 # @turing-machine-js/machine
 
 [![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=next)](https://travis-ci.com/mellonis/turing-machine-js)
-![npm (scoped)](https://img.shields.io/npm/v/@turing-machine-js/machine)
+![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine/next)
 
 Some basic objects to build your own turing machine  
 
