@@ -122,3 +122,23 @@ describe('run tests', () => {
     }).toThrowError('Execution halted because of STOP');
   });
 });
+
+describe('properties', () => {
+  test('tapeBlock exists', () => {
+    const tapeBlock = new TapeBlock({
+      alphabetList: [alphabet],
+    });
+    const machine = new TuringMachine({
+      tapeBlock,
+    });
+
+    expect(machine.tapeBlock)
+      .toBeDefined();
+
+    expect(machine.tapeBlock instanceof TapeBlock)
+      .toBe(true);
+
+    expect(machine.tapeBlock)
+      .toBe(tapeBlock);
+  });
+});

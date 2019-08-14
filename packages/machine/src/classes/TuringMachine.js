@@ -19,6 +19,10 @@ export default class TuringMachine {
     this.#stack = [];
   }
 
+  get tapeBlock() {
+    return this.#tapeBlock;
+  }
+
   run(initialState, stepsLimit = 1e5, onStep = null) {
     const iterator = this.runStepByStep(initialState, stepsLimit);
 
