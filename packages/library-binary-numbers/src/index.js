@@ -77,8 +77,8 @@ const deleteNumberTrue = new State({
   [ifOtherSymbol]: {
     command: {
       symbol: symbolCommands.erase,
+      movement: movements.right,
     },
-    movement: movements.right,
   },
 }, 'deleteNumberTrue');
 
