@@ -11,7 +11,7 @@ This repository contains following packages:
 
 # Example
 
-```ecmascript 6
+```javascript
 import TuringMachine, {
   Alphabet, haltState,
   ifOtherSymbol,
