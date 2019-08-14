@@ -1,5 +1,5 @@
 import binaryNumbers from '@turing-machine-js/library-binary-numbers';
-import { Alphabet, State } from '@turing-machine-js/machine';
+import TuringMachine, { Alphabet, State, Tape } from '@turing-machine-js/machine';
 
 const alphabetSymbols = ' ^$01';
 const stateNameList = [
@@ -30,6 +30,160 @@ describe('general tests', () => {
   });
 });
 
-describe('states tests', () => {
-  stateNameList.forEach(stateName => test.todo(`test ${stateName} algo`));
+describe('goToNumber algo', () => {
+  const tapeInitialStateList = [
+    '$',
+    '1$',
+    '0$',
+    '^$',
+    ' $',
+    '11$',
+    '00$',
+    '^^$',
+    '  $',
+  ];
+
+  tapeInitialStateList.forEach((tapeInitialState) => {
+    const tape = new Tape({
+      alphabet: binaryNumbers.alphabet,
+      symbolList: tapeInitialState.split(''),
+    });
+
+    test(`tapeInitialState = [${tapeInitialState}]`, () => {
+      const machine = new TuringMachine(tape);
+
+      expect(() => machine.run(binaryNumbers.states.goToNumber))
+        .not
+        .toThrowError();
+
+      expect(tape.symbol)
+        .toBe('$');
+    });
+  });
+});
+
+describe('goToNumbersStart algo', () => {
+  const tapeInitialStateList = [
+    '^$',
+    '^1$',
+    '^0$',
+    '^11$',
+    '^00$',
+  ];
+
+  tapeInitialStateList.forEach((tapeInitialState) => {
+    const tape = new Tape({
+      alphabet: binaryNumbers.alphabet,
+      symbolList: tapeInitialState.split(''),
+      position: tapeInitialState.length - 1,
+    });
+
+    test(`tapeInitialState = [${tapeInitialState}]`, () => {
+      const machine = new TuringMachine(tape);
+
+      expect(() => machine.run(binaryNumbers.states.goToNumbersStart))
+        .not
+        .toThrowError();
+
+      expect(tape.symbol)
+        .toBe('^');
+    });
+  });
+});
+
+describe('deleteNumber algo', () => {
+  const tapeInitialStateList = [
+    '^$',
+    '^1$',
+    '^0$',
+    '^11$',
+    '^00$',
+  ];
+
+  tapeInitialStateList.forEach((tapeInitialState) => {
+    const tape = new Tape({
+      alphabet: binaryNumbers.alphabet,
+      symbolList: tapeInitialState.split(''),
+    });
+
+    test(`tapeInitialState = [${tapeInitialState}]`, () => {
+      const machine = new TuringMachine(tape);
+
+      expect(() => machine.run(binaryNumbers.states.deleteNumber))
+        .not
+        .toThrowError();
+
+      expect(tape.symbol)
+        .toBe(tape.alphabet.blankSymbol);
+    });
+  });
+});
+
+describe('normalizeNumber algo', () => {
+  const tapeInitialStateList = [
+    ['^$', '^$'],
+    ['^1$', '^1$'],
+    ['^01$', '^1$'],
+    ['^101$', '^101$'],
+    ['^0101$', '^101$'],
+  ];
+
+  tapeInitialStateList.forEach(([startState, endState]) => {
+    const tape = new Tape({
+      alphabet: binaryNumbers.alphabet,
+      symbolList: startState.split(''),
+    });
+
+    test(`tapeInitialState = [${startState}]`, () => {
+      const machine = new TuringMachine(tape);
+
+      expect(() => machine.run(binaryNumbers.states.normalizeNumber))
+        .not
+        .toThrowError();
+
+      expect(tape.symbolList.join('').trim())
+        .toBe(endState);
+    });
+  });
+});
+
+describe('invertNumber algo', () => {
+  const tapeInitialStateList = [
+    ['^$', '^$'],
+    ['^1$', '^0$'],
+    ['^11$', '^00$'],
+    ['^101$', '^010$'],
+  ];
+
+  tapeInitialStateList.forEach((stateList) => {
+    const tapeList = stateList.map(state => new Tape({
+      alphabet: binaryNumbers.alphabet,
+      symbolList: state.split(''),
+    }));
+
+    stateList.forEach((_, ix) => {
+      test(`tapeInitialState = [${stateList[ix]}]`, () => {
+        const machine = new TuringMachine(tapeList[ix]);
+
+        expect(() => machine.run(binaryNumbers.states.invertNumber))
+          .not
+          .toThrowError();
+
+        expect(tapeList[ix].symbolList.join(''))
+          .toBe(stateList[(ix + 1) % 2]);
+      });
+    });
+  });
+});
+
+describe('todo tests', () => {
+  const toDoList = [
+    'goToNextNumber',
+    'goToPreviousNumber',
+    'plusOne',
+    'minusOne',
+  ];
+
+  toDoList
+    .forEach(stateName => test.todo(`test ${stateName} algo`));
 });
