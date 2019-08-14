@@ -50,6 +50,10 @@ export default class TapeBlock {
     }
   }
 
+  get alphabetList() {
+    return [...this.#tapeList.map(tape => tape.alphabet)];
+  }
+
   get currentSymbolList() {
     return this.#tapeList.map(tape => tape.symbol);
   }

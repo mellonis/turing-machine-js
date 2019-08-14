@@ -124,6 +124,28 @@ describe('TapeBlock currentSymbolList property', () => {
   });
 });
 
+
+
+describe('TapeBlock alphabetList property', () => {
+  const tapeList = alphabetList.map(alphabet => new Tape({
+    alphabet,
+    symbolList: alphabet.symbolList,
+  }));
+  const tapeBlock = new TapeBlock({
+    tapeList,
+  });
+
+  test('alphabetList exists', () => {
+    expect(tapeBlock.alphabetList)
+      .toBeTruthy();
+  });
+
+  test('correct alphabets in list', () => {
+    expect(tapeBlock.alphabetList)
+      .toEqual(tapeBlock.tapeList.map(tape => tape.alphabet));
+  });
+});
+
 describe('TapeBlock symbol method', () => {
   const goodListParameter = alphabetList.map(alphabet => alphabet.symbolList[0]);
   const goodStringParameter = goodListParameter.join('');
