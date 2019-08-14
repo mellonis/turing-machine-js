@@ -1,4 +1,8 @@
 # @turing-machine-js/library-binary-numbers
+
+[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
+![npm (scoped)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers)
+
 A library for the turing-machine-js.
 
 ## Install
@@ -19,7 +23,7 @@ yarn add @turing-machine-js/library-binary-numbers --dev
 
 Binary numbers are represented as a sequence of symbols `0` and `1`.
 
-The representation of the number starts with symbol `^` and ends with symbol `$`.
+A representation of a number starts with symbol `^` and ends with symbol `$`.
 
 For example:
 - `^$` stands for 0
@@ -47,4 +51,3 @@ This library provides following objects to work with binary numbers:
 
 - The information about `Alphabet` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
 - [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
-
