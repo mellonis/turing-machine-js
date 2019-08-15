@@ -15,11 +15,14 @@ const stateNameList = [
 ];
 
 describe('general tests', () => {
-  test('has a correct tapeBlock', () => {
-    expect(binaryNumbers.tapeBlock instanceof TapeBlock)
+  test('has getTapeBlock', () => {
+    expect(binaryNumbers.getTapeBlock)
+      .toBeTruthy();
+
+    expect(binaryNumbers.getTapeBlock() instanceof TapeBlock)
       .toBe(true);
 
-    const { alphabet } = binaryNumbers.tapeBlock.tapeList[0];
+    const { alphabet } = binaryNumbers.getTapeBlock().tapeList[0];
 
     expect(alphabet.symbolList.length)
       .toBe(alphabetSymbols.length);
@@ -34,8 +37,9 @@ describe('general tests', () => {
 });
 
 describe('goToNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({
-    tapeBlock: binaryNumbers.tapeBlock,
+    tapeBlock,
   });
   const tapeInitialStateList = [
     '$',
@@ -51,12 +55,12 @@ describe('goToNumber algo', () => {
 
   tapeInitialStateList.forEach((tapeInitialState) => {
     const tape = new Tape({
-      alphabet: binaryNumbers.tapeBlock.tapeList[0].alphabet,
+      alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: tapeInitialState.split(''),
     });
 
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
-      binaryNumbers.tapeBlock.replaceTape(tape);
+      tapeBlock.replaceTape(tape);
 
       expect(() => machine.run(binaryNumbers.states.goToNumber))
         .not
@@ -69,8 +73,9 @@ describe('goToNumber algo', () => {
 });
 
 describe('goToNumbersStart algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({
-    tapeBlock: binaryNumbers.tapeBlock,
+    tapeBlock,
   });
   const tapeInitialStateList = [
     '^$',
@@ -82,13 +87,13 @@ describe('goToNumbersStart algo', () => {
 
   tapeInitialStateList.forEach((tapeInitialState) => {
     const tape = new Tape({
-      alphabet: binaryNumbers.tapeBlock.tapeList[0].alphabet,
+      alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: tapeInitialState.split(''),
       position: tapeInitialState.length - 1,
     });
 
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
-      binaryNumbers.tapeBlock.replaceTape(tape);
+      tapeBlock.replaceTape(tape);
 
       expect(() => machine.run(binaryNumbers.states.goToNumbersStart))
         .not
@@ -101,8 +106,9 @@ describe('goToNumbersStart algo', () => {
 });
 
 describe('deleteNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({
-    tapeBlock: binaryNumbers.tapeBlock,
+    tapeBlock,
   });
   const tapeInitialStateList = [
     '^$',
@@ -114,12 +120,12 @@ describe('deleteNumber algo', () => {
 
   tapeInitialStateList.forEach((tapeInitialState) => {
     const tape = new Tape({
-      alphabet: binaryNumbers.tapeBlock.tapeList[0].alphabet,
+      alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: tapeInitialState.split(''),
     });
 
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
-      binaryNumbers.tapeBlock.replaceTape(tape);
+      tapeBlock.replaceTape(tape);
 
       expect(() => machine.run(binaryNumbers.states.deleteNumber))
         .not
@@ -132,8 +138,9 @@ describe('deleteNumber algo', () => {
 });
 
 describe('normalizeNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({
-    tapeBlock: binaryNumbers.tapeBlock,
+    tapeBlock,
   });
   const tapeInitialStateList = [
     ['^$', '^$'],
@@ -145,12 +152,12 @@ describe('normalizeNumber algo', () => {
 
   tapeInitialStateList.forEach(([startState, endState]) => {
     const tape = new Tape({
-      alphabet: binaryNumbers.tapeBlock.tapeList[0].alphabet,
+      alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: startState.split(''),
     });
 
     test(`tapeInitialState = [${startState}]`, () => {
-      binaryNumbers.tapeBlock.replaceTape(tape);
+      tapeBlock.replaceTape(tape);
 
       expect(() => machine.run(binaryNumbers.states.normalizeNumber))
         .not
@@ -163,8 +170,9 @@ describe('normalizeNumber algo', () => {
 });
 
 describe('invertNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({
-    tapeBlock: binaryNumbers.tapeBlock,
+    tapeBlock,
   });
   const tapeInitialStateList = [
     ['^$', '^$'],
@@ -175,13 +183,13 @@ describe('invertNumber algo', () => {
 
   tapeInitialStateList.forEach((stateList) => {
     const tapeList = stateList.map(state => new Tape({
-      alphabet: binaryNumbers.tapeBlock.tapeList[0].alphabet,
+      alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: state.split(''),
     }));
 
     stateList.forEach((_, ix) => {
       test(`tapeInitialState = [${stateList[ix]}]`, () => {
-        binaryNumbers.tapeBlock.replaceTape(tapeList[ix]);
+        tapeBlock.replaceTape(tapeList[ix]);
 
         expect(() => machine.run(binaryNumbers.states.invertNumber))
           .not

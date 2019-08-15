@@ -35,7 +35,7 @@ For example:
 There is no ability to work with negative numbers at this time.
 
 This library provides following objects to work with binary numbers:
-- `tapeBlock` - a `TapeBlock` class instance with single tape. An alphabet of the tape contains following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
+- `getTapeBlock` - this function returns a `TapeBlock` class instance. It has only one tape. An alphabet of the tape contains the following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
 - `states` - following `States` class instances which represent some algorithms:
     - `goToNumber` - move the head to the number's end
     - `goToNextNumber` - move the head to the next number (to the right)
@@ -46,6 +46,8 @@ This library provides following objects to work with binary numbers:
     - `normalizeNumber` - delete leading zeros
     - `plusOne` - add 1 to the number
     - `minusOne` - subtract 1 from the number 
+
+If you want to use states which were described earlier, you must use a tape block received from the `getTapeBlock` function.
 
 ## Links
 

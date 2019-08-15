@@ -1,7 +1,10 @@
 import Alphabet from './Alphabet';
+import Command from './Command';
 import { ifOtherSymbol } from './State';
 import Tape from './Tape';
 import { movements, symbolCommands } from './TapeCommand';
+
+const symbolToPatternListMapSetterKey = Symbol('symbol for symbolToPatternListMap setter');
 
 export default class TapeBlock {
   #symbolToPatternListMap = new Map();
@@ -67,6 +70,10 @@ export default class TapeBlock {
   }
 
   applyCommand(command) {
+    if (!(command instanceof Command)) {
+      throw new Error('invalid command');
+    }
+
     if (this.#tapeList.length !== command.tapeCommandList.length) {
       throw new Error('invalid command');
     }
@@ -94,10 +101,26 @@ export default class TapeBlock {
         case movements.right:
           tape.right();
           break;
-        default:
-          throw new Error('invalid tape movement');
       }
     });
+  }
+
+  clone(cloneTapes = false) {
+    let tapeBlock;
+
+    if (cloneTapes) {
+      tapeBlock = new TapeBlock({
+        tapeList: this.tapeList.map(tape => new Tape(tape)),
+      });
+    } else {
+      tapeBlock = new TapeBlock({
+        alphabetList: this.alphabetList,
+      });
+    }
+
+    tapeBlock[symbolToPatternListMapSetterKey](this.#symbolToPatternListMap);
+
+    return tapeBlock;
   }
 
   isMatched({
@@ -142,6 +165,10 @@ export default class TapeBlock {
       throw new Error('invalid tape');
     }
   }
+
+  [symbolToPatternListMapSetterKey] = (symbolToPatternListMap) => {
+    this.#symbolToPatternListMap = new Map(symbolToPatternListMap);
+  };
 
   #buildPatternList(symbolList) {
     return symbolList.reduce((result, symbol, ix) => {

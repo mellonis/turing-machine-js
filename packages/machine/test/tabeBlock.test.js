@@ -37,11 +37,30 @@ describe('TapeBlock constructor', () => {
       .toThrowError('invalid parameter');
   });
 
+  test('throws if tapeList contains not Tape', () => {
+    expect(() => new TapeBlock({
+      tapeList: 'null',
+    }))
+      .toThrowError('tapeList must be an array');
+  });
+
   test('throws if alphabetList is not an array', () => {
     expect(() => new TapeBlock({
       alphabetList: null,
     }))
       .toThrowError('invalid parameter');
+
+    expect(() => new TapeBlock({
+      alphabetList: 'null',
+    }))
+      .toThrowError('alphabetList must be an array');
+  });
+
+  test('throws if alphabetList contains something different than Alphabet', () => {
+    expect(() => new TapeBlock({
+      alphabetList: [null],
+    }))
+      .toThrowError('invalid alphabet');
   });
 
   test('throws if tapeList is empty', () => {
@@ -123,8 +142,6 @@ describe('TapeBlock currentSymbolList property', () => {
       ]);
   });
 });
-
-
 
 describe('TapeBlock alphabetList property', () => {
   const tapeList = alphabetList.map(alphabet => new Tape({
@@ -378,6 +395,10 @@ describe('TapeBlock isMatched method', () => {
       .toThrowError(/^Cannot destructure property/);
     expect(() => tapeBlock.isMatched(Symbol('some symbol')))
       .toThrowError('invalid symbol');
+    expect(() => tapeBlock.isMatched({
+      symbol: Symbol('some symbol'),
+    }))
+      .toThrowError('invalid symbol');
   });
 
   test('isMatched with ifOtherSymbol is true', () => {
@@ -504,5 +525,132 @@ describe('TapeBlock isMatched method', () => {
       }))
         .toBe(true);
     });
+  });
+});
+
+describe('TapeBlock applyCommand method', () => {
+  let tape;
+  let tapeBlock;
+
+  beforeEach(() => {
+    const alphabet = alphabetList[0];
+
+    tape = new Tape({
+      alphabet,
+      symbolList: alphabet.symbolList,
+    });
+    tapeBlock = new TapeBlock({
+      tapeList: [tape],
+    });
+  });
+
+  test('throws an error if command is not a Command instance', () => {
+    expect(() => tapeBlock.applyCommand(null))
+      .toThrowError('invalid command');
+  });
+
+  test('throws an error commands count is not equal to tapes count', () => {
+    expect(() => tapeBlock.applyCommand(new Command([
+      new TapeCommand({}),
+      new TapeCommand({}),
+    ])))
+      .toThrowError('invalid command');
+  });
+
+  test('writes symbol', () => {
+    tapeBlock.applyCommand(new Command([
+      new TapeCommand({
+        symbol: tape.alphabet.symbolList[1],
+      }),
+    ]));
+
+    expect(tape.symbol)
+      .toBe(tape.alphabet.symbolList[1]);
+  });
+
+  test('throws an error when trying invalid symbol', () => {
+    expect(() => {
+      tapeBlock.applyCommand(new Command([
+        new TapeCommand({
+          symbol: '\0',
+        }),
+      ]));
+    })
+      .toThrowError('Invalid symbol');
+  });
+});
+
+describe('TapeBlock clone method', () => {
+  let tapeBlock;
+
+  beforeEach(() => {
+    tapeBlock = new TapeBlock({ alphabetList });
+  });
+
+  test('clone exists', () => {
+    expect(tapeBlock.clone)
+      .toBeTruthy();
+  });
+
+  test('clone returns TapeBlock instance', () => {
+    const cloneTapeBlockWithoutTapes = tapeBlock.clone();
+    const cloneTapeBlockWithTapes = tapeBlock.clone(true);
+
+    expect(cloneTapeBlockWithoutTapes instanceof TapeBlock)
+      .toBe(true);
+    expect(cloneTapeBlockWithTapes instanceof TapeBlock)
+      .toBe(true);
+  });
+
+  test('cloned tapeBlock alphabetList property', () => {
+    const clonedTapeBlock = tapeBlock.clone();
+
+    expect(clonedTapeBlock.alphabetList.every(alphabet => alphabet instanceof Alphabet))
+      .toBe(true);
+
+    expect(
+      clonedTapeBlock.alphabetList
+        .every((alphabet, alphabetIx) => tapeBlock.alphabetList[alphabetIx].symbolList
+          .every((symbol, symbolIx) => symbol === clonedTapeBlock
+            .alphabetList[alphabetIx].symbolList[symbolIx])),
+    )
+      .toBe(true);
+  });
+
+  test('cloned tapeBlock tapeList property', () => {
+    // eslint-disable-next-line no-return-assign,no-param-reassign,prefer-destructuring
+    tapeBlock.tapeList.forEach(tape => tape.symbol = tape.alphabet.symbolList[1]);
+
+    const clonedTapeBlockWithoutTapes = tapeBlock.clone();
+    const clonedTapeBlockWithTapes = tapeBlock.clone(true);
+
+    expect(clonedTapeBlockWithoutTapes.tapeList.every(tape => tape instanceof Tape))
+      .toBe(true);
+    expect(clonedTapeBlockWithTapes.tapeList.every(tape => tape instanceof Tape))
+      .toBe(true);
+
+    expect(
+      clonedTapeBlockWithoutTapes.tapeList
+        .every(tape => tape.symbolList.join() === tape.alphabet.blankSymbol),
+    )
+      .toBe(true);
+
+    expect(
+      clonedTapeBlockWithTapes.tapeList
+        .every((tape, tapeIx) => (
+          tape.symbolList.join() === tapeBlock.tapeList[tapeIx].symbolList.join()
+        )),
+    )
+      .toBe(true);
+  });
+
+  test('cloned tapeBlock contains symbols from original tapeBlock', () => {
+    const tapeSymbolList = alphabetList.map(alphabet => alphabet.symbolList[1]);
+    const originalSymbol = tapeBlock.symbol(tapeSymbolList);
+    const clonedTapeBlock = tapeBlock.clone();
+    const symbolFromClonedTapeBlock = clonedTapeBlock.symbol(tapeSymbolList);
+
+    expect(originalSymbol === symbolFromClonedTapeBlock)
+      .toBe(true);
   });
 });

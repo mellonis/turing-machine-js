@@ -243,8 +243,12 @@ const minusOne = new State({
   },
 }, 'minusOne');
 
+function getTapeBlock() {
+  return tapeBlock.clone();
+}
+
 export default {
-  tapeBlock,
+  getTapeBlock,
   states: {
     goToNumber,
     goToNextNumber,
