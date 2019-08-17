@@ -42,8 +42,8 @@ describe('State constructor', () => {
 
     const commandForZero = state.getCommand('\0');
 
-    expect(commandForZero.nextState.ref)
-      .toBeUndefined();
+    expect(() => commandForZero.nextState.ref)
+      .toThrowError('unbounded reference');
     expect(commandForZero.movement)
       .toBe(movements.stay);
     expect(commandForZero.symbol)
@@ -110,8 +110,8 @@ describe('State constructor', () => {
 
     const commandForZero = state.getCommand(symbol);
 
-    expect(commandForZero.nextState.ref)
-      .toBeUndefined();
+    expect(() => commandForZero.nextState.ref)
+      .toThrowError('unbounded reference');
     expect(commandForZero.movement)
       .toBe(movements.stay);
     expect(commandForZero.symbol)

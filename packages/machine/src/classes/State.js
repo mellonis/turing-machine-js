@@ -6,15 +6,13 @@ import Command from './Command';
 const ifOtherSymbol = Symbol('other symbol');
 
 class State {
-  #stateId;
+  #stateId = id(this);
 
   #stateSymbolToCommandMap;
 
   #stateOverrodeHaltState;
 
   constructor(stateDefinition = null) {
-    this.#stateId = id(this);
-
     if (stateDefinition) {
       this.#stateSymbolToCommandMap = new Map();
 

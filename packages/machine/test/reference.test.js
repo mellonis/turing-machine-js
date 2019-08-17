@@ -4,8 +4,8 @@ describe('Reference constructor', () => {
   test('Reference', () => {
     const reference = new Reference();
 
-    expect(reference.ref)
-      .toBeUndefined();
+    expect(() => reference.ref)
+      .toThrowError('unbounded reference');
   });
 });
 
