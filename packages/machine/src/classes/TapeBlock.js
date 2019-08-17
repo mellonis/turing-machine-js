@@ -11,6 +11,14 @@ export default class TapeBlock {
 
   #tapeList;
 
+  static #generateSymbolHint(patternList) {
+    return JSON.stringify(
+      patternList
+        .map(pattern => pattern
+          .map(symbol => symbol === ifOtherSymbol ? null : symbol)),
+    );
+  }
+
   constructor({ tapeList, alphabetList }) {
     if (!alphabetList && !tapeList) {
       throw new Error('invalid parameter');
@@ -215,7 +223,7 @@ export default class TapeBlock {
     if (storedPatternListSymbol) {
       symbol = storedPatternListSymbol;
     } else {
-      symbol = Symbol();
+      symbol = Symbol(TapeBlock.#generateSymbolHint(patternList));
 
       this.#symbolToPatternListMap.set(symbol, patternList);
     }

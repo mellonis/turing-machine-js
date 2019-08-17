@@ -8,17 +8,11 @@ const ifOtherSymbol = Symbol('other symbol');
 class State {
   #id = id(this);
 
-  #symbolToDataMap = new Map();
-
   #overrodeHaltState;
 
-  constructor(stateDefinition = null) {
-    Object.defineProperty(this, 'id', {
-      get() {
-        return this.#id;
-      },
-    });
+  #symbolToDataMap = new Map();
 
+  constructor(stateDefinition = null) {
     if (stateDefinition) {
       const keyList = Object.getOwnPropertyNames(stateDefinition);
 
@@ -73,6 +67,22 @@ class State {
     }
   }
 
+  get id() {
+    return this.#id;
+  }
+
+  get isHalt() {
+    return this.#id === 0;
+  }
+
+  get overrodeHaltState() {
+    return this.#overrodeHaltState;
+  }
+
+  get ref() {
+    return this;
+  }
+
   getSymbol(tapeBlock) {
     const symbol = [...this.#symbolToDataMap.keys()].find(currentSymbol => tapeBlock.isMatched({
       symbol: currentSymbol,
@@ -99,18 +109,6 @@ class State {
     }
 
     throw new Error(`No nextState for symbol at state named ${this.#id}`);
-  }
-
-  get isHalt() {
-    return this.#id === 0;
-  }
-
-  get overrodeHaltState() {
-    return this.#overrodeHaltState;
-  }
-
-  get ref() {
-    return this;
   }
 
   withOverrodeHaltState(overrodeHaltState) {
