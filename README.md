@@ -6,6 +6,7 @@
 A convenient Turing machine
 
 This repository contains following packages:
+* [@turing-machine-js/builder](https://github.com/mellonis/turing-machine-js/tree/next/packages/builder)
 * [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/next/packages/machine)
 * [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/next/packages/library-binary-numbers)
 

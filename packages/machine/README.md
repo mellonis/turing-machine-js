@@ -41,7 +41,7 @@ yarn add @turing-machine-js/machine --dev
 
 ### haltState
 
-A special state which tells to the processor to stop
+A special state for stopping the machine
 
 ### ifOtherSymbol
 
