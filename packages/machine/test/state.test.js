@@ -1,9 +1,10 @@
 import {
-  Reference,
-  State,
+  haltState,
   ifOtherSymbol,
   movements,
-  symbolCommands, haltState,
+  Reference,
+  State,
+  symbolCommands,
 } from '@turing-machine-js/machine';
 
 describe('State constructor', () => {

@@ -1,19 +1,6 @@
-import TuringMachine from './classes/TuringMachine';
-import Alphabet from './classes/Alphabet';
-import Tape from './classes/Tape';
-import Command, { movements, symbolCommands } from './classes/Command';
-import State, { haltState, ifOtherSymbol } from './classes/State';
-import Reference from './classes/Reference';
-
-export {
-  TuringMachine as default,
-  Alphabet,
-  Command,
-  Reference,
-  State,
-  Tape,
-  haltState,
-  ifOtherSymbol,
-  movements,
-  symbolCommands,
-};
+export { default as Alphabet } from './classes/Alphabet';
+export { default as Command, movements, symbolCommands } from './classes/Command';
+export { default as Reference } from './classes/Reference';
+export { default as State, haltState, ifOtherSymbol } from './classes/State';
+export { default as Tape } from './classes/Tape';
+export { default } from './classes/TuringMachine';

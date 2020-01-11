@@ -1,9 +1,9 @@
 import {
   Alphabet,
-  State,
   haltState,
   ifOtherSymbol,
   movements,
+  State,
   symbolCommands,
 } from '@turing-machine-js/machine';
 

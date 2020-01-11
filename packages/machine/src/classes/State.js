@@ -1,7 +1,7 @@
 import { id, uniquePredicate } from '../utilities/functions';
-import Reference from './Reference';
 // eslint-disable-next-line import/no-cycle
 import Command from './Command';
+import Reference from './Reference';
 
 const ifOtherSymbol = Symbol('other symbol');
 
@@ -19,7 +19,7 @@ class State {
       let isValidStateDefinition = true;
       const keyList = Object.keys(stateDefinition);
 
-      if (keyList.some(symbol => symbol.length === 0)) {
+      if (keyList.some((symbol) => symbol.length === 0)) {
         isValidStateDefinition = false;
       }
 

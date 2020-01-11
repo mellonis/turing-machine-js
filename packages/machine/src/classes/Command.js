@@ -1,6 +1,6 @@
+import Reference from './Reference';
 // eslint-disable-next-line import/no-cycle
 import State from './State';
-import Reference from './Reference';
 
 const movements = {
   left: Symbol('move caret left command'),

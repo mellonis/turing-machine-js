@@ -1,5 +1,9 @@
 import binaryNumbers from '@turing-machine-js/library-binary-numbers';
-import TuringMachine, { Alphabet, State, Tape } from '@turing-machine-js/machine';
+import TuringMachine, {
+  Alphabet,
+  State,
+  Tape,
+} from '@turing-machine-js/machine';
 
 const alphabetSymbols = ' ^$01';
 const stateNameList = [
@@ -20,12 +24,12 @@ describe('general tests', () => {
       .toBe(true);
     expect(binaryNumbers.alphabet.symbolList.length)
       .toBe(alphabetSymbols.length);
-    expect(alphabetSymbols.split('').every(symbol => binaryNumbers.alphabet.has(symbol)))
+    expect(alphabetSymbols.split('').every((symbol) => binaryNumbers.alphabet.has(symbol)))
       .toBe(true);
   });
 
   test('has all declared states', () => {
-    expect(stateNameList.every(stateName => binaryNumbers.states[stateName] instanceof State))
+    expect(stateNameList.every((stateName) => binaryNumbers.states[stateName] instanceof State))
       .toBe(true);
   });
 });
@@ -156,7 +160,7 @@ describe('invertNumber algo', () => {
   ];
 
   tapeInitialStateList.forEach((stateList) => {
-    const tapeList = stateList.map(state => new Tape({
+    const tapeList = stateList.map((state) => new Tape({
       alphabet: binaryNumbers.alphabet,
       symbolList: state.split(''),
     }));
@@ -185,5 +189,5 @@ describe('todo tests', () => {
   ];
 
   toDoList
-    .forEach(stateName => test.todo(`test ${stateName} algo`));
+    .forEach((stateName) => test.todo(`test ${stateName} algo`));
 });

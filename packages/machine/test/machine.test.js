@@ -1,11 +1,11 @@
 import TuringMachine, {
   Alphabet,
-  State,
-  Tape,
   haltState,
   ifOtherSymbol,
   movements,
+  State,
   symbolCommands,
+  Tape,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
@@ -31,7 +31,7 @@ describe('run tests', () => {
     });
     const stepList = [];
 
-    machine.run(initialState, 1e5, step => stepList.push(step));
+    machine.run(initialState, 1e5, (step) => stepList.push(step));
 
     const expectedStepList = [
       {
@@ -150,7 +150,7 @@ describe('run tests', () => {
 
     // eslint-disable-next-line no-restricted-syntax
     for (const step of iterator) {
-      const expectedStep = expectedStepList.find(_ => _.step === step.step);
+      const expectedStep = expectedStepList.find((_) => _.step === step.step);
 
       expect(step)
         .toEqual(expectedStep);

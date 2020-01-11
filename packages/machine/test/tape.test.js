@@ -1,4 +1,7 @@
-import { Alphabet, Tape } from '@turing-machine-js/machine';
+import {
+  Alphabet,
+  Tape,
+} from '@turing-machine-js/machine';
 
 describe('Tape constructor', () => {
   test('throws without alphabet', () => {

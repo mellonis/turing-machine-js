@@ -74,7 +74,7 @@ describe('Alphabet properties', () => {
 
   test('has', () => {
     const hasAllSymbols = alphabetSymbols.split('')
-      .every(symbol => alphabet.has(symbol));
+      .every((symbol) => alphabet.has(symbol));
 
     expect(hasAllSymbols)
       .toBe(true);

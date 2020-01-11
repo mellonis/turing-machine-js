@@ -16,7 +16,7 @@ export default class Tape {
       throw new Error('Invalid alphabet');
     }
 
-    const isSymbolListValid = symbolList.every(symbol => alphabet.has(symbol));
+    const isSymbolListValid = symbolList.every((symbol) => alphabet.has(symbol));
 
     if (!isSymbolListValid) {
       throw new Error('symbolList contains invalid symbol');
@@ -31,7 +31,7 @@ export default class Tape {
     }
 
     this.#symbolList = this.#symbolList
-      .map(symbol => this.#alphabet.index(symbol));
+      .map((symbol) => this.#alphabet.index(symbol));
     this.viewportWidth = viewportWidth;
   }
 
@@ -61,7 +61,7 @@ export default class Tape {
 
   get symbolList() {
     return this.#symbolList
-      .map(index => this.#alphabet.get(index));
+      .map((index) => this.#alphabet.get(index));
   }
 
   get viewport() {
@@ -70,7 +70,7 @@ export default class Tape {
 
     return this.#symbolList
       .slice(startIx, endIx)
-      .map(index => this.#alphabet.get(index));
+      .map((index) => this.#alphabet.get(index));
   }
 
   get viewportWidth() {

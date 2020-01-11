@@ -1,5 +1,5 @@
-import State from './State';
 import { movements, symbolCommands } from './Command';
+import State from './State';
 
 export default class TuringMachine {
   #tape;
