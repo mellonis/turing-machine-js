@@ -1,14 +1,14 @@
-const movements = {
+export const movements = {
   left: Symbol('move caret left command'),
   right: Symbol('move caret right command'),
   stay: Symbol('do not move carer'),
 };
-const symbolCommands = {
+export const symbolCommands = {
   erase: Symbol('erase symbol command'),
   keep: Symbol('keep symbol command'),
 };
 
-class TapeCommand {
+export default class TapeCommand {
   #movement;
 
   #symbol;
@@ -50,9 +50,3 @@ class TapeCommand {
     return this.#movement;
   }
 }
-
-export {
-  TapeCommand as default,
-  movements,
-  symbolCommands,
-};

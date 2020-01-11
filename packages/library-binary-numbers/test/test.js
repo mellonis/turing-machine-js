@@ -26,12 +26,12 @@ describe('general tests', () => {
 
     expect(alphabet.symbolList.length)
       .toBe(alphabetSymbols.length);
-    expect(alphabetSymbols.split('').every(symbol => alphabet.has(symbol)))
+    expect(alphabetSymbols.split('').every((symbol) => alphabet.has(symbol)))
       .toBe(true);
   });
 
   test('has all declared states', () => {
-    expect(stateNameList.every(stateName => binaryNumbers.states[stateName] instanceof State))
+    expect(stateNameList.every((stateName) => binaryNumbers.states[stateName] instanceof State))
       .toBe(true);
   });
 });
@@ -182,7 +182,7 @@ describe('invertNumber algo', () => {
   ];
 
   tapeInitialStateList.forEach((stateList) => {
-    const tapeList = stateList.map(state => new Tape({
+    const tapeList = stateList.map((state) => new Tape({
       alphabet: tapeBlock.tapeList[0].alphabet,
       symbolList: state.split(''),
     }));
@@ -211,5 +211,5 @@ describe('todo tests', () => {
   ];
 
   toDoList
-    .forEach(stateName => test.todo(`test ${stateName} algo`));
+    .forEach((stateName) => test.todo(`test ${stateName} algo`));
 });

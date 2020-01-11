@@ -1,11 +1,11 @@
+import { id } from '../utilities/functions';
 import Command from './Command';
 import Reference from './Reference';
 import TapeCommand from './TapeCommand';
-import { id } from '../utilities/functions';
 
-const ifOtherSymbol = Symbol('other symbol');
+export const ifOtherSymbol = Symbol('other symbol');
 
-class State {
+export default class State {
   #id = id(this);
 
   #overrodeHaltState;
@@ -84,7 +84,7 @@ class State {
   }
 
   getSymbol(tapeBlock) {
-    const symbol = [...this.#symbolToDataMap.keys()].find(currentSymbol => tapeBlock.isMatched({
+    const symbol = [...this.#symbolToDataMap.keys()].find((currentSymbol) => tapeBlock.isMatched({
       symbol: currentSymbol,
     }));
 
@@ -122,10 +122,4 @@ class State {
   }
 }
 
-const haltState = new State(null);
-
-export {
-  State as default,
-  haltState,
-  ifOtherSymbol,
-};
+export const haltState = new State(null);

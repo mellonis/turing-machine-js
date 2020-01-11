@@ -78,7 +78,7 @@ export default class TuringMachine {
                 return tapeCommand.symbol;
             }
           }),
-          movementList: command.tapeCommandList.map(tapeCommand => tapeCommand.movement),
+          movementList: command.tapeCommandList.map((tapeCommand) => tapeCommand.movement),
           nextState: nextStateForYield,
         };
       } catch (e) {

@@ -1,8 +1,10 @@
 import TuringMachine, {
   Alphabet,
-  haltState, movements,
+  haltState,
+  movements,
   Reference,
-  State, symbolCommands,
+  State,
+  symbolCommands,
   TapeBlock,
 } from '@turing-machine-js/machine';
 

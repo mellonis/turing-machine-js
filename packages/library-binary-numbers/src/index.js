@@ -1,11 +1,11 @@
 import {
   Alphabet,
-  State,
-  TapeBlock,
   haltState,
   ifOtherSymbol,
   movements,
+  State,
   symbolCommands,
+  TapeBlock,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({

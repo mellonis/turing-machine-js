@@ -8,6 +8,7 @@ describe('buildMachine', () => {
       const qq = /\((.*?),(.*?)\)->\((.*?),(.*?),(.*?)\);/g;
       let match;
 
+      // eslint-disable-next-line no-cond-assign
       while (match = qq.exec(stateDeclarations)) {
         const [, stateName, currentSymbol, nextStateName, nextSymbol, nextMovement] = match;
 
@@ -55,7 +56,7 @@ describe('buildMachine', () => {
         (Q3,#)->(Q4,#,L);
         (Q4,X)->(Q4,0,L);
         (Q4,Y)->(Q4,1,L);
-        (Q4,#)->(Q5,#,R);  
+        (Q4,#)->(Q5,#,R);
       `),
     });
 

@@ -1,10 +1,8 @@
 import TuringMachine, {
   Alphabet,
-  Command,
   State,
   Tape,
   TapeBlock,
-  TapeCommand,
   haltState,
   ifOtherSymbol,
   movements,
@@ -13,6 +11,13 @@ import TuringMachine, {
 
 const alphabet = new Alphabet({
   symbolList: ' ABC'.split(''),
+});
+
+describe('constructor', () => {
+  test('invalid TapeBlock', () => {
+    expect(() => new TuringMachine({ tapeBlock: null }))
+      .toThrowError();
+  });
 });
 
 describe('run tests', () => {
@@ -86,7 +91,7 @@ describe('run tests', () => {
   test('run', () => {
     const stepList = [];
 
-    machine.run(initialState, 1e5, step => stepList.push(step));
+    machine.run(initialState, 1e5, (step) => stepList.push(step));
 
     expect(stepList)
       .toEqual(expectedStepList);
@@ -103,7 +108,7 @@ describe('run tests', () => {
 
     // eslint-disable-next-line no-restricted-syntax
     for (const step of iterator) {
-      const expectedStep = expectedStepList.find(_ => _.step === step.step);
+      const expectedStep = expectedStepList.find((_) => _.step === step.step);
 
       expect(step)
         .toEqual(expectedStep);

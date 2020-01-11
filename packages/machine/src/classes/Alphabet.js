@@ -10,7 +10,7 @@ export default class Alphabet {
       throw new Error('Invalid symbolList length');
     }
 
-    const isSymbolListValid = uniqueSymbolList.every(symbol => typeof symbol === 'string' && symbol.length === 1);
+    const isSymbolListValid = uniqueSymbolList.every((symbol) => typeof symbol === 'string' && symbol.length === 1);
 
     if (!isSymbolListValid) {
       throw new Error('symbolList contains invalid symbol');

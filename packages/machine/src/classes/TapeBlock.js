@@ -11,13 +11,11 @@ export default class TapeBlock {
 
   #tapeList;
 
-  static #generateSymbolHint(patternList) {
-    return JSON.stringify(
-      patternList
-        .map(pattern => pattern
-          .map(symbol => symbol === ifOtherSymbol ? null : symbol)),
-    );
-  }
+  static #generateSymbolHint = (patternList) => JSON.stringify(
+    patternList
+      .map((pattern) => pattern
+        .map((symbol) => (symbol === ifOtherSymbol ? null : symbol))),
+  )
 
   constructor({ tapeList, alphabetList }) {
     if (!alphabetList && !tapeList) {
@@ -33,13 +31,14 @@ export default class TapeBlock {
         throw new Error('empty alphabet list');
       }
 
-      const notAlphabetIndex = alphabetList.findIndex(alphabet => !(alphabet instanceof Alphabet));
+      const notAlphabetIndex = alphabetList
+        .findIndex((alphabet) => !(alphabet instanceof Alphabet));
 
       if (notAlphabetIndex >= 0) {
         throw new Error('invalid alphabet');
       }
 
-      this.#tapeList = alphabetList.map(alphabet => new Tape({
+      this.#tapeList = alphabetList.map((alphabet) => new Tape({
         alphabet,
       }));
     } else {
@@ -54,7 +53,7 @@ export default class TapeBlock {
       throw new Error('empty tape list');
     }
 
-    const notTapeIndex = this.#tapeList.findIndex(tape => !(tape instanceof Tape));
+    const notTapeIndex = this.#tapeList.findIndex((tape) => !(tape instanceof Tape));
 
     if (notTapeIndex >= 0) {
       throw new Error('invalid tape');
@@ -62,11 +61,11 @@ export default class TapeBlock {
   }
 
   get alphabetList() {
-    return [...this.#tapeList.map(tape => tape.alphabet)];
+    return [...this.#tapeList.map((tape) => tape.alphabet)];
   }
 
   get currentSymbolList() {
-    return this.#tapeList.map(tape => tape.symbol);
+    return this.#tapeList.map((tape) => tape.symbol);
   }
 
   get symbol() {
@@ -93,13 +92,16 @@ export default class TapeBlock {
         case symbolCommands.keep:
           break;
         case symbolCommands.erase:
+          // eslint-disable-next-line no-param-reassign
           tape.symbol = tape.alphabet.blankSymbol;
           break;
         default:
+          // eslint-disable-next-line no-param-reassign
           tape.symbol = symbol;
           break;
       }
 
+      // eslint-disable-next-line default-case
       switch (movement) {
         case movements.left:
           tape.left();
@@ -118,7 +120,7 @@ export default class TapeBlock {
 
     if (cloneTapes) {
       tapeBlock = new TapeBlock({
-        tapeList: this.tapeList.map(tape => new Tape(tape)),
+        tapeList: this.tapeList.map((tape) => new Tape(tape)),
       });
     } else {
       tapeBlock = new TapeBlock({
@@ -133,7 +135,7 @@ export default class TapeBlock {
 
   isMatched({
     currentSymbolList = this.currentSymbolList,
-    symbol
+    symbol,
   }) {
     if (symbol === ifOtherSymbol) {
       return true;
@@ -149,11 +151,11 @@ export default class TapeBlock {
 
     const patternList = this.#symbolToPatternListMap.get(symbol);
 
-    return patternList.some(pattern => (
+    return patternList.some((pattern) => (
       pattern
-        .every((symbol, ix) => (
-          symbol === ifOtherSymbol
-          || symbol === currentSymbolList[ix]
+        .every((everySymbol, ix) => (
+          everySymbol === ifOtherSymbol
+          || everySymbol === currentSymbolList[ix]
         ))
     ));
   }
@@ -178,30 +180,29 @@ export default class TapeBlock {
     this.#symbolToPatternListMap = new Map(symbolToPatternListMap);
   };
 
-  #buildPatternList(symbolList) {
-    return symbolList.reduce((result, symbol, ix) => {
-      const row = Math.floor(ix / this.#tapeList.length);
+  #buildPatternList = (symbolList) => symbolList.reduce((result, symbol, ix) => {
+    const row = Math.floor(ix / this.#tapeList.length);
 
-      if (!Array.isArray(result[row])) {
-        result[row] = [];
-      }
+    if (!Array.isArray(result[row])) {
+      // eslint-disable-next-line no-param-reassign
+      result[row] = [];
+    }
 
-      result[row].push(symbol);
+    result[row].push(symbol);
 
-      return result;
-    }, [])
-      .filter((pattern, ix, patternList) => {
-          const samePatternIx = patternList.findIndex((otherPattern) => (
-            pattern
-              .every((symbol, symbolIx) => symbol === otherPattern[symbolIx])
-          ));
+    return result;
+  }, [])
+    .filter((pattern, ix, patternList) => {
+      const samePatternIx = patternList.findIndex((otherPattern) => (
+        pattern
+          .every((symbol, symbolIx) => symbol === otherPattern[symbolIx])
+      ));
 
-        return samePatternIx === ix;
-      })
-  }
+      return samePatternIx === ix;
+    });
 
-  #getSymbolForPatternList(patternList) {
-    if (patternList.some((pattern) => pattern.every(symbol => symbol === ifOtherSymbol))) {
+  #getSymbolForPatternList = (patternList) => {
+    if (patternList.some((pattern) => pattern.every((symbol) => symbol === ifOtherSymbol))) {
       return ifOtherSymbol;
     }
 
@@ -212,10 +213,8 @@ export default class TapeBlock {
         }
 
         return patternList
-          .every((pattern, patternIx) => {
-            return pattern
-              .every((symbol, symbolIx) => symbol === storedPatternList[patternIx][symbolIx]);
-          });
+          .every((pattern, patternIx) => pattern
+            .every((symbol, symbolIx) => symbol === storedPatternList[patternIx][symbolIx]));
       }) || [null, null];
 
     let symbol;
@@ -231,7 +230,7 @@ export default class TapeBlock {
     return symbol;
   }
 
-  #symbol(symbols) {
+  #symbol = (symbols) => {
     let symbolList;
 
     if (symbols === ifOtherSymbol) {
@@ -261,7 +260,7 @@ export default class TapeBlock {
       throw new Error('invalid symbol parameter');
     }
 
-    if (symbolList.every(symbol => symbol === ifOtherSymbol)) {
+    if (symbolList.every((symbol) => symbol === ifOtherSymbol)) {
       return ifOtherSymbol;
     }
 

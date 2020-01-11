@@ -90,7 +90,7 @@ describe('TapeBlock currentSymbolList property', () => {
   let tapeBlock;
 
   beforeAll(() => {
-    tapeList = alphabetList.map(alphabet => new Tape({
+    tapeList = alphabetList.map((alphabet) => new Tape({
       alphabet,
       symbolList: alphabet.symbolList,
     }));
@@ -115,22 +115,22 @@ describe('TapeBlock currentSymbolList property', () => {
     const rightCommand = new Command(tapeList.map(() => tapeCommandRight));
 
     expect(tapeBlock.currentSymbolList)
-      .toEqual(alphabetList.map(alphabet => alphabet.symbolList[0]));
+      .toEqual(alphabetList.map((alphabet) => alphabet.symbolList[0]));
 
     tapeBlock.applyCommand(rightCommand);
 
     expect(tapeBlock.currentSymbolList)
-      .toEqual(alphabetList.map(alphabet => alphabet.symbolList[1]));
+      .toEqual(alphabetList.map((alphabet) => alphabet.symbolList[1]));
 
     tapeBlock.applyCommand(rightCommand);
 
     expect(tapeBlock.currentSymbolList)
-      .toEqual(alphabetList.map(alphabet => alphabet.symbolList[2]));
+      .toEqual(alphabetList.map((alphabet) => alphabet.symbolList[2]));
 
     tapeBlock.applyCommand(rightCommand);
 
     expect(tapeBlock.currentSymbolList)
-      .toEqual(alphabetList.map(alphabet => alphabet.symbolList[0]));
+      .toEqual(alphabetList.map((alphabet) => alphabet.symbolList[0]));
 
     tapeBlock.applyCommand(new Command([tapeCommandLeft, tapeCommandIdle, tapeCommandIdle]));
 
@@ -144,7 +144,7 @@ describe('TapeBlock currentSymbolList property', () => {
 });
 
 describe('TapeBlock alphabetList property', () => {
-  const tapeList = alphabetList.map(alphabet => new Tape({
+  const tapeList = alphabetList.map((alphabet) => new Tape({
     alphabet,
     symbolList: alphabet.symbolList,
   }));
@@ -159,19 +159,19 @@ describe('TapeBlock alphabetList property', () => {
 
   test('correct alphabets in list', () => {
     expect(tapeBlock.alphabetList)
-      .toEqual(tapeBlock.tapeList.map(tape => tape.alphabet));
+      .toEqual(tapeBlock.tapeList.map((tape) => tape.alphabet));
   });
 });
 
 describe('TapeBlock symbol method', () => {
-  const goodListParameter = alphabetList.map(alphabet => alphabet.symbolList[0]);
+  const goodListParameter = alphabetList.map((alphabet) => alphabet.symbolList[0]);
   const goodStringParameter = goodListParameter.join('');
   let tapeList;
   let tapeBlock;
   let symbol;
 
   beforeAll(() => {
-    tapeList = alphabetList.map(alphabet => new Tape({
+    tapeList = alphabetList.map((alphabet) => new Tape({
       alphabet,
     }));
     tapeBlock = new TapeBlock({
@@ -292,7 +292,9 @@ describe('TapeBlock symbol method', () => {
 
   test('different symbols', () => {
     expect(
-      symbol(goodStringParameter) === symbol(alphabetList.map(alphabet => alphabet.symbolList[1])),
+      symbol(goodStringParameter) === symbol(
+        alphabetList.map((alphabet) => alphabet.symbolList[1]),
+      ),
     )
       .toBe(false);
 
@@ -312,10 +314,10 @@ describe('TapeBlock replaceTape method', () => {
   let tapeBlock;
 
   beforeAll(() => {
-    tapeLists.original = alphabetList.map(alphabet => new Tape({
+    tapeLists.original = alphabetList.map((alphabet) => new Tape({
       alphabet,
     }));
-    tapeLists.surrogate = alphabetList.map(alphabet => new Tape({
+    tapeLists.surrogate = alphabetList.map((alphabet) => new Tape({
       alphabet,
     }));
     tapeBlock = new TapeBlock({
@@ -371,12 +373,12 @@ describe('TapeBlock replaceTape method', () => {
 });
 
 describe('TapeBlock isMatched method', () => {
-  const goodListParameter = alphabetList.map(alphabet => alphabet.symbolList[0]);
+  const goodListParameter = alphabetList.map((alphabet) => alphabet.symbolList[0]);
   let tapeList;
   let tapeBlock;
 
   beforeAll(() => {
-    tapeList = alphabetList.map(alphabet => new Tape({
+    tapeList = alphabetList.map((alphabet) => new Tape({
       alphabet,
       symbolList: alphabet.symbolList,
     }));
@@ -392,7 +394,7 @@ describe('TapeBlock isMatched method', () => {
 
   test('isMatched throws an error on invalid symbol', () => {
     expect(() => tapeBlock.isMatched())
-      .toThrowError(/^Cannot destructure property/);
+      .toThrowError();
     expect(() => tapeBlock.isMatched(Symbol('some symbol')))
       .toThrowError('invalid symbol');
     expect(() => tapeBlock.isMatched({
@@ -605,7 +607,7 @@ describe('TapeBlock clone method', () => {
   test('cloned tapeBlock alphabetList property', () => {
     const clonedTapeBlock = tapeBlock.clone();
 
-    expect(clonedTapeBlock.alphabetList.every(alphabet => alphabet instanceof Alphabet))
+    expect(clonedTapeBlock.alphabetList.every((alphabet) => alphabet instanceof Alphabet))
       .toBe(true);
 
     expect(
@@ -619,19 +621,19 @@ describe('TapeBlock clone method', () => {
 
   test('cloned tapeBlock tapeList property', () => {
     // eslint-disable-next-line no-return-assign,no-param-reassign,prefer-destructuring
-    tapeBlock.tapeList.forEach(tape => tape.symbol = tape.alphabet.symbolList[1]);
+    tapeBlock.tapeList.forEach((tape) => tape.symbol = tape.alphabet.symbolList[1]);
 
     const clonedTapeBlockWithoutTapes = tapeBlock.clone();
     const clonedTapeBlockWithTapes = tapeBlock.clone(true);
 
-    expect(clonedTapeBlockWithoutTapes.tapeList.every(tape => tape instanceof Tape))
+    expect(clonedTapeBlockWithoutTapes.tapeList.every((tape) => tape instanceof Tape))
       .toBe(true);
-    expect(clonedTapeBlockWithTapes.tapeList.every(tape => tape instanceof Tape))
+    expect(clonedTapeBlockWithTapes.tapeList.every((tape) => tape instanceof Tape))
       .toBe(true);
 
     expect(
       clonedTapeBlockWithoutTapes.tapeList
-        .every(tape => tape.symbolList.join() === tape.alphabet.blankSymbol),
+        .every((tape) => tape.symbolList.join() === tape.alphabet.blankSymbol),
     )
       .toBe(true);
 
@@ -645,7 +647,7 @@ describe('TapeBlock clone method', () => {
   });
 
   test('cloned tapeBlock contains symbols from original tapeBlock', () => {
-    const tapeSymbolList = alphabetList.map(alphabet => alphabet.symbolList[1]);
+    const tapeSymbolList = alphabetList.map((alphabet) => alphabet.symbolList[1]);
     const originalSymbol = tapeBlock.symbol(tapeSymbolList);
     const clonedTapeBlock = tapeBlock.clone();
     const symbolFromClonedTapeBlock = clonedTapeBlock.symbol(tapeSymbolList);
