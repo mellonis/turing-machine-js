@@ -70,22 +70,47 @@ console.log(tape.symbolList.join('')); // a*c_
 
 ```
 
-Step 1: write 'a' symbol and then move the carriage to the right
-
+## Step 1:
+- STATE: replaceAllBSymbolsByAsterisk
+- ACTIONS:
+    - write symbols: \['a']
+    - do the carriers movements: \[right]
+- NEXT STATE: replaceAllBSymbolsByAsterisk
+``` 
     [______abc____]    [______abc____]
            ^        >>         ^     
-    
-Step 2: write '*' symbol and then move the carriage to the right
 
+``` 
+## Step 2:
+- STATE: replaceAllBSymbolsByAsterisk
+- ACTIONS:
+    - write symbols: \['*']
+    - do the carriers movements: \[right]
+- NEXT STATE: replaceAllBSymbolsByAsterisk
+```
     [_____abc_____]    [_____a*c_____]
            ^        >>         ^     
-    
-Step 3: write 'c' symbol and then move the carriage to the right
 
+``` 
+## Step 3:
+- STATE: replaceAllBSymbolsByAsterisk
+- ACTIONS:
+    - write symbols: \['c']
+    - do the carriers movements: \[right]
+- NEXT STATE: replaceAllBSymbolsByAsterisk
+``` 
     [____a*c______]    [____a*c______]
            ^        >>         ^     
-    
-Step 4: write '_' symbol and then move the carriage to the left then stop
 
+```     
+## Step 4:
+- STATE: replaceAllBSymbolsByAsterisk
+- ACTIONS:
+    - write symbols: \['_']
+    - do the carriers movements: \[left]
+- NEXT STATE: haltState
+``` 
     [___a*c_______]    [___a*c_______]
            ^        >>       ^       
+
+```
