@@ -38,21 +38,27 @@ const machine = new TuringMachine({
 });
 const replaceAllBSymbolsByAsterisk = new State({
   [tapeBlock.symbol(['b'])]: {
-    command: {
-      symbol: '*',
-      movement: movements.right,
-    },
+    command: [
+      {
+        symbol: '*',
+        movement: movements.right,
+      },
+    ],
   },
   [tapeBlock.symbol([tapeBlock.tapeList[0].alphabet.blankSymbol])]: {
-    command: {
-      movement: movements.left,
-    },
+    command: [
+      {
+        movement: movements.left,
+      },
+    ],
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    command: {
-      movement: movements.right,
-    },
+    command: [
+      {
+        movement: movements.right,
+      },
+    ],
   },
 });
 
