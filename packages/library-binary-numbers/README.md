@@ -10,13 +10,13 @@ A library for the turing-machine-js.
 Using npm:
 
 ```sh
-npm install --save-dev @turing-machine-js/library-binary-numbers
+npm install @turing-machine-js/library-binary-numbers
 ```
 
 or using yarn:
 
 ```sh
-yarn add @turing-machine-js/library-binary-numbers --dev
+yarn add @turing-machine-js/library-binary-numbers
 ```
 
 ## A concept
