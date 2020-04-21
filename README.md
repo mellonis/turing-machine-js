@@ -17,8 +17,8 @@ import TuringMachine, {
   Tape,
   State,
   movements,
-  ifOtherSymbol,
   haltState,
+  ifOtherSymbol,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
@@ -34,7 +34,7 @@ const replaceAllBSymbolsByAsterisk = new State({
     symbol: '*',
     movement: movements.right,
   },
-  [alphabet.blankSymbol]: {
+  [tape.alphabet.blankSymbol]: {
     movement: movements.left,
     nextState: haltState,
   },
@@ -45,9 +45,7 @@ const replaceAllBSymbolsByAsterisk = new State({
 
 console.log(tape.symbolList.join('')); // abc
 
-machine.run(replaceAllBSymbolsByAsterisk, Infinity, (stepData) =>
-  printTape(stepData, tape)
-);
+machine.run(replaceAllBSymbolsByAsterisk);
 
 console.log(tape.symbolList.join('')); // a*c_
 ```
