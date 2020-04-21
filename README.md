@@ -51,44 +51,48 @@ console.log(tape.symbolList.join('')); // a*c_
 ```
 
 ## Step 1
-- STATE: replaceAllBSymbolsByAsterisk
-- ACTIONS:
+- State: replaceAllBSymbolsByAsterisk
+- Current symbol: 'a'
+- Actions:
   - write symbol: 'a'
-  - do the following move:right
-- NEXT STATE: replaceAllBSymbolsByAsterisk
+  - do the following move: right
+- Next state: replaceAllBSymbolsByAsterisk
 ```
     [______abc____]    [______abc____]
            ^        >>         ^     
 ```
 
 ## Step 2
-- STATE: replaceAllBSymbolsByAsterisk
-- ACTIONS:
+- State: replaceAllBSymbolsByAsterisk
+- Current symbol: 'b'
+- Actions:
   - write symbol: '*'
-  - do the following move:right
-- NEXT STATE: replaceAllBSymbolsByAsterisk
+  - do the following move: right
+- Next state: replaceAllBSymbolsByAsterisk
 ```
     [_____abc_____]    [_____a*c_____]
            ^        >>         ^     
 ```
 
 ## Step 3
-- STATE: replaceAllBSymbolsByAsterisk
-- ACTIONS:
+- State: replaceAllBSymbolsByAsterisk
+- Current symbol: 'c'
+- Actions:
   - write symbol: 'c'
-  - do the following move:right
-- NEXT STATE: replaceAllBSymbolsByAsterisk
+  - do the following move: right
+- Next state: replaceAllBSymbolsByAsterisk
 ```
     [____a*c______]    [____a*c______]
            ^        >>         ^     
 ```
 
 ## Step 4
-- STATE: replaceAllBSymbolsByAsterisk
-- ACTIONS:
+- State: replaceAllBSymbolsByAsterisk
+- Current symbol: '_'
+- Actions:
   - write symbol: '_'
-  - do the following move:left
-- NEXT STATE: haltState
+  - do the following move: left
+- Next state: haltState
 ```
     [___a*c_______]    [___a*c_______]
            ^        >>       ^       
