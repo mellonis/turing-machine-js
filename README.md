@@ -22,11 +22,11 @@ import TuringMachine, {
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
-  symbolList: '_abc*'.split(''),
+  symbolList: ['_', 'a', 'b', 'c', '*'].split(''),
 });
 const tape = new Tape({
   alphabet,
-  symbolList: 'abc'.split(''),
+  symbolList: ['a', 'b', 'c'].split(''),
 });
 const machine = new TuringMachine(tape);
 const replaceAllBSymbolsByAsterisk = new State({
