@@ -74,7 +74,7 @@ console.log(tape.symbolList.join('')); // a*c_
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: ['a']
-    - do following carriers movements: [right]
+    - do the following carriers movements: [right]
 - NEXT STATE: replaceAllBSymbolsByAsterisk
 ```
     [______abc____]    [______abc____]
@@ -85,7 +85,7 @@ console.log(tape.symbolList.join('')); // a*c_
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: ['*']
-    - do following carriers movements: [right]
+    - do the following carriers movements: [right]
 - NEXT STATE: replaceAllBSymbolsByAsterisk
 ```
     [_____abc_____]    [_____a*c_____]
@@ -96,7 +96,7 @@ console.log(tape.symbolList.join('')); // a*c_
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: ['c']
-    - do following carriers movements: [right]
+    - do the following carriers movements: [right]
 - NEXT STATE: replaceAllBSymbolsByAsterisk
 ```
     [____a*c______]    [____a*c______]
@@ -107,7 +107,7 @@ console.log(tape.symbolList.join('')); // a*c_
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: ['_']
-    - do following carriers movements: [left]
+    - do the following carriers movements: [left]
 - NEXT STATE: haltState
 ```
     [___a*c_______]    [___a*c_______]
