@@ -70,7 +70,7 @@ console.log(tape.symbolList.join('')); // a*c_
 
 ```
 
-## Step 1:
+## Step 1
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: \['a']
@@ -81,7 +81,7 @@ console.log(tape.symbolList.join('')); // a*c_
            ^        >>         ^     
 ```
 
-## Step 2:
+## Step 2
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: \['*']
@@ -92,7 +92,7 @@ console.log(tape.symbolList.join('')); // a*c_
            ^        >>         ^     
 ```
 
-## Step 3:
+## Step 3
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: \['c']
@@ -103,7 +103,7 @@ console.log(tape.symbolList.join('')); // a*c_
            ^        >>         ^     
 ```
 
-## Step 4:
+## Step 4
 - STATE: replaceAllBSymbolsByAsterisk
 - ACTIONS:
     - write symbols: \['_']
