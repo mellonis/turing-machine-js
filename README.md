@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
 ![GitHub issues](https://img.shields.io/github/issues/mellonis/turing-machine-js)
 
-A convenient Turing machine
+A convenient Turing machine [Next branch](https://github.com/mellonis/turing-machine-js/tree/next) supports multitape turing machines.
 
 This repository contains following packages:
 * [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine)
