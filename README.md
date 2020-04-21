@@ -13,37 +13,62 @@ This repository contains following packages:
 
 ```javascript
 import TuringMachine, {
-  Alphabet, haltState,
-  ifOtherSymbol,
-  movements,
+  Alphabet,
+  Tape,
   State,
-  symbolCommands,
-  Tape
+  movements,
+  ifOtherSymbol,
+  haltState,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
-  symbolList: ['$', 'a', 'b', 'c'],
+  symbolList: '_abc*'.split(''),
 });
 const tape = new Tape({
   alphabet,
-  symbolList: ['a', 'b', 'c'],
+  symbolList: 'abc'.split(''),
 });
 const machine = new TuringMachine(tape);
-const eraseState = new State({
-  ['abc']: {
-    symbol: symbolCommands.erase,
+const replaceAllBSymbolsByAsterisk = new State({
+  ['b']: {
+    symbol: '*',
     movement: movements.right,
   },
-  [ifOtherSymbol]: {
+  [alphabet.blankSymbol]: {
+    movement: movements.left,
     nextState: haltState,
+  },
+  [ifOtherSymbol]: {
+    movement: movements.right,
   },
 });
 
 console.log(tape.symbolList.join('')); // abc
 
-machine.run(eraseState);
+machine.run(replaceAllBSymbolsByAsterisk, Infinity, (stepData) =>
+  printTape(stepData, tape)
+);
 
-console.log(tape.symbolList.join('')) // $$$$
-
+console.log(tape.symbolList.join('')); // a*c_
 ```
+
+Step 1: move the carriage to the right
+
+    [______abc____]    [______abc____]
+           ^        >>         ^     
+    
+Step 2: write '*' symbol and then move the carriage to the right
+
+    [_____abc_____]    [_____a*c_____]
+           ^        >>         ^     
+    
+Step 3: move the carriage to the right
+
+    [____a*c______]    [____a*c______]
+           ^        >>         ^     
+    
+Step 4: move the carriage to the left then stop
+
+    [___a*c_______]    [___a*c_______]
+           ^        >>       ^   
 
