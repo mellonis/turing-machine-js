@@ -10,13 +10,13 @@ Some basic objects to build your own turing machine
 Using npm:
 
 ```sh
-npm install --save-dev @turing-machine-js/machine
+npm install @turing-machine-js/machine
 ```
 
 or using yarn:
 
 ```sh
-yarn add @turing-machine-js/machine --dev
+yarn add @turing-machine-js/machine
 ```
 
 ## Classes
