@@ -37,7 +37,7 @@ export default class TuringMachine {
     let i = 0;
 
     while (!state.isHalt) {
-      if (i > stepsLimit) {
+      if (i === stepsLimit) {
         throw new Error('Long execution');
       }
 
