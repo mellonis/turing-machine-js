@@ -31,7 +31,11 @@ describe('run tests', () => {
     });
     const stepList = [];
 
-    machine.run(initialState, 1e5, (step) => stepList.push(step));
+    machine.run({
+      initialState,
+      stepLimit: 1e5,
+      onStep: (step) => stepList.push(step),
+    });
 
     const expectedStepList = [
       {
@@ -93,17 +97,30 @@ describe('run tests', () => {
 
     const onStepLimit0Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 0, () => onStepLimit0Mock())).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 0,
+      onStep: () => onStepLimit0Mock(),
+    }))
+      .toThrowError('Long execution');
     expect(onStepLimit0Mock.mock.calls.length).toEqual(0);
 
     const onStepLimit1Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 1, () => onStepLimit1Mock())).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 1,
+      onStep: () => onStepLimit1Mock(),
+    })).toThrowError('Long execution');
     expect(onStepLimit1Mock.mock.calls.length).toEqual(1);
 
     const onStepLimit2Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 2, () => onStepLimit2Mock())).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 2,
+      onStep: () => onStepLimit2Mock(),
+    })).toThrowError('Long execution');
     expect(onStepLimit2Mock.mock.calls.length).toEqual(2);
   });
 
@@ -159,7 +176,7 @@ describe('run tests', () => {
       },
     ];
 
-    const iterator = machine.runStepByStep(initialState, 1e5);
+    const iterator = machine.runStepByStep({ initialState, stepLimit: 1e5 });
 
     // eslint-disable-next-line no-restricted-syntax
     for (const step of iterator) {
@@ -189,7 +206,7 @@ describe('run tests', () => {
         nextState: haltState,
       },
     });
-    const iterator = machine.runStepByStep(initialState, 1e5);
+    const iterator = machine.runStepByStep({ initialState, stepLimit: 1e5 });
 
     expect(() => {
       iterator.next();

@@ -56,7 +56,7 @@ describe('goToNumber algo', () => {
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
       const machine = new TuringMachine(tape);
 
-      expect(() => machine.run(binaryNumbers.states.goToNumber))
+      expect(() => machine.run({ initialState: binaryNumbers.states.goToNumber }))
         .not
         .toThrowError();
 
@@ -85,7 +85,7 @@ describe('goToNumbersStart algo', () => {
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
       const machine = new TuringMachine(tape);
 
-      expect(() => machine.run(binaryNumbers.states.goToNumbersStart))
+      expect(() => machine.run({ initialState: binaryNumbers.states.goToNumbersStart }))
         .not
         .toThrowError();
 
@@ -113,7 +113,7 @@ describe('deleteNumber algo', () => {
     test(`tapeInitialState = [${tapeInitialState}]`, () => {
       const machine = new TuringMachine(tape);
 
-      expect(() => machine.run(binaryNumbers.states.deleteNumber))
+      expect(() => machine.run({ initialState: binaryNumbers.states.deleteNumber }))
         .not
         .toThrowError();
 
@@ -141,7 +141,7 @@ describe('normalizeNumber algo', () => {
     test(`tapeInitialState = [${startState}]`, () => {
       const machine = new TuringMachine(tape);
 
-      expect(() => machine.run(binaryNumbers.states.normalizeNumber))
+      expect(() => machine.run({ initialState: binaryNumbers.states.normalizeNumber }))
         .not
         .toThrowError();
 
@@ -169,7 +169,7 @@ describe('invertNumber algo', () => {
       test(`tapeInitialState = [${stateList[ix]}]`, () => {
         const machine = new TuringMachine(tapeList[ix]);
 
-        expect(() => machine.run(binaryNumbers.states.invertNumber))
+        expect(() => machine.run({ initialState: binaryNumbers.states.invertNumber }))
           .not
           .toThrowError();
 
