@@ -99,21 +99,21 @@ describe('run tests', () => {
       .toBe(0);
   });
 
-  test('stepLimit', () => {
-    const onStepLimit0Mock = jest.fn();
+  test('stepsLimit', () => {
+    const onStepsLimit0Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 0, onStep: () => onStepLimit0Mock() })).toThrowError('Long execution');
-    expect(onStepLimit0Mock.mock.calls.length).toEqual(0);
+    expect(() => machine.run({ initialState, stepsLimit: 0, onStep: () => onStepsLimit0Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
 
-    const onStepLimit1Mock = jest.fn();
+    const onStepsLimit1Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 1, onStep: () => onStepLimit1Mock() })).toThrowError('Long execution');
-    expect(onStepLimit1Mock.mock.calls.length).toEqual(1);
+    expect(() => machine.run({ initialState, stepsLimit: 1, onStep: () => onStepsLimit1Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
 
-    const onStepLimit2Mock = jest.fn();
+    const onStepsLimit2Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 2, onStep: () => onStepLimit2Mock() })).toThrowError('Long execution');
-    expect(onStepLimit2Mock.mock.calls.length).toEqual(2);
+    expect(() => machine.run({ initialState, stepsLimit: 2, onStep: () => onStepsLimit2Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
   });
 
   test('stepByStep', () => {
