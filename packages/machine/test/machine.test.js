@@ -33,7 +33,7 @@ describe('run tests', () => {
 
     machine.run({
       initialState,
-      stepLimit: 1e5,
+      stepsLimit: 1e5,
       onStep: (step) => stepList.push(step),
     });
 
@@ -78,7 +78,7 @@ describe('run tests', () => {
       .toBe(0);
   });
 
-  test('stepLimit', () => {
+  test('stepsLimit', () => {
     const symbolList = alphabet.symbolList.slice(1, alphabet.symbolList.length);
     const tape = new Tape({
       alphabet,
@@ -111,7 +111,8 @@ describe('run tests', () => {
       initialState,
       stepsLimit: 1,
       onStep: () => onStepLimit1Mock(),
-    })).toThrowError('Long execution');
+    }))
+      .toThrowError('Long execution');
     expect(onStepLimit1Mock.mock.calls.length).toEqual(1);
 
     const onStepLimit2Mock = jest.fn();
@@ -120,7 +121,8 @@ describe('run tests', () => {
       initialState,
       stepsLimit: 2,
       onStep: () => onStepLimit2Mock(),
-    })).toThrowError('Long execution');
+    }))
+      .toThrowError('Long execution');
     expect(onStepLimit2Mock.mock.calls.length).toEqual(2);
   });
 
@@ -176,7 +178,7 @@ describe('run tests', () => {
       },
     ];
 
-    const iterator = machine.runStepByStep({ initialState, stepLimit: 1e5 });
+    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     // eslint-disable-next-line no-restricted-syntax
     for (const step of iterator) {
@@ -206,7 +208,7 @@ describe('run tests', () => {
         nextState: haltState,
       },
     });
-    const iterator = machine.runStepByStep({ initialState, stepLimit: 1e5 });
+    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     expect(() => {
       iterator.next();
