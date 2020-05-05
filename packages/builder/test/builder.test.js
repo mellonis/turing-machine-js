@@ -71,7 +71,10 @@ describe('buildMachine', () => {
     expect(machine.tapeBlock.tapeList[0].symbolList)
       .toEqual('#011#'.split(''));
 
-    machine.run(machineInitialState, 100);
+    machine.run({
+      initialState: machineInitialState,
+      stepsLimit: 100,
+    });
 
     expect(machine.tapeBlock.tapeList[0].symbolList)
       .toEqual('#011#011#'.split(''));
