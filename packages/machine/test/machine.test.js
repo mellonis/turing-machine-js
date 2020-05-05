@@ -91,7 +91,7 @@ describe('run tests', () => {
   test('run', () => {
     const stepList = [];
 
-    machine.run(initialState, 1e5, (step) => stepList.push(step));
+    machine.run({ initialState, stepsLimit: 1e5, onStep: (step) => stepList.push(step) });
 
     expect(stepList)
       .toEqual(expectedStepList);
@@ -99,25 +99,25 @@ describe('run tests', () => {
       .toBe(0);
   });
 
-  test('stepLimit', () => {
-    const onStepLimit0Mock = jest.fn();
+  test('stepsLimit', () => {
+    const onStepsLimit0Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 0, () => onStepLimit0Mock())).toThrowError('Long execution');
-    expect(onStepLimit0Mock.mock.calls.length).toEqual(0);
+    expect(() => machine.run({ initialState, stepsLimit: 0, onStep: () => onStepsLimit0Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
 
-    const onStepLimit1Mock = jest.fn();
+    const onStepsLimit1Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 1, () => onStepLimit1Mock())).toThrowError('Long execution');
-    expect(onStepLimit1Mock.mock.calls.length).toEqual(1);
+    expect(() => machine.run({ initialState, stepsLimit: 1, onStep: () => onStepsLimit1Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
 
-    const onStepLimit2Mock = jest.fn();
+    const onStepsLimit2Mock = jest.fn();
 
-    expect(() => machine.run(initialState, 2, () => onStepLimit2Mock())).toThrowError('Long execution');
-    expect(onStepLimit2Mock.mock.calls.length).toEqual(2);
+    expect(() => machine.run({ initialState, stepsLimit: 2, onStep: () => onStepsLimit2Mock() })).toThrowError('Long execution');
+    expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
   });
 
   test('stepByStep', () => {
-    const iterator = machine.runStepByStep(initialState, 1e5);
+    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     // eslint-disable-next-line no-restricted-syntax
     for (const step of iterator) {
@@ -132,7 +132,7 @@ describe('run tests', () => {
   });
 
   test('stepByStep stop execution', () => {
-    const iterator = machine.runStepByStep(initialState, 1e5);
+    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     expect(() => {
       iterator.next();

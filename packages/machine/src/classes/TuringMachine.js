@@ -23,8 +23,8 @@ export default class TuringMachine {
     return this.#tapeBlock;
   }
 
-  run(initialState, stepsLimit = 1e5, onStep = null) {
-    const iterator = this.runStepByStep(initialState, stepsLimit);
+  run({ initialState, stepsLimit = 1e5, onStep = null } = {}) {
+    const iterator = this.runStepByStep({ initialState, stepsLimit });
 
     // eslint-disable-next-line no-restricted-syntax
     for (const machineState of iterator) {
@@ -34,7 +34,7 @@ export default class TuringMachine {
     }
   }
 
-  * runStepByStep(initialState, stepsLimit = 1e5) {
+  * runStepByStep({ initialState, stepsLimit = 1e5 } = {}) {
     if (!(initialState instanceof State)) {
       throw new Error('Invalid parameters');
     }
