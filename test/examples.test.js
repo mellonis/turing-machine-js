@@ -15,7 +15,6 @@ describe('README.md', () => {
     const tape = new Tape({
       alphabet,
       symbolList: ['a', 'b', 'c', 'b', 'a'],
-      viewportWidth: 15,
     });
     const machine = new TuringMachine(tape);
 
