@@ -11,7 +11,11 @@ This repository contains following packages:
 * [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/next/packages/machine)
 * [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/next/packages/library-binary-numbers)
 
-# Example
+# An example
+
+A tape contains `a`, `b` and `c` symbols. The issue is to replace all `b` symbols by `*` symbol.
+
+This example demonstrates an issue solving.
 
 ```javascript
 import TuringMachine, {
@@ -25,11 +29,11 @@ import TuringMachine, {
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
-  symbolList: ['_', 'a', 'b', 'c', '*'],
+  symbolList: [' ', 'a', 'b', 'c', '*'],
 });
 const tape = new Tape({
   alphabet,
-  symbolList: ['a', 'b', 'c'],
+  symbolList: ['a', 'b', 'c', 'b', 'a'],
 });
 const tapeBlock = new TapeBlock({
   tapeList: [tape],
@@ -37,84 +41,95 @@ const tapeBlock = new TapeBlock({
 const machine = new TuringMachine({
   tapeBlock,
 });
-const replaceAllBSymbolsByAsterisk = new State({
-  [tapeBlock.symbol(['b'])]: {
-    command: [
-      {
-        symbol: '*',
-        movement: movements.right,
-      },
-    ],
-  },
-  [tapeBlock.symbol([tapeBlock.tapeList[0].alphabet.blankSymbol])]: {
-    command: [
-      {
-        movement: movements.left,
-      },
-    ],
-    nextState: haltState,
-  },
-  [ifOtherSymbol]: {
-    command: [
-      {
-        movement: movements.right,
-      },
-    ],
-  },
+
+console.log(tape.symbolList.join('').trim()); // abcba
+
+machine.run({
+  initialState: new State({
+    [tapeBlock.symbol(['b'])]: {
+      command: [
+        {
+          symbol: '*',
+          movement: movements.right,
+        },
+      ],
+    },
+    [tapeBlock.symbol([tape.alphabet.blankSymbol])]: {
+      command: [
+        {
+          movement: movements.left,
+        },
+      ],
+      nextState: haltState,
+    },
+    [ifOtherSymbol]: {
+      command: [
+        {
+          movement: movements.right,
+        },
+      ],
+    },
+  }),
 });
 
-console.log(tape.symbolList.join('')); // abc
-
-machine.run(replaceAllBSymbolsByAsterisk);
-
-console.log(tape.symbolList.join('')); // a*c_
-
+console.log(tape.symbolList.join('').trim()); // a*c*a
 ```
 
-## Step 1:
-- State: replaceAllBSymbolsByAsterisk
-- Current symbols: \['a']
-- Actions:
-    - write symbols: \['a']
-    - do the following carriers movements: \[right]
-- Next state: replaceAllBSymbolsByAsterisk
+## Execution steps explanation
+- `S` stands for the initial state
+- `H` stands for the `haltState` 
+
+
+### Step 1
+- Current state: S
+- Current symbol: 'a'
+- Transition: 'a'/S,R
 ```
-    [______abc____]    [______abc____]
-           ^        >>         ^     
+[       abcba   ]    [       abcba   ]
+        ^         >>          ^
 ```
 
-## Step 2:
-- State: replaceAllBSymbolsByAsterisk
-- Current symbols: \['b']
-- Actions:
-    - write symbols: \['*']
-    - do the following carriers movements: \[right]
-- Next state: replaceAllBSymbolsByAsterisk
+### Step 2
+- Current state: S
+- Current symbol: 'b'
+- Transition: '*'/S,R
 ```
-    [_____abc_____]    [_____a*c_____]
-           ^        >>         ^     
+[      abcba    ]    [      a*cba    ]
+        ^         >>          ^
 ```
 
-## Step 3:
-- State: replaceAllBSymbolsByAsterisk
-- Current symbols: \['c']
-- Actions:
-    - write symbols: \['c']
-    - do the following carriers movements: \[right]
-- Next state: replaceAllBSymbolsByAsterisk
+### Step 3
+- Current state: S
+- Current symbol: 'c'
+- Transition: 'c'/S,R
 ```
-    [____a*c______]    [____a*c______]
-           ^        >>         ^     
+[     a*cba     ]    [     a*cba     ]
+        ^         >>          ^
 ```
 
-## Step 4:
-- State: replaceAllBSymbolsByAsterisk
-- Current symbols: \['_']
-- Actions:
-    - write symbols: \['_']
-    - do the following carriers movements: \[left]
-- Next state: haltState
+### Step 4
+- Current state: S
+- Current symbol: 'b'
+- Transition: '*'/S,R
 ```
-    [___a*c_______]    [___a*c_______]
-           ^        >>       ^       
+[    a*cba      ]    [    a*c*a      ]
+        ^         >>          ^
+```
+
+### Step 5
+- Current state: S
+- Current symbol: 'a'
+- Transition: 'a'/S,R
+```
+[   a*c*a       ]    [   a*c*a       ]
+        ^         >>          ^
+```
+
+### Step 6
+- Current state: S
+- Current symbol: ' '
+- Transition: ' '/H,L
+```
+[  a*c*a        ]    [  a*c*a        ]
+        ^         >>        ^
 ```
