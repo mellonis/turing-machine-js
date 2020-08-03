@@ -14,18 +14,18 @@
     "packages/*"
   ],
   "devDependencies": {
-    "@babel/core": "^7.9.6",
-    "@babel/plugin-proposal-class-properties": "^7.8.3",
-    "@babel/plugin-proposal-private-methods": "^7.8.3",
-    "@babel/preset-env": "^7.9.6",
-    "@types/jest": "^25.2.1",
+    "@babel/core": "^7.11.0",
+    "@babel/plugin-proposal-class-properties": "^7.10.4",
+    "@babel/plugin-proposal-private-methods": "^7.10.4",
+    "@babel/preset-env": "^7.11.0",
+    "@types/jest": "^26.0.8",
     "babel-eslint": "^10.1.0",
-    "babel-jest": "^26.0.1",
+    "babel-jest": "^26.2.2",
     "coveralls": "^3.1.0",
-    "eslint": "^6.8.0",
-    "eslint-config-airbnb": "^18.1.0",
-    "eslint-plugin-import": "^2.20.2",
-    "jest": "^26.0.1",
-    "lerna": "^3.20.2"
+    "eslint": "^7.6.0",
+    "eslint-config-airbnb": "^18.2.0",
+    "eslint-plugin-import": "^2.22.0",
+    "jest": "^26.2.2",
+    "lerna": "^3.22.1"
   }
 }
