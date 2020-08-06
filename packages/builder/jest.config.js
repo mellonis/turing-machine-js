@@ -1,6 +1,16 @@
-const moduleName = 'post-machine';
+const packageInfo = require('./package.json');
+
+const [organizationName, packageName] = packageInfo.name.split('/');
 
 module.exports = {
-  name: moduleName,
-  displayName: moduleName,
+  displayName: {
+    name: packageName,
+    color: 'yellow',
+  },
+  moduleNameMapper: {
+    [`^${packageInfo.name}`]: '<rootDir>/src',
+  },
+  transformIgnorePatterns: [
+    `node_modules/(?!${organizationName})`,
+  ],
 };
