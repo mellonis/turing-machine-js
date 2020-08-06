@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/mellonis/turing-machine-js/badge.svg?branch=master)](https://coveralls.io/github/mellonis/turing-machine-js?branch=master)
 ![GitHub issues](https://img.shields.io/github/issues/mellonis/turing-machine-js)
 
-A convenient Turing machine. [Next branch](https://github.com/mellonis/turing-machine-js/tree/next) supports multitape turing machines.
+A convenient Turing machine. [Next branch](https://github.com/mellonis/turing-machine-js/tree/next) supports multitape turing machines. Try it out!
 
 This repository contains following packages:
 * [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine)
