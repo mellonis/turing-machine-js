@@ -24,5 +24,10 @@
   "dependencies": {
     "@turing-machine-js/machine": "^0.3.0-alpha.3"
   },
-  "main": "src/index.js"
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.es.js",
+  "scripts": {
+    "build": "rollup -c ../../rollup.config.mjs",
+    "test": "jest --colors"
+  }
 }
