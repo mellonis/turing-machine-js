@@ -1,2 +1,2 @@
-.git
-packages/*/lib
+.git/
+packages/*/dist/
