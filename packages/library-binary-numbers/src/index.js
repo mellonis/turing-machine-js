@@ -5,66 +5,85 @@ import {
   movements,
   State,
   symbolCommands,
+  TapeBlock,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
   symbolList: ' ^$01'.split(''),
 });
+const tapeBlock = new TapeBlock({
+  alphabetList: [alphabet],
+});
+const { symbol } = tapeBlock;
 
 const goToNumber = new State({
-  $: {
+  [symbol('$')]: {
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    movement: movements.right,
+    command: {
+      movement: movements.right,
+    },
   },
 }, 'goToNumber');
 
 const goToNextNumber = new State({
   [ifOtherSymbol]: {
-    movement: movements.right,
+    command: {
+      movement: movements.right,
+    },
     nextState: goToNumber,
   },
 }, 'goToNextNumber');
 
 const goToPreviousNumberTrue = new State({
-  $: {
+  [symbol('$')]: {
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    movement: movements.left,
+    command: {
+      movement: movements.left,
+    },
   },
 }, 'goToPreviousNumberTrue');
 
 const goToPreviousNumber = new State({
   [ifOtherSymbol]: {
-    movement: movements.left,
+    command: {
+      movement: movements.left,
+    },
     nextState: goToPreviousNumberTrue,
   },
 }, 'goToPreviousNumber');
 
 const goToNumbersStart = new State({
-  '^': {
+  [symbol('^')]: {
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    movement: movements.left,
+    command: {
+      movement: movements.left,
+    },
   },
 }, 'goToNumberStart');
 
 const deleteNumberTrue = new State({
-  $: {
-    symbol: symbolCommands.erase,
+  [symbol('$')]: {
+    command: {
+      symbol: symbolCommands.erase,
+    },
     nextState: haltState,
   },
   [ifOtherSymbol]: {
-    symbol: symbolCommands.erase,
-    movement: movements.right,
+    command: {
+      symbol: symbolCommands.erase,
+      movement: movements.right,
+    },
   },
 }, 'deleteNumberTrue');
 
 const deleteNumber = new State({
-  '^10$': {
+  [symbol('^10$')]: {
     nextState: goToNumbersStart.withOverrodeHaltState(deleteNumberTrue),
   },
   [ifOtherSymbol]: {
@@ -73,24 +92,30 @@ const deleteNumber = new State({
 }, 'deleteNumber');
 
 const invertNumberGoToNumberWithInversion = new State({
-  '^': {
-    movement: movements.right,
+  [symbol('^')]: {
+    command: {
+      movement: movements.right,
+    },
   },
-  1: {
-    symbol: '0',
-    movement: movements.right,
+  [symbol('1')]: {
+    command: {
+      symbol: '0',
+      movement: movements.right,
+    },
   },
-  0: {
-    symbol: '1',
-    movement: movements.right,
+  [symbol('0')]: {
+    command: {
+      symbol: '1',
+      movement: movements.right,
+    },
   },
-  $: {
+  [symbol('$')]: {
     nextState: haltState,
   },
 }, 'invertNumberGoToNumberWithInversion');
 
 const invertNumber = new State({
-  '^10$': {
+  [symbol('^10$')]: {
     nextState: goToNumbersStart.withOverrodeHaltState(invertNumberGoToNumberWithInversion),
   },
   [ifOtherSymbol]: {
@@ -99,25 +124,31 @@ const invertNumber = new State({
 }, 'invertNumber');
 
 const normalizeNumberPutNewStartSymbol = new State({
-  [alphabet.blankSymbol]: {
-    symbol: '^',
+  [symbol(alphabet.blankSymbol)]: {
+    command: {
+      symbol: '^',
+    },
     nextState: goToNumber,
   },
 }, 'normalizeNumberPutNewStartSymbol');
 
 const normalizeNumberMoveNumberStart = new State({
-  '^0': {
-    symbol: symbolCommands.erase,
-    movement: movements.right,
+  [symbol('^0')]: {
+    command: {
+      symbol: symbolCommands.erase,
+      movement: movements.right,
+    },
   },
-  '1$': {
-    movement: movements.left,
+  [symbol('1$')]: {
+    command: {
+      movement: movements.left,
+    },
     nextState: normalizeNumberPutNewStartSymbol,
   },
 }, 'normalizeNumberMoveNumberStart');
 
 const normalizeNumber = new State({
-  '^10$': {
+  [symbol('^10$')]: {
     nextState: goToNumbersStart.withOverrodeHaltState(normalizeNumberMoveNumberStart),
   },
   [ifOtherSymbol]: {
@@ -126,48 +157,64 @@ const normalizeNumber = new State({
 }, 'normalizeNumber');
 
 const plusOneFillZeros = new State({
-  1: {
-    symbol: '0',
-    movement: movements.right,
+  [symbol('1')]: {
+    command: {
+      symbol: '0',
+      movement: movements.right,
+    },
   },
-  $: {
+  [symbol('$')]: {
     nextState: haltState,
   },
 }, 'plusOneFillZeros');
 
 const plusOneAddNumberStart = new State({
-  [alphabet.blankSymbol]: {
-    symbol: '^',
-    movement: movements.right,
+  [symbol(alphabet.blankSymbol)]: {
+    command: {
+      symbol: '^',
+      movement: movements.right,
+    },
   },
-  1: {
-    movement: movements.right,
+  [symbol('1')]: {
+    command: {
+      movement: movements.right,
+    },
     nextState: plusOneFillZeros,
   },
 }, 'plusOneAddNumberStart');
 
 const plusOneCaryOne = new State({
-  0: {
-    symbol: '1',
-    movement: movements.right,
+  [symbol('0')]: {
+    command: {
+      symbol: '1',
+      movement: movements.right,
+    },
     nextState: plusOneFillZeros,
   },
-  1: {
-    movement: movements.left,
+  [symbol('1')]: {
+    command: {
+      movement: movements.left,
+    },
   },
-  '^': {
-    symbol: '1',
-    movement: movements.left,
+  [symbol('^')]: {
+    command: {
+      symbol: '1',
+      movement: movements.left,
+    },
     nextState: plusOneAddNumberStart,
   },
 }, 'plusOneCaryOne');
 
 const plusOne = new State({
-  '^10': {
-    movement: movements.right,
+  [symbol('^10')]: {
+    command: {
+      movement: movements.right,
+    },
   },
-  $: {
-    movement: movements.left,
+  [symbol('$')]: {
+    command: {
+      movement: movements.left,
+    },
     nextState: plusOneCaryOne,
   },
   [ifOtherSymbol]: {
@@ -176,10 +223,12 @@ const plusOne = new State({
 }, 'plusOne');
 
 const minusOne = new State({
-  '^10': {
-    movement: movements.right,
+  [symbol('^10')]: {
+    command: {
+      movement: movements.right,
+    },
   },
-  $: {
+  [symbol('$')]: {
     nextState: invertNumber
       .withOverrodeHaltState(
         plusOne
@@ -194,8 +243,12 @@ const minusOne = new State({
   },
 }, 'minusOne');
 
+function getTapeBlock() {
+  return tapeBlock.clone();
+}
+
 export default {
-  alphabet,
+  getTapeBlock,
   states: {
     goToNumber,
     goToNextNumber,

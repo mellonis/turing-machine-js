@@ -1,6 +1,9 @@
 {
   "root": true,
-  "plugins": ["import"],
+  "plugins": [
+    "import",
+    "babel"
+  ],
   "env": {
     "es6": true
   },
@@ -27,5 +30,6 @@
         "import/no-extraneous-dependencies": 0
       }
     }
-  ]
+  ],
+  "ignorePatterns": ["node_modules/"]
 }

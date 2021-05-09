@@ -1,14 +1,26 @@
-import { movements, symbolCommands } from './Command';
 import State from './State';
+import TapeBlock from './TapeBlock';
+import { symbolCommands } from './TapeCommand';
 
 export default class TuringMachine {
-  #tape;
+  #tapeBlock;
 
   #stack;
 
-  constructor(tape = null) {
-    this.#tape = tape;
+  constructor({
+    tapeBlock,
+  }) {
+    this.#tapeBlock = tapeBlock;
+
+    if (!(this.#tapeBlock instanceof TapeBlock)) {
+      throw new Error('invalid tapeBlock');
+    }
+
     this.#stack = [];
+  }
+
+  get tapeBlock() {
+    return this.#tapeBlock;
   }
 
   run({ initialState, stepsLimit = 1e5, onStep = null } = {}) {
@@ -43,28 +55,9 @@ export default class TuringMachine {
 
       i += 1;
 
-      const tape = this.#tape;
-      const currentSymbol = tape.symbol;
-      const command = state.getCommand(currentSymbol);
-
-      let nextSymbol;
-
-      switch (command.symbol) {
-        case symbolCommands.erase:
-          nextSymbol = tape.alphabet.blankSymbol;
-          break;
-        case symbolCommands.keep:
-          nextSymbol = currentSymbol;
-          break;
-        default:
-          nextSymbol = command.symbol;
-          break;
-      }
-
-      const nextMovement = command.movement;
-      let nextState = command.nextState.ref;
-
-      // before apply
+      const symbol = state.getSymbol(this.#tapeBlock);
+      const command = state.getCommand(symbol);
+      let nextState = state.getNextState(symbol).ref;
 
       try {
         const nextStateForYield = nextState.isHalt && stack.length
@@ -74,29 +67,25 @@ export default class TuringMachine {
         yield {
           step: i,
           state,
-          currentSymbol,
-          nextSymbol,
-          nextMovement,
+          currentSymbolList: this.#tapeBlock.currentSymbolList,
+          nextSymbolList: command.tapeCommandList.map((tapeCommand, ix) => {
+            switch (tapeCommand.symbol) {
+              case symbolCommands.erase:
+                return this.#tapeBlock.tapeList[ix].alphabet.blankSymbol;
+              case symbolCommands.keep:
+                return this.#tapeBlock.tapeList[ix].symbol;
+              default:
+                return tapeCommand.symbol;
+            }
+          }),
+          movementList: command.tapeCommandList.map((tapeCommand) => tapeCommand.movement),
           nextState: nextStateForYield,
         };
       } catch (e) {
         throw new Error(`Execution halted because of ${e.message}`);
       }
 
-      // apply
-
-      tape.symbol = nextSymbol;
-
-      switch (nextMovement) {
-        case movements.left:
-          tape.left();
-          break;
-        case movements.right:
-          tape.right();
-          break;
-
-        // no default
-      }
+      this.#tapeBlock.applyCommand(command);
 
       if (nextState.isHalt && stack.length) {
         nextState = stack.pop();

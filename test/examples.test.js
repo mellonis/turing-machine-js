@@ -4,7 +4,7 @@ import TuringMachine, {
   State,
   movements,
   haltState,
-  ifOtherSymbol,
+  ifOtherSymbol, TapeBlock,
 } from '@turing-machine-js/machine';
 
 describe('README.md', () => {
@@ -16,7 +16,12 @@ describe('README.md', () => {
       alphabet,
       symbolList: ['a', 'b', 'c', 'b', 'a'],
     });
-    const machine = new TuringMachine(tape);
+    const tapeBlock = new TapeBlock({
+      tapeList: [tape],
+    });
+    const machine = new TuringMachine({
+      tapeBlock,
+    });
 
     // console.log(tape.symbolList.join('').trim()); // abcba
 
@@ -26,16 +31,28 @@ describe('README.md', () => {
     machine.run({
       initialState: new State({
         // eslint-disable-next-line no-useless-computed-key
-        ['b']: {
-          symbol: '*',
-          movement: movements.right,
+        [tapeBlock.symbol(['b'])]: {
+          command: [
+            {
+              symbol: '*',
+              movement: movements.right,
+            },
+          ],
         },
-        [tape.alphabet.blankSymbol]: {
-          movement: movements.left,
+        [tapeBlock.symbol([tape.alphabet.blankSymbol])]: {
+          command: [
+            {
+              movement: movements.left,
+            },
+          ],
           nextState: haltState,
         },
         [ifOtherSymbol]: {
-          movement: movements.right,
+          command: [
+            {
+              movement: movements.right,
+            },
+          ],
         },
       }),
     });
