@@ -1,7 +1,7 @@
 # @turing-machine-js/library-binary-numbers
 
-[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
-![npm (scoped)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers)
+[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=next)](https://travis-ci.com/mellonis/turing-machine-js)
+![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers/next)
 
 A library for the turing-machine-js.
 
@@ -32,10 +32,10 @@ For example:
 - `^11$` stands for 3
 - etc.
 
-There is no ability to work with negative numbers a this time.
+There is no ability to work with negative numbers at this time.
 
 This library provides following objects to work with binary numbers:
-- `alphabet` - an `Alphabet` class instance which contains following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
+- `getTapeBlock` - this function returns a `TapeBlock` class instance. It has only one tape. An alphabet of the tape contains the following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
 - `states` - following `States` class instances which represent some algorithms:
     - `goToNumber` - move the head to the number's end
     - `goToNextNumber` - move the head to the next number (to the right)
@@ -47,7 +47,10 @@ This library provides following objects to work with binary numbers:
     - `plusOne` - add 1 to the number
     - `minusOne` - subtract 1 from the number 
 
+If you want to use states which were described earlier, you must use a tape block received from the `getTapeBlock` function.
+
 ## Links
 
-- The information about `Alphabet` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
+- The information about `TapeBlock` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/next/packages/machine) 
 - [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
+

@@ -1,80 +1,44 @@
-import Reference from './Reference';
-// eslint-disable-next-line import/no-cycle
-import State from './State';
+import TapeCommand from './TapeCommand';
 
-const movements = {
-  left: Symbol('move caret left command'),
-  right: Symbol('move caret right command'),
-  stay: Symbol('do not move carer'),
-};
-const symbolCommands = {
-  erase: Symbol('erase symbol command'),
-  keep: Symbol('keep symbol command'),
-};
+export default class Command {
+  #tapeCommandList;
 
-class Command {
-  #symbol;
+  constructor(tapeCommandList) {
+    this.#tapeCommandList = tapeCommandList;
 
-  #movement;
-
-  #nextState;
-
-  constructor({
-    movement = movements.stay,
-    symbol = symbolCommands.keep,
-    nextState,
-  } = {}) {
-    const isValidMovement = (
-      movement === movements.left
-      || movement === movements.stay
-      || movement === movements.right
-    );
-
-    if (!isValidMovement) {
-      throw new Error('Invalid movement');
+    if (!Array.isArray(this.#tapeCommandList)) {
+      throw new Error('invalid parameter');
     }
 
-    this.#movement = movement;
-
-    const isValidSymbol = (
-      (typeof symbol === 'string' && symbol.length === 1)
-      || symbol === symbolCommands.keep
-      || symbol === symbolCommands.erase
-    );
-
-    if (!isValidSymbol) {
-      throw new Error('Invalid symbol');
+    if (this.#tapeCommandList.length === 0) {
+      throw new Error('invalid parameter');
     }
 
-    this.#symbol = symbol;
+    try {
+      this.#tapeCommandList = this.#tapeCommandList.map((tapeCommand) => {
+        let finalTapeCommand;
 
-    const isValidNextState = (
-      nextState instanceof State
-      || nextState instanceof Reference
-    );
+        if (!(tapeCommand instanceof TapeCommand)) {
+          if (
+            !Object.prototype.hasOwnProperty.call(tapeCommand, 'movement')
+            && !Object.prototype.hasOwnProperty.call(tapeCommand, 'symbol')
+          ) {
+            throw new Error('invalid tapeCommand');
+          }
 
-    if (!isValidNextState) {
-      throw new Error('Invalid nextStep');
+          finalTapeCommand = new TapeCommand(tapeCommand);
+        } else {
+          finalTapeCommand = tapeCommand;
+        }
+
+        return finalTapeCommand;
+      });
+    } catch (e) {
+      throw new Error('invalid tapeCommand');
     }
-
-    this.#nextState = nextState;
   }
 
-  get symbol() {
-    return this.#symbol;
-  }
-
-  get movement() {
-    return this.#movement;
-  }
-
-  get nextState() {
-    return this.#nextState;
+  get tapeCommandList() {
+    return [...this.#tapeCommandList];
   }
 }
-
-export {
-  Command as default,
-  movements,
-  symbolCommands,
-};
