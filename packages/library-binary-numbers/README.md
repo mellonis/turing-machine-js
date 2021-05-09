@@ -1,7 +1,7 @@
 # @turing-machine-js/library-binary-numbers
 
-[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=next)](https://travis-ci.com/mellonis/turing-machine-js)
-![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers/next)
+[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
+![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers)
 
 A library for the turing-machine-js.
 
@@ -51,6 +51,6 @@ If you want to use states which were described earlier, you must use a tape bloc
 
 ## Links
 
-- The information about `TapeBlock` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/next/packages/machine) 
+- The information about `TapeBlock` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
 - [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
 

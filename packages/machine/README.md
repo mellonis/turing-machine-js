@@ -1,7 +1,7 @@
 # @turing-machine-js/machine
 
-[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=next)](https://travis-ci.com/mellonis/turing-machine-js)
-![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine/next)
+[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
+![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine)
 
 Some basic objects to build your own turing machine  
 
@@ -60,7 +60,7 @@ A special symbol for representing the other symbols in `State` class definition
 
 ## Libraries
 
-- [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/next/packages/library-binary-numbers)
+- [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers)
 
 ## Links
 
