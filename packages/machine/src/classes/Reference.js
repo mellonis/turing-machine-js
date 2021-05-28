@@ -10,8 +10,10 @@ export default class Reference {
   }
 
   bind(binding) {
-    if (!this.#referenceBinding) {
+    if (this.#referenceBinding == null) {
       this.#referenceBinding = binding;
     }
+
+    return this.#referenceBinding;
   }
 }
