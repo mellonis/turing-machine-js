@@ -20,6 +20,16 @@ describe('Reference properties', () => {
       .toBe(obj);
   });
 
+  test('Reference bind return the passed parameter', () => {
+    const reference = new Reference();
+    const obj = {};
+
+    const returnedValue = reference.bind(obj);
+
+    expect(returnedValue)
+      .toBe(obj);
+  });
+
   test('Reference redefine ref', () => {
     const reference = new Reference();
     const obj = {};
