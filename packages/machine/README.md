@@ -1,6 +1,6 @@
 # @turing-machine-js/machine
 
-[![Build Status](https://travis-ci.com/mellonis/turing-machine-js.svg?branch=master)](https://travis-ci.com/mellonis/turing-machine-js)
+[![build](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml/badge.svg)](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml)
 ![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine)
 
 Some basic objects to build your own turing machine  
