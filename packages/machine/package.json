@@ -20,10 +20,5 @@
     "turing",
     "machine"
   ],
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.es.js",
-  "scripts": {
-    "build": "rollup -c ../../rollup.config.mjs",
-    "test": "jest --colors"
-  }
+  "module": "dist/index.js"
 }
