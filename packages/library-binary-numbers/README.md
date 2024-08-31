@@ -13,12 +13,6 @@ Using npm:
 npm install @turing-machine-js/library-binary-numbers
 ```
 
-or using yarn:
-
-```sh
-yarn add @turing-machine-js/library-binary-numbers
-```
-
 ## A concept
 
 Binary numbers are represented as a sequence of symbols `0` and `1`.

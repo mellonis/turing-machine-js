@@ -13,12 +13,6 @@ Using npm:
 npm install @turing-machine-js/machine
 ```
 
-or using yarn:
-
-```sh
-yarn add @turing-machine-js/machine
-```
-
 ## Classes
 
 ### Alphabet

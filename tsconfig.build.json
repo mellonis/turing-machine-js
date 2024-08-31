@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/builder"
+    },
+    {
+      "path": "packages/library-binary-numbers"
+    },
+    {
+      "path": "packages/machine"
+    }
+  ]
+}
