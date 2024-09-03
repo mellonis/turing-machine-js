@@ -19,11 +19,12 @@ A tape contains `a`, `b` and `c` symbols. The issue is to replace all `b` symbol
 This example demonstrates an issue solving.
 
 ```javascript
-import TuringMachine, {
+import {
   Alphabet,
   State,
   Tape,
   TapeBlock,
+  TuringMachine,
   haltState,
   ifOtherSymbol,
   movements,
@@ -40,9 +41,6 @@ const machine = new TuringMachine({
 });
 
 console.log(tape.symbols.join('').trim()); // abcba
-
-expect(tape.symbols.join('').trim())
-  .toBe('abcba');
 
 machine.run({
   initialState: new State({
