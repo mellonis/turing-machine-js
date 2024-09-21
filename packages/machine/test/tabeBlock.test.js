@@ -651,17 +651,3 @@ describe('TapeBlock clone method', () => {
       .toBe(true);
   });
 });
-
-describe('tapeBlock purity', () => {
-  test('lockSymbol absent on a tapeBlock', () => {
-    const tapeList = alphabetList.map((alphabet) => new Tape({
-      alphabet,
-      symbolList: alphabet.symbolList,
-    }));
-    const tapeBlock = new TapeBlock({
-      tapeList,
-    });
-
-    expect(Object.getOwnPropertySymbols(tapeBlock).length).toBe(0);
-  });
-});

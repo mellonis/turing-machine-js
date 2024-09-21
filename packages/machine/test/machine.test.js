@@ -3,12 +3,12 @@ import TuringMachine, {
   haltState,
   ifOtherSymbol,
   movements,
+  Reference,
   State,
   symbolCommands,
   Tape,
   TapeBlock,
 } from '@turing-machine-js/machine';
-import { Reference } from '../src';
 
 const alphabet = new Alphabet({
   symbolList: ' ABC'.split(''),
