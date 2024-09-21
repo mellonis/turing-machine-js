@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/builder",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0",
   "description": "A turing machine builder",
   "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
   "homepage": "https://github.com/mellonis/turing-machine-js#readme",
@@ -22,7 +22,7 @@
     "builder"
   ],
   "dependencies": {
-    "@turing-machine-js/machine": "^2.0.0-alpha.2"
+    "@turing-machine-js/machine": "^2.0.0"
   },
   "module": "dist/index.js"
 }

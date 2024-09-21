@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/machine",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0",
   "description": "A convenient Turing machine",
   "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
   "homepage": "https://github.com/mellonis/turing-machine-js#readme",
