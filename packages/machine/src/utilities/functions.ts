@@ -3,7 +3,7 @@ const uniquePredicate = <T>(v: T, i: number, a: T[]) => a.indexOf(v) === i;
 const idKey = Symbol('idCurrentKey');
 const idWeakMapKey = Symbol('idWeakMapKey');
 
-function id(object: Object): number {
+function id(object: object): number {
   if (!id[idWeakMapKey].has(object)) {
     id[idWeakMapKey].set(object, id[idKey]);
     id[idKey] += 1;
@@ -13,7 +13,7 @@ function id(object: Object): number {
 }
 
 id[idKey] = 0;
-id[idWeakMapKey] = new WeakMap<Object, number>();
+id[idWeakMapKey] = new WeakMap<object, number>();
 
 export {
   id,

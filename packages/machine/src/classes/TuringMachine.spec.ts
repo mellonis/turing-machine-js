@@ -4,6 +4,7 @@ import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MachineState} from './TuringMachine';
 import {movements, symbolCommands} from './TapeCommand';
+import Reference from './Reference';
 
 const alphabet = new Alphabet(' ABC'.split(''));
 
@@ -120,10 +121,10 @@ describe('run tests', () => {
   });
 
   test('stepByStep', () => {
-    const iterator = machine.runStepByStep({initialState, stepsLimit: 1e5});
+    const generator = machine.runStepByStep({initialState, stepsLimit: 1e5});
 
 
-    for (const step of iterator) {
+    for (const step of generator) {
       const expectedStep = expectedSteps.find((_) => _.step === step.step);
 
       expect(step)
@@ -135,12 +136,23 @@ describe('run tests', () => {
   });
 
   test('stepByStep stop execution', () => {
-    const iterator = machine.runStepByStep({initialState, stepsLimit: 1e5});
+    const generator = machine.runStepByStep({initialState, stepsLimit: 1e5});
 
     expect(() => {
-      iterator.next();
-      iterator.throw(haltState);
-    }).toThrow('was stopped');
+      generator.next();
+      generator.throw(haltState);
+    }).not.toThrow();
+    expect(generator.next().done).toBe(true);
+  });
+
+  test('stepByStep stop execution with exception', () => {
+    const generator = machine.runStepByStep({initialState, stepsLimit: 1e5});
+
+    expect(() => {
+      generator.next();
+      generator.throw(new Error('some exception'));
+    }).toThrow('some exception');
+    expect(generator.next().done).toBe(true);
   });
 });
 
@@ -156,5 +168,60 @@ describe('properties', () => {
 
     expect(machine.tapeBlock)
       .toBe(tapeBlock);
+  });
+});
+
+describe('parallel execution with same tape block', () => {
+  let tapeBlock: TapeBlock;
+  let machineA: TuringMachine;
+  let machineB: TuringMachine;
+
+  beforeEach(() => {
+    tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    machineA = new TuringMachine({tapeBlock});
+    machineB = new TuringMachine({tapeBlock});
+  });
+
+  test('throw error on parallel execution start', () => {
+    const reference = new Reference();
+    const infiniteState = new State({
+      [ifOtherSymbol]: {
+        nextState: reference,
+      },
+    });
+    reference.bind(infiniteState);
+    const executionGeneratorA = machineA.runStepByStep({
+      initialState: infiniteState,
+    });
+    const executionGeneratorB = machineB.runStepByStep({
+      initialState: infiniteState,
+    });
+    expect(executionGeneratorA).not.toBe(executionGeneratorB);
+    expect(() => executionGeneratorA.next()).not.toThrow();
+    expect(() => executionGeneratorA.next()).not.toThrow();
+    expect(() => executionGeneratorB.next()).toThrow('Lock check failed');
+    // stop A execution
+    expect(() => executionGeneratorA.throw(haltState)).not.toThrow();
+    // execute B without errors
+    expect(() => executionGeneratorB.next()).not.toThrow();
+  });
+  test('do not throw on sequenced execution', () => {
+    const oneStepState = new State({
+      [ifOtherSymbol]: {
+        nextState: haltState,
+      },
+    });
+    const executionGeneratorA = machineA.runStepByStep({
+      initialState: oneStepState,
+    });
+    const executionGeneratorB = machineB.runStepByStep({
+      initialState: oneStepState,
+    });
+    expect(() => {
+      while (!executionGeneratorA.next().done) ;
+    }).not.toThrow();
+    expect(() => {
+      while (!executionGeneratorB.next().done) ;
+    }).not.toThrow();
   });
 });
