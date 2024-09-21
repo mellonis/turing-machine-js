@@ -63,7 +63,7 @@ export default function buildMachine({
   });
 
   Object.keys(stateNameToStateDeclarationMap).forEach((stateName) => {
-    const stateDefinition: Record<symbol, ConstructorParameters<typeof State>[0]> = {};
+    const stateDefinition: ConstructorParameters<typeof State>[0] = {};
 
     Object.entries(stateNameToStateDeclarationMap[stateName]).forEach(([symbol, stateDeclaration]) => {
       if (!alphabet.has(symbol)) {
