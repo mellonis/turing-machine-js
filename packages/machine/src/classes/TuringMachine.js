@@ -1,5 +1,5 @@
-import State from './State';
-import TapeBlock from './TapeBlock';
+import State, { haltState } from './State';
+import TapeBlock, { lockSymbol } from './TapeBlock';
 import { symbolCommands } from './TapeCommand';
 
 export default class TuringMachine {
@@ -24,10 +24,10 @@ export default class TuringMachine {
   }
 
   run({ initialState, stepsLimit = 1e5, onStep = null } = {}) {
-    const iterator = this.runStepByStep({ initialState, stepsLimit });
+    const generator = this.runStepByStep({ initialState, stepsLimit });
 
     // eslint-disable-next-line no-restricted-syntax
-    for (const machineState of iterator) {
+    for (const machineState of generator) {
       if (onStep instanceof Function) {
         onStep(machineState);
       }
@@ -35,67 +35,80 @@ export default class TuringMachine {
   }
 
   * runStepByStep({ initialState, stepsLimit = 1e5 } = {}) {
-    if (!(initialState instanceof State)) {
-      throw new Error('Invalid parameters');
-    }
+    const executionSymbol = Symbol('execution');
 
-    const stack = this.#stack;
-    let state = initialState;
+    try {
+      this.#tapeBlock[lockSymbol].check(executionSymbol);
+      this.#tapeBlock[lockSymbol].lock(executionSymbol);
 
-    if (state.overrodeHaltState) {
-      stack.push(state.overrodeHaltState);
-    }
-
-    let i = 0;
-
-    while (!state.isHalt) {
-      if (i === stepsLimit) {
-        throw new Error('Long execution');
+      if (!(initialState instanceof State)) {
+        throw new Error('Invalid parameters');
       }
 
-      i += 1;
+      const stack = this.#stack; // cope reference to use in generator
+      let state = initialState;
 
-      const symbol = state.getSymbol(this.#tapeBlock);
-      const command = state.getCommand(symbol);
-      let nextState = state.getNextState(symbol).ref;
-
-      try {
-        const nextStateForYield = nextState.isHalt && stack.length
-          ? stack.slice(-1)[0]
-          : nextState;
-
-        yield {
-          step: i,
-          state,
-          currentSymbolList: this.#tapeBlock.currentSymbolList,
-          nextSymbolList: command.tapeCommandList.map((tapeCommand, ix) => {
-            switch (tapeCommand.symbol) {
-              case symbolCommands.erase:
-                return this.#tapeBlock.tapeList[ix].alphabet.blankSymbol;
-              case symbolCommands.keep:
-                return this.#tapeBlock.tapeList[ix].symbol;
-              default:
-                return tapeCommand.symbol;
-            }
-          }),
-          movementList: command.tapeCommandList.map((tapeCommand) => tapeCommand.movement),
-          nextState: nextStateForYield,
-        };
-      } catch (e) {
-        throw new Error(`Execution halted because of ${e.message}`);
+      if (state.overrodeHaltState) {
+        stack.push(state.overrodeHaltState);
       }
 
-      this.#tapeBlock.applyCommand(command);
+      let i = 0;
 
-      if (nextState.isHalt && stack.length) {
-        nextState = stack.pop();
+      while (!state.isHalt) {
+        if (i === stepsLimit) {
+          throw new Error('Long execution');
+        }
+
+        i += 1;
+
+        const symbol = state.getSymbol(this.#tapeBlock);
+        const command = state.getCommand(symbol);
+        let nextState = state.getNextState(symbol).ref;
+
+        try {
+          const nextStateForYield = nextState.isHalt && stack.length
+            ? stack.slice(-1)[0]
+            : nextState;
+
+          yield {
+            step: i,
+            state,
+            currentSymbolList: this.#tapeBlock.currentSymbolList,
+            nextSymbolList: command.tapeCommandList.map((tapeCommand, ix) => {
+              switch (tapeCommand.symbol) {
+                case symbolCommands.erase:
+                  return this.#tapeBlock.tapeList[ix].alphabet.blankSymbol;
+                case symbolCommands.keep:
+                  return this.#tapeBlock.tapeList[ix].symbol;
+                default:
+                  return tapeCommand.symbol;
+              }
+            }),
+            movementList: command.tapeCommandList.map((tapeCommand) => tapeCommand.movement),
+            nextState: nextStateForYield,
+          };
+
+          this.#tapeBlock.applyCommand(command, executionSymbol);
+
+          if (nextState.isHalt && stack.length) {
+            nextState = stack.pop();
+          }
+
+          if (state !== nextState && nextState.overrodeHaltState) {
+            stack.push(nextState.overrodeHaltState);
+          }
+
+          state = nextState;
+        } catch (error) {
+          if (error !== haltState) {
+            throw error;
+          }
+
+          break;
+        }
       }
-
-      if (state !== nextState && nextState.overrodeHaltState) {
-        stack.push(nextState.overrodeHaltState);
-      }
-
-      state = nextState;
+    } finally {
+      this.#tapeBlock[lockSymbol].unlock(executionSymbol);
     }
   }
 }

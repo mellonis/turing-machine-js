@@ -1,10 +1,5 @@
 import {
-  Alphabet,
-  Command,
-  Tape,
-  TapeBlock,
-  TapeCommand,
-  movements, ifOtherSymbol,
+  Alphabet, Command, ifOtherSymbol, movements, Tape, TapeBlock, TapeCommand,
 } from '@turing-machine-js/machine';
 
 const alphabetList = [
@@ -654,5 +649,19 @@ describe('TapeBlock clone method', () => {
 
     expect(originalSymbol === symbolFromClonedTapeBlock)
       .toBe(true);
+  });
+});
+
+describe('tapeBlock purity', () => {
+  test('lockSymbol absent on a tapeBlock', () => {
+    const tapeList = alphabetList.map((alphabet) => new Tape({
+      alphabet,
+      symbolList: alphabet.symbolList,
+    }));
+    const tapeBlock = new TapeBlock({
+      tapeList,
+    });
+
+    expect(Object.getOwnPropertySymbols(tapeBlock).length).toBe(0);
   });
 });
