@@ -3,19 +3,18 @@ import Command from './Command';
 import { ifOtherSymbol } from './State';
 import Tape from './Tape';
 import { movements, symbolCommands } from './TapeCommand';
+import Lock from './Lock';
 
 const symbolToPatternListMapSetterKey = Symbol('symbol for symbolToPatternListMap setter');
 
+export const lockSymbol = Symbol('capture symbol');
+
 export default class TapeBlock {
+  #lock = new Lock();
+
   #symbolToPatternListMap = new Map();
 
   #tapeList;
-
-  static #generateSymbolHint = (patternList) => JSON.stringify(
-    patternList
-      .map((pattern) => pattern
-        .map((symbol) => (symbol === ifOtherSymbol ? null : symbol))),
-  )
 
   constructor({ tapeList, alphabetList }) {
     if (!alphabetList && !tapeList) {
@@ -60,6 +59,10 @@ export default class TapeBlock {
     }
   }
 
+  get [lockSymbol]() {
+    return this.#lock;
+  }
+
   get alphabetList() {
     return [...this.#tapeList.map((tape) => tape.alphabet)];
   }
@@ -76,7 +79,19 @@ export default class TapeBlock {
     return [...this.#tapeList];
   }
 
-  applyCommand(command) {
+  set [symbolToPatternListMapSetterKey](symbolToPatternListMap) {
+    this.#symbolToPatternListMap = new Map(symbolToPatternListMap);
+  }
+
+  static #generateSymbolHint = (patternList) => JSON.stringify(
+    patternList
+      .map((pattern) => pattern
+        .map((symbol) => (symbol === ifOtherSymbol ? null : symbol))),
+  )
+
+  applyCommand(command, executionSymbol = null) {
+    this.#lock.check(executionSymbol);
+
     if (!(command instanceof Command)) {
       throw new Error('invalid command');
     }
@@ -128,7 +143,7 @@ export default class TapeBlock {
       });
     }
 
-    tapeBlock[symbolToPatternListMapSetterKey](this.#symbolToPatternListMap);
+    tapeBlock[symbolToPatternListMapSetterKey] = this.#symbolToPatternListMap;
 
     return tapeBlock;
   }
@@ -175,10 +190,6 @@ export default class TapeBlock {
       throw new Error('invalid tape');
     }
   }
-
-  [symbolToPatternListMapSetterKey] = (symbolToPatternListMap) => {
-    this.#symbolToPatternListMap = new Map(symbolToPatternListMap);
-  };
 
   #buildPatternList = (symbolList) => symbolList.reduce((result, symbol, ix) => {
     const row = Math.floor(ix / this.#tapeList.length);

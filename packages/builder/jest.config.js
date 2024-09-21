@@ -5,7 +5,7 @@ const [organizationName, packageName] = packageInfo.name.split('/');
 module.exports = {
   displayName: {
     name: packageName,
-    color: 'yellow',
+    color: 'gray',
   },
   moduleNameMapper: {
     [`^${packageInfo.name}`]: '<rootDir>/src',

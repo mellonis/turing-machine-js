@@ -1,10 +1,5 @@
 import {
-  Alphabet,
-  Command,
-  Tape,
-  TapeBlock,
-  TapeCommand,
-  movements, ifOtherSymbol,
+  Alphabet, Command, ifOtherSymbol, movements, Tape, TapeBlock, TapeCommand,
 } from '@turing-machine-js/machine';
 
 const alphabetList = [

@@ -1,12 +1,13 @@
 import TuringMachine, {
   Alphabet,
-  State,
-  Tape,
-  TapeBlock,
   haltState,
   ifOtherSymbol,
   movements,
+  Reference,
+  State,
   symbolCommands,
+  Tape,
+  TapeBlock,
 } from '@turing-machine-js/machine';
 
 const alphabet = new Alphabet({
@@ -102,25 +103,37 @@ describe('run tests', () => {
   test('stepsLimit', () => {
     const onStepsLimit0Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 0, onStep: () => onStepsLimit0Mock() })).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 0,
+      onStep: () => onStepsLimit0Mock(),
+    })).toThrowError('Long execution');
     expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
 
     const onStepsLimit1Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 1, onStep: () => onStepsLimit1Mock() })).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 1,
+      onStep: () => onStepsLimit1Mock(),
+    })).toThrowError('Long execution');
     expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
 
     const onStepsLimit2Mock = jest.fn();
 
-    expect(() => machine.run({ initialState, stepsLimit: 2, onStep: () => onStepsLimit2Mock() })).toThrowError('Long execution');
+    expect(() => machine.run({
+      initialState,
+      stepsLimit: 2,
+      onStep: () => onStepsLimit2Mock(),
+    })).toThrowError('Long execution');
     expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
   });
 
   test('stepByStep', () => {
-    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
+    const generator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     // eslint-disable-next-line no-restricted-syntax
-    for (const step of iterator) {
+    for (const step of generator) {
       const expectedStep = expectedStepList.find((_) => _.step === step.step);
 
       expect(step)
@@ -132,12 +145,21 @@ describe('run tests', () => {
   });
 
   test('stepByStep stop execution', () => {
-    const iterator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
+    const generator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
 
     expect(() => {
-      iterator.next();
-      iterator.throw(new Error('STOP'));
-    }).toThrowError('Execution halted because of STOP');
+      generator.next();
+      generator.throw(new Error('STOP'));
+    }).toThrowError('STOP');
+  });
+
+  test('stepByStep stop execution with haltState', () => {
+    const generator = machine.runStepByStep({ initialState, stepsLimit: 1e5 });
+
+    expect(() => {
+      generator.next();
+      generator.throw(haltState);
+    }).not.toThrowError('STOP');
   });
 });
 
@@ -158,5 +180,68 @@ describe('properties', () => {
 
     expect(machine.tapeBlock)
       .toBe(tapeBlock);
+  });
+});
+
+describe('parallel execution with same tape block', () => {
+  let tapeBlock;
+  let machineA;
+  let machineB;
+
+  beforeEach(() => {
+    tapeBlock = new TapeBlock({ alphabetList: [alphabet] });
+    machineA = new TuringMachine({ tapeBlock });
+    machineB = new TuringMachine({ tapeBlock });
+  });
+
+  test('throw error on parallel execution start', () => {
+    const reference = new Reference();
+    const infiniteState = new State({
+      [ifOtherSymbol]: {
+        nextState: reference,
+      },
+    });
+
+    reference.bind(infiniteState);
+
+    const executionGeneratorA = machineA.runStepByStep({
+      initialState: infiniteState,
+    });
+    const executionGeneratorB = machineB.runStepByStep({
+      initialState: infiniteState,
+    });
+
+    expect(executionGeneratorA).not.toBe(executionGeneratorB);
+
+    expect(() => executionGeneratorA.next()).not.toThrowError();
+    expect(() => executionGeneratorA.next()).not.toThrowError();
+    expect(() => executionGeneratorB.next()).toThrowError('Lock check failed');
+
+    // stop A execution
+    expect(() => executionGeneratorA.throw(haltState)).not.toThrowError();
+    // execute B without errors
+    expect(() => executionGeneratorB.next()).not.toThrowError();
+  });
+
+  test('do not throw on sequenced execution', () => {
+    const oneStepState = new State({
+      [ifOtherSymbol]: {
+        nextState: haltState,
+      },
+    });
+
+    const executionGeneratorA = machineA.runStepByStep({
+      initialState: oneStepState,
+    });
+    const executionGeneratorB = machineB.runStepByStep({
+      initialState: oneStepState,
+    });
+
+    expect(() => {
+      while (!executionGeneratorA.next().done) ;
+    }).not.toThrowError();
+    expect(() => {
+      while (!executionGeneratorB.next().done) ;
+    }).not.toThrowError();
   });
 });
