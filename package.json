@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json",
     "test": "jest .",
+    "test:coverage": "jest . --coverage",
     "lint": "eslint ."
   },
   "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
