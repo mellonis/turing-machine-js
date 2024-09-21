@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@turing-machine-js/machine": [
+        "../machine"
+      ]
+    }
+  },
+  "references": [
+    {
+      "path": "../machine"
+    }
+  ],
+  "exclude": [
+    "dist"
+  ]
+}

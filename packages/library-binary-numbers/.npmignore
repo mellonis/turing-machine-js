@@ -1,4 +1,5 @@
 src/
-test/
-jest.config.js
+jest.config.mjs
 babel.config.js
+tsconfig.build.json
+tsconfig.json
