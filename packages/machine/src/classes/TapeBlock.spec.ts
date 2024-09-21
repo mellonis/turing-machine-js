@@ -194,7 +194,6 @@ describe('TapeBlock symbol method', () => {
       .toBe(true);
 
     expect(
-
       symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]) === symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]),
     )
       .toBe(true);
@@ -209,7 +208,6 @@ describe('TapeBlock symbol method', () => {
       .toBe(false);
 
     expect(
-
       symbol([goodListParameter[0], goodListParameter[1], goodListParameter[2]]) === symbol([goodListParameter[0], ifOtherSymbol, goodListParameter[2]]),
     )
       .toBe(false);
@@ -248,7 +246,10 @@ describe('TapeBlock replaceTape method', () => {
         expect(() => tapeBlock.replaceTape(surrogateTape, tapeIx))
           .toThrow('invalid tapeIx');
       } else {
-        expect(() => tapeBlock.replaceTape(purposeToTapes.surrogate?.[tapeIx]!, tapeIx))
+        const tape = purposeToTapes.surrogate?.[tapeIx];
+
+        expect(tape).toBeTruthy();
+        expect(() => tapeBlock.replaceTape(tape!, tapeIx))
           .not
           .toThrow();
       }
@@ -257,8 +258,11 @@ describe('TapeBlock replaceTape method', () => {
 
   test('can\'t replace tape with different alphabet', () => {
     purposeToTapes.original?.forEach((_, ix) => {
+      const tape = purposeToTapes.surrogate?.[(ix + 1) % purposeToTapes.surrogate.length];
+
+      expect(tape).toBeTruthy();
       expect(() => {
-        tapeBlock.replaceTape(purposeToTapes.surrogate?.[(ix + 1) % purposeToTapes.surrogate.length]!, ix);
+        tapeBlock.replaceTape(tape!, ix);
       })
         .toThrow('invalid tape');
     });
@@ -266,8 +270,11 @@ describe('TapeBlock replaceTape method', () => {
 
   test('replace tape is successful', () => {
     purposeToTapes.original?.forEach((_, ix) => {
+      const tape = purposeToTapes.surrogate?.[ix];
+
+      expect(tape).toBeTruthy();
       expect(() => {
-        tapeBlock.replaceTape(purposeToTapes.surrogate?.[ix]!, ix);
+        tapeBlock.replaceTape(tape!, ix);
       })
         .not
         .toThrow('invalid tape');
