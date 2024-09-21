@@ -113,7 +113,7 @@ export default class State {
       return this.#symbolToDataMap.get(symbol)!.command;
     }
 
-    throw new Error(`No command for symbol at state named ${this.#id}`);
+    throw new Error(`No command for symbol at state named ${this.#name}`);
   }
 
   getNextState(symbol: symbol) {
