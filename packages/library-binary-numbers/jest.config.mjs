@@ -9,6 +9,7 @@ export default {
   },
   moduleNameMapper: {
     [`^${packageJson.name}`]: '<rootDir>/src',
+    '^@turing-machine-js/machine/src$': '<rootDir>/../machine/src',
   },
   transformIgnorePatterns: [
     `node_modules/(?!${organizationName})`,
