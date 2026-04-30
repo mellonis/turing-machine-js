@@ -57,7 +57,9 @@ const initialNodeRegex = /^s(\d+)\(\("([^"]*)"\)\)$/;
 const regularNodeRegex = /^s(\d+)\["([^"]*)"\]$/;
 const transitionRegex = /^s(\d+)\s+--\s+"(.*)"\s+-->\s+s(\d+)$/;
 const onHaltRegex = /^s(\d+)\s+-\.\s+onHalt\s+\.->\s+s(\d+)$/;
-const alphabetsRegex = /^%%\s*alphabets:\s*(.+)$/;
+// First capture char anchored as \S to avoid polynomial backtracking between
+// the preceding \s* and a permissive (.+); see CodeQL js/polynomial-redos.
+const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
 
 export function fromMermaid(text: string): Graph {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
