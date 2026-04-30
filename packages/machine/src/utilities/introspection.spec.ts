@@ -187,3 +187,24 @@ describe('summarize (binary library comparison)', () => {
     expect(bare.alphabetCardinalities).toEqual([3]);
   });
 });
+
+describe('summarizeGraph defensive guards', () => {
+  // The override-chain walker has a defensive Set guard against cycles.
+  // State construction throws on cyclic overrodeHaltState, so we exercise it
+  // by handing summarizeGraph a Graph constructed by hand with a cycle.
+  test('terminates on a cyclic override chain instead of recursing forever', () => {
+    const graph: Graph = {
+      initialId: 1,
+      alphabets: [[' ', '0']],
+      nodes: {
+        1: {id: 1, name: 'a', isHalt: false, transitions: [], overrodeHaltStateId: 2},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [], overrodeHaltStateId: 1},
+      },
+    };
+
+    const summary = summarizeGraph(graph);
+
+    expect(summary.maxCompositionDepth).toBeGreaterThanOrEqual(1);
+    expect(summary.maxCompositionDepth).toBeLessThan(Infinity);
+  });
+});

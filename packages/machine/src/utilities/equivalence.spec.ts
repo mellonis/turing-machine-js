@@ -83,4 +83,25 @@ describe('equivalentOn', () => {
 
     expect(report.allAgree).toBe(false);
   });
+
+  test('firstDivergenceStep falls back to minLen when snapshots agree but step counts differ', () => {
+    // minusOne (4-deep composition) and minusOneFast produce the same output but
+    // run for different step counts. To exercise the "snapshots agree at every
+    // comparable step but lengths differ" fallback path, force outputs to disagree
+    // (compareOutputs: () => false) and snapshots to always agree
+    // (compareSnapshots: () => true). The post-loop length-mismatch branch then
+    // sets firstDivergenceStep = minLen.
+    const report = equivalentOn(
+      {state: binaryNumbers.states.minusOne, getTapeBlock: binaryNumbers.getTapeBlock},
+      {state: binaryNumbers.states.minusOneFast, getTapeBlock: binaryNumbers.getTapeBlock},
+      ['^1000$'],
+      {
+        compareOutputs: () => false,
+        compareSnapshots: () => true,
+      },
+    );
+
+    expect(report.results[0].agree).toBe(false);
+    expect(report.results[0].firstDivergenceStep).not.toBeNull();
+  });
 });

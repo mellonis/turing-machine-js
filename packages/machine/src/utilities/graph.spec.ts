@@ -2,8 +2,11 @@ import {
   decodeMovement,
   decodePatternDescription,
   decodeWriteSymbol,
+  parseMovementLabel,
+  parsePatternString,
+  splitUnescaped,
 } from './graph';
-import {toMermaid} from './graphFormats';
+import {fromMermaid, toMermaid} from './graphFormats';
 import {movements, symbolCommands} from '../classes/TapeCommand';
 
 describe('decodePatternDescription', () => {
@@ -171,5 +174,113 @@ describe('toMermaid', () => {
     });
 
     expect(out).toContain('"0,a → 0/R,a/L"');
+  });
+});
+
+describe('splitUnescaped', () => {
+  test('escapes a separator with backslash', () => {
+    expect(splitUnescaped('a\\,b,c', ',')).toEqual(['a,b', 'c']);
+  });
+
+  test('escapes a literal backslash', () => {
+    expect(splitUnescaped('a\\\\b,c', ',')).toEqual(['a\\b', 'c']);
+  });
+
+  test('returns single segment when no separator', () => {
+    expect(splitUnescaped('abc', ',')).toEqual(['abc']);
+  });
+});
+
+describe('parsePatternString', () => {
+  test('returns null for the global ifOtherSymbol marker', () => {
+    expect(parsePatternString('*', [[' ', '0']])).toBeNull();
+  });
+
+  test('per-cell `*` becomes null', () => {
+    // Multi-tape pattern where one cell is per-cell ifOtherSymbol.
+    expect(parsePatternString('0,*', [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
+  });
+
+  test('per-cell `-` becomes the tape blank symbol', () => {
+    expect(parsePatternString('-,a', [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
+  });
+});
+
+describe('parseMovementLabel', () => {
+  test('maps L/R/S to upstream movement symbols', () => {
+    expect(parseMovementLabel('L')).toBe(movements.left);
+    expect(parseMovementLabel('R')).toBe(movements.right);
+    expect(parseMovementLabel('S')).toBe(movements.stay);
+  });
+
+  test('throws on unknown label', () => {
+    expect(() => parseMovementLabel('X')).toThrow('unknown movement label: X');
+  });
+});
+
+describe('fromMermaid error paths', () => {
+  test('throws when no initial state (double-paren node) is present', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow('fromMermaid: no initial state');
+  });
+
+  test('throws on a malformed edge label (missing arrow)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '  s1(("entry"))',
+      '  s0(((halt)))',
+      '  s1 -- "no-arrow-label" --> s0',
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow('malformed edge label');
+  });
+
+  test('throws on a malformed command part (missing slash)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '  s1(("entry"))',
+      '  s0(((halt)))',
+      '  s1 -- "* → noslash" --> s0',
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow('malformed command part');
+  });
+});
+
+describe('fromMermaid ensureNode update branches', () => {
+  // The defensive update branches inside ensureNode (when a node id is
+  // declared more than once) only fire if the same id appears in multiple
+  // node-declaration lines. Synthetic but valid input.
+  test('a later regular-node declaration updates the name of an already-created initial node', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s1(("entry"))',  // initial — creates s1 with name="entry"
+      '  s1["renamed"]',   // regular — fires the name-update branch
+      '  s0(((halt)))',
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    expect(graph.nodes[1].name).toBe('renamed');
+  });
+
+  test('a later halt-node declaration updates isHalt of an already-created node', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s1(("entry"))',     // initial — creates s1 with isHalt=false
+      '  s1(((halt)))',       // halt — fires the isHalt-update branch
+      '  s0(((halt)))',
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    expect(graph.nodes[1].isHalt).toBe(true);
   });
 });
