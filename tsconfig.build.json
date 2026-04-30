@@ -2,13 +2,16 @@
   "files": [],
   "references": [
     {
-      "path": "packages/builder"
+      "path": "packages/builder/tsconfig.build.json"
     },
     {
-      "path": "packages/library-binary-numbers"
+      "path": "packages/library-binary-numbers/tsconfig.build.json"
     },
     {
-      "path": "packages/machine"
+      "path": "packages/library-binary-numbers-bare/tsconfig.build.json"
+    },
+    {
+      "path": "packages/machine/tsconfig.build.json"
     }
   ]
 }

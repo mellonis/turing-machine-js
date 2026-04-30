@@ -1,10 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": "..",
     "outDir": "dist",
     "paths": {
-      "@turing-machine-js/*": ["./packages/*"]
+      "@turing-machine-js/machine": ["./src/index"],
+      "@turing-machine-js/library-binary-numbers": ["../library-binary-numbers/src/index"],
+      "@turing-machine-js/library-binary-numbers-bare": ["../library-binary-numbers-bare/src/index"]
     }
   }
 }

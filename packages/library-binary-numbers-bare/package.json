@@ -1,7 +1,7 @@
 {
-  "name": "@turing-machine-js/library-binary-numbers",
+  "name": "@turing-machine-js/library-binary-numbers-bare",
   "version": "3.0.0",
-  "description": "A standard library for working with binary numbers",
+  "description": "Single-number binary arithmetic on a 3-symbol alphabet (blank, 0, 1) — same operations as @turing-machine-js/library-binary-numbers but without ^/$ markers. Side-by-side with the marker-based library for learning the trade-off.",
   "engines": {
     "npm": ">=7.0.0"
   },
@@ -14,17 +14,18 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/mellonis/turing-machine-js.git",
-    "directory": "packages/library-binary-numbers"
+    "directory": "packages/library-binary-numbers-bare"
   },
   "bugs": {
-    "url": "https://github.com/mellonis/turing-machine-js/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3A%22pkg%3A+library-binary-numbers%22+label%3Abug"
+    "url": "https://github.com/mellonis/turing-machine-js/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3A%22pkg%3A+library-binary-numbers-bare%22+label%3Abug"
   },
   "keywords": [
     "turing",
     "machine",
-    "plugin",
+    "library",
     "binary",
-    "numbers"
+    "numbers",
+    "teaching"
   ],
   "peerDependencies": {
     "@turing-machine-js/machine": "^3.0.0"

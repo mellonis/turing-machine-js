@@ -1,4 +1,4 @@
-import {State, Tape, TapeBlock, TuringMachine,} from '@turing-machine-js/machine/src';
+import {State, Tape, TapeBlock, TuringMachine,} from '@turing-machine-js/machine';
 import binaryNumbers from './index';
 
 const alphabetSymbols = ' ^$01';
@@ -12,6 +12,7 @@ const stateNames: (keyof typeof binaryNumbers['states'])[] = [
   'normalizeNumber',
   'plusOne',
   'minusOne',
+  'minusOneFast',
 ];
 
 describe('general tests', () => {
@@ -275,12 +276,83 @@ describe('minusOne algo', () => {
   });
 });
 
-describe('todo tests', () => {
-  const toDos = [
-    'goToNextNumber',
-    'goToPreviousNumber',
+describe('minusOneFast algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
+  const machine = new TuringMachine({
+    tapeBlock,
+  });
+  const tapeEndSymbolsAndStartSymbolsPairs = [
+    ['^$', '^1$'],
+    ['^1$', '^10$'],
+    ['^10$', '^11$'],
+    ['^101$', '^110$'],
+    ['^110$', '^111$'],
+    ['^111$', '^1000$'],
+    ['^$', '^$'],
   ];
 
-  toDos
-    .forEach((stateName) => test.todo(`test ${stateName} algo`));
+  tapeEndSymbolsAndStartSymbolsPairs.forEach(([endSymbols, startSymbols]) => {
+    const tape = new Tape({
+      alphabet: tapeBlock.tapes[0].alphabet,
+      symbols: startSymbols.split(''),
+    });
+
+    test(`tapeInitialState = [${startSymbols}]`, () => {
+      tapeBlock.replaceTape(tape);
+
+      expect(() => machine.run({
+        initialState: binaryNumbers.states.minusOneFast,
+      }))
+        .not
+        .toThrow();
+
+      expect(tape.symbols.join('').trim())
+        .toBe(endSymbols);
+    });
+  });
+});
+
+describe('goToNextNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
+  const machine = new TuringMachine({tapeBlock});
+
+  // Tape with two numbers (1 and 2), separated by a blank.
+  // Head starts at the first number's '$' (position 2).
+  // After running, head should be at the second number's '$' (position 7).
+  test('moves head to the next number\'s $', () => {
+    const tape = new Tape({
+      alphabet: tapeBlock.tapes[0].alphabet,
+      symbols: '^1$ ^10$'.split(''),
+      position: 2,
+    });
+
+    tapeBlock.replaceTape(tape);
+
+    machine.run({initialState: binaryNumbers.states.goToNextNumber});
+
+    expect(tape.symbol).toBe('$');
+    expect(tape.position).toBe(7);
+  });
+});
+
+describe('goToPreviousNumber algo', () => {
+  const tapeBlock = binaryNumbers.getTapeBlock();
+  const machine = new TuringMachine({tapeBlock});
+
+  // Same tape; head starts at the second number's '$' (position 7).
+  // After running, head should be at the first number's '$' (position 2).
+  test('moves head to the previous number\'s $', () => {
+    const tape = new Tape({
+      alphabet: tapeBlock.tapes[0].alphabet,
+      symbols: '^1$ ^10$'.split(''),
+      position: 7,
+    });
+
+    tapeBlock.replaceTape(tape);
+
+    machine.run({initialState: binaryNumbers.states.goToPreviousNumber});
+
+    expect(tape.symbol).toBe('$');
+    expect(tape.position).toBe(2);
+  });
 });

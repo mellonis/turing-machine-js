@@ -19,7 +19,6 @@ const packages = [
     },
     external: [
       '@turing-machine-js/machine',
-      '@turing-machine-js/machine/src',
     ],
   },
   {
@@ -31,7 +30,17 @@ const packages = [
     },
     external: [
       '@turing-machine-js/machine',
-      '@turing-machine-js/machine/src',
+    ],
+  },
+  {
+    name: '@turing-machine-js/library-binary-numbers-bare',
+    entry: 'packages/library-binary-numbers-bare/dist/index.js',
+    outputs: {
+      esm: 'packages/library-binary-numbers-bare/dist/index.mjs',
+      cjs: 'packages/library-binary-numbers-bare/dist/index.cjs',
+    },
+    external: [
+      '@turing-machine-js/machine',
     ],
   },
 ];

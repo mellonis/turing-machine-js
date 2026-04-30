@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/machine",
-  "version": "2.0.2",
+  "version": "3.0.0",
   "description": "A convenient Turing machine",
   "engines": {
     "npm": ">=7.0.0"
@@ -28,12 +28,6 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
-    },
-    "./src": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",

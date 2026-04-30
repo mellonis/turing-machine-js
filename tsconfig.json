@@ -1,15 +1,16 @@
 {
   "extends": "@tsconfig/recommended",
   "compilerOptions": {
-    "target": "ES6",
-    "module": "ES6",
+    "target": "ES2020",
+    "module": "ES2020",
     "declaration": true,
     "strict": true,
     "moduleResolution": "node",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["jest", "node"]
   },
   "exclude": [
-    "**/*.spec.ts",
     "packages/*/dist/**/*"
   ]
 }
