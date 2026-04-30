@@ -7,7 +7,7 @@ import {
   Tape,
   TapeBlock,
   TuringMachine,
-} from '@turing-machine-js/machine/src';
+} from '@turing-machine-js/machine';
 
 
 describe('README.md', () => {

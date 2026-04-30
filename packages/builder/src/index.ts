@@ -7,7 +7,7 @@ import {
   symbolCommands,
   TapeBlock,
   TuringMachine,
-} from '@turing-machine-js/machine/src';
+} from '@turing-machine-js/machine';
 
 const movementsMap: Record<'L' | 'R' | 'S', symbol> = {
   L: movements.left,

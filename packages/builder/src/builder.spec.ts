@@ -1,5 +1,5 @@
-import {Tape} from '@turing-machine-js/machine/src';
-import buildMachine, {States} from '@turing-machine-js/builder/src';
+import {Tape} from '@turing-machine-js/machine';
+import buildMachine, {States} from './index';
 
 describe('buildMachine', () => {
   test('copyString', () => {

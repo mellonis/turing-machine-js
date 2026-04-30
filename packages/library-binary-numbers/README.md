@@ -1,50 +1,97 @@
 # @turing-machine-js/library-binary-numbers
 
 [![build](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml/badge.svg)](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml)
-![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers)
+[![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/library-binary-numbers)](https://www.npmjs.com/package/@turing-machine-js/library-binary-numbers)
 
-A library for the turing-machine-js.
+Binary arithmetic on a **5-symbol alphabet** (` `, `^`, `$`, `0`, `1`) supporting **multiple numbers per tape**. Numbers are delimited by `^…$` markers — the markers cost extra states per algorithm but enable inter-number navigation. Side-by-side with [`@turing-machine-js/library-binary-numbers-bare`](../library-binary-numbers-bare), which drops the markers for smaller graphs at the cost of single-number-only operation.
 
 ## Install
 
-Using npm:
-
 ```sh
-npm install @turing-machine-js/library-binary-numbers
+npm install @turing-machine-js/machine @turing-machine-js/library-binary-numbers
 ```
 
-## A concept
+`@turing-machine-js/machine` is a peer dependency.
 
-Binary numbers are represented as a sequence of symbols `0` and `1`.
+## Concept
 
-A representation of a number starts with symbol `^` and ends with symbol `$`.
+A number is a sequence of `0`/`1` cells delimited by `^` (start) and `$` (end). Several numbers can sit on one tape, separated by blanks.
 
-For example:
-- `^$` stands for 0
-- `^1$` stands for 1
-- `^10$` stands for 2
-- `^11$` stands for 3
-- etc.
+```
+…blank ^101011$ blank ^110010$ blank…
+       ╰─ 43 ─╯       ╰─ 50 ─╯
+```
 
-There is no ability to work with negative numbers at this time.
+Examples:
+- `^$` represents 0
+- `^1$` represents 1
+- `^10$` represents 2
+- `^11$` represents 3
 
-This library provides following objects to work with binary numbers:
-- `getTapeBlock` - this function returns a `TapeBlock` class instance. It has only one tape. An alphabet of the tape contains the following symbols: `space` as a blank symbol, `^`, `$`, `0` and `1`.
-- `states` - following `States` class instances which represent some algorithms:
-    - `goToNumber` - move the head to the number's end
-    - `goToNextNumber` - move the head to the next number (to the right)
-    - `goToPreviousNumber` - move the head to the previous number (to the left)
-    - `deleteNumber` - delete the current number 
-    - `goToNumbersStart` - move the head to the number's start 
-    - `invertNumber` - change every symbol in the number to it's opposite one (`0` to `1` and `1` to `0`)
-    - `normalizeNumber` - delete leading zeros
-    - `plusOne` - add 1 to the number
-    - `minusOne` - subtract 1 from the number 
+Negative numbers are not currently supported.
 
-If you want to use states which were described earlier, you must use a tape block received from the `getTapeBlock` function.
+## Algorithms
+
+| name | what it does |
+|---|---|
+| `goToNumber` | move the head to the current number's `$` |
+| `goToNextNumber` | move the head to the next number (rightward) |
+| `goToPreviousNumber` | move the head to the previous number (leftward) |
+| `goToNumbersStart` | move the head to the current number's `^` |
+| `deleteNumber` | erase the current number entirely |
+| `invertNumber` | flip every bit (`0` ↔ `1`) |
+| `normalizeNumber` | erase leading zeros (preserving `^$` for the value zero) |
+| `plusOne` | add 1 to the number; extends leftward on overflow (`111 + 1 = 1000`) |
+| `minusOne` | subtract 1, computed via `~(~x + 1)` — composes `invertNumber` → `plusOne` → `invertNumber` → `normalizeNumber` |
+| `minusOneFast` | direct borrow propagation; smaller than `minusOne` and auto-normalizes |
+
+To use these, the tape block **must** come from `getTapeBlock()` — that's the one that interns the `^`/`$`/`01` patterns the states key against.
+
+## Usage
+
+```javascript
+import { Tape, TuringMachine } from '@turing-machine-js/machine';
+import binaryNumbers from '@turing-machine-js/library-binary-numbers';
+
+const tapeBlock = binaryNumbers.getTapeBlock();
+const tape = new Tape({
+  alphabet: tapeBlock.alphabets[0],
+  symbols: '^101$'.split(''), // binary 5
+});
+
+tapeBlock.replaceTape(tape);
+
+const machine = new TuringMachine({ tapeBlock });
+
+machine.run({ initialState: binaryNumbers.states.plusOne });
+
+console.log(tape.symbols.join('').trim()); // "^110$" (binary 6)
+```
+
+To run several algorithms in sequence on the same value, reuse the same `TapeBlock` across `machine.run(...)` calls — every state in `binaryNumbers.states` halts cleanly with the head positioned for the next algorithm to pick up.
+
+## How it compares to the bare library
+
+Both libraries solve the same arithmetic problem; the trade is **alphabet symbols** vs **state-graph size**.
+
+| algorithm | this library (5-symbol) | bare library (3-symbol) |
+|---|---|---|
+| `plusOne` | 5 states | **3** states |
+| `minusOne` | 17 / 10 (`minusOne` / `minusOneFast`) | **3** states |
+| `invertNumber` | 5 states | **2** states |
+| `normalizeNumber` | 7 states | **2** states |
+| **multi-number on tape?** | yes — `goToNumber`, `goToNextNumber`, etc. | no |
+| **head-position flexibility** | anywhere on the number | leftmost digit |
+| **`minusOne` auto-normalizes?** | yes — `minusOneFast` chains into `normalizeNumber` | no — leading `0` kept |
+
+The extra states this library spends are mostly bookkeeping for the `^`/`$` markers (planting `^` on left-overflow, sweeping past it on entry, etc.). The pay-off is multi-number-per-tape support and head-position flexibility — `goToNumber` / `goToNextNumber` / `goToPreviousNumber` / `deleteNumber` / `goToNumbersStart` have no counterpart in the bare library.
+
+For a teaching context, both libraries shipping in parallel makes the cost of representation choices tangible.
+
+See the rendered Mermaid graphs for every state in [`states.md`](states.md) (auto-generated by `src/graphs.spec.ts`).
 
 ## Links
 
-- The information about `TapeBlock` and `State` classes is [here](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) 
-- [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
-
+- [`@turing-machine-js/machine`](../machine) — the core engine
+- [`@turing-machine-js/library-binary-numbers-bare`](../library-binary-numbers-bare) — the 3-symbol counterpart
+- [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on Wikipedia

@@ -8,9 +8,10 @@ A convenient Turing machine
 
 This repository contains following packages:
 
-* [@turing-machine-js/builder](https://github.com/mellonis/turing-machine-js/tree/master/packages/builder)
-* [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine)
-* [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers)
+* [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) — the core engine: `State`, `Tape`, `TapeBlock`, `TuringMachine`, plus `State.toGraph` / `State.fromGraph` and `toMermaid` / `fromMermaid` for visualization and round-trip.
+* [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers) — binary arithmetic on a 5-symbol alphabet (` ^$01`) supporting multiple numbers per tape, with `plusOne`, `minusOne`, `minusOneFast`, `invertNumber`, `normalizeNumber`, and inter-number navigation.
+* [@turing-machine-js/library-binary-numbers-bare](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers-bare) — the same arithmetic on a 3-symbol alphabet (` 01`), single-number-per-tape. Side-by-side with the marker-based library to make the alphabet-size vs state-graph-size trade-off visible.
+* [@turing-machine-js/builder](https://github.com/mellonis/turing-machine-js/tree/master/packages/builder) — declarative state-table construction. Not actively developed; the same pattern is shown inline in `@turing-machine-js/machine`'s README.
 
 # An example
 
