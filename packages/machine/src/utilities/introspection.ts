@@ -95,10 +95,10 @@ export function summarizeGraph(graph: Graph): GraphSummary {
   let hasCycles = false;
 
   const visit = (id: number): void => {
-    if (hasCycles) {
-      return;
-    }
-
+    // No `if (hasCycles) return` guard at function entry: the recursive call
+    // pattern (outer for-loop checks before calling, inner loop checks after
+    // each recursive call) ensures visit() is never invoked when hasCycles
+    // is already true. Static analysis confirmed the guard was unreachable.
     if (color.get(id) === GREY) {
       hasCycles = true;
       return;

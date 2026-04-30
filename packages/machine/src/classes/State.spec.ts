@@ -201,3 +201,92 @@ describe('methods', () => {
     expect(state2.name).toBe(`${state.name}>${haltState.name}`);
   });
 });
+
+describe('State constructor — invalid inputs', () => {
+  const alphabet = new Alphabet(' 01'.split(''));
+  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+  const {symbol} = tapeBlock;
+
+  test('throws when stateDefinition has string-keyed properties (only symbol keys allowed)', () => {
+    expect(() => new State({foo: {nextState: haltState}} as never))
+      .toThrow(/^invalid state definition/);
+  });
+
+  test('throws when nextState is neither State nor Reference', () => {
+    expect(() => new State({
+      [symbol(['0'])]: {nextState: 'not a state' as never},
+    })).toThrow('invalid nextState');
+  });
+
+  test('throws "invalid command" when Command construction fails (empty array)', () => {
+    // command: [] is an Array, so the constructor takes the `try { new Command([]) }`
+    // branch. Command rejects empty input with "invalid parameter"; the catch
+    // swallows it (exercises the `void error` line), commandLocal remains
+    // the plain [], fails the `instanceof Command` check, and throws.
+    expect(() => new State({
+      [symbol(['0'])]: {command: [] as never, nextState: haltState},
+    })).toThrow('invalid command');
+  });
+});
+
+describe('State.getSymbol — fallback', () => {
+  const alphabet = new Alphabet(' 01'.split(''));
+  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+  const {symbol} = tapeBlock;
+
+  test('returns ifOtherSymbol when no specific transition matches the head', () => {
+    // State has only a transition for '1'. Tape head is on the blank ' '.
+    // No specific symbol in the map matches → fallback to ifOtherSymbol.
+    const state = new State({
+      [symbol(['1'])]: {nextState: haltState},
+    });
+
+    // Tape default position 0, default symbols → blank ' '. The state's only
+    // key is the symbol(['1']) pattern which does NOT match a blank head.
+    expect(state.getSymbol(tapeBlock)).toBe(ifOtherSymbol);
+  });
+});
+
+describe('State.toGraph — unbound Reference', () => {
+  const alphabet = new Alphabet(' 01'.split(''));
+  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+  const {symbol} = tapeBlock;
+
+  test('skips a transition whose nextState is an unbound Reference', () => {
+    // An unbound Reference throws when its `.ref` getter is read. State.toGraph
+    // catches that and skips the transition rather than failing the whole walk.
+    const unboundRef = new Reference();
+    const state = new State({
+      [symbol(['0'])]: {nextState: unboundRef},
+      [symbol(['1'])]: {nextState: haltState},
+    });
+
+    const graph = State.toGraph(state, tapeBlock);
+
+    // Only the haltState-bound transition survives; the unbound one is dropped.
+    expect(graph.nodes[state.id].transitions).toHaveLength(1);
+  });
+});
+
+describe('State.fromGraph — cyclic override-halt chain', () => {
+  test('throws when the override-halt graph has a cycle', () => {
+    // Graphs constructed by State.toGraph always have acyclic override chains
+    // (cycles throw at State construction). To exercise the defensive cycle
+    // detection in fromGraph, hand-build a Graph with overrodeHaltStateId
+    // pointing in a loop.
+    // Nodes need at least one transition each — State construction at pass 2
+    // rejects empty stateDefinitions before pass 3's cycle check would run.
+    const dummyTransition = {pattern: '*', command: [{symbol: '·', movement: 'S'}], nextStateId: 0};
+    const graph = {
+      initialId: 1,
+      alphabets: [[' ', '0', '1']],
+      nodes: {
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overrodeHaltStateId: 2},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overrodeHaltStateId: 1},
+      },
+    };
+
+    expect(() => State.fromGraph(graph)).toThrow(/^override-halt cycle at state #/);
+  });
+});
