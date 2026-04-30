@@ -5,6 +5,7 @@ on:
     branches: [ master, next ]
   pull_request:
     branches: [ master, next ]
+  workflow_dispatch: # allow manual trigger from the Actions tab
 
 jobs:
   build:
@@ -17,15 +18,15 @@ jobs:
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
       - run: npm run lint
       - run: npm run test:coverage
       - name: Coveralls
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
