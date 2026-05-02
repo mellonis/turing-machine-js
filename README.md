@@ -2,7 +2,7 @@
 
 [![build](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml/badge.svg)](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml)
 [![Coverage Status](https://coveralls.io/repos/github/mellonis/turing-machine-js/badge.svg?branch=master)](https://coveralls.io/github/mellonis/turing-machine-js?branch=master)
-![GitHub issues](https://img.shields.io/github/issues/mellonis/turing-machine-js)
+[![GitHub issues](https://img.shields.io/github/issues/mellonis/turing-machine-js)](https://github.com/users/mellonis/projects/5)
 
 A convenient Turing machine
 
