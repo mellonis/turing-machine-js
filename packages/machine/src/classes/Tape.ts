@@ -20,7 +20,7 @@ export default class Tape {
 
     this.#alphabet = new Alphabet(alphabet);
     this.#position = position;
-    this.#viewportWidth = viewportWidth;
+    this.#viewportWidth = 1;
 
     const symbolsCopy = Array.from(symbols);
 
@@ -29,6 +29,8 @@ export default class Tape {
     }
 
     this.#symbols = symbolsCopy.map((symbol) => this.#alphabet.index(symbol));
+
+    this.viewportWidth = viewportWidth;
   }
 
   get alphabet() {

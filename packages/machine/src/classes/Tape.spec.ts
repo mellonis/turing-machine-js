@@ -49,6 +49,44 @@ describe('Tape constructor', () => {
     })
       .toThrow('symbolList contains invalid symbol');
   });
+
+  test('viewportWidth normalises and pads symbols (issue #95)', () => {
+    const alphabet = new Alphabet(['␣', 'a', 'b']);
+    const tape = new Tape({
+      alphabet,
+      symbols: ['a', 'b', 'a', 'b'],
+      position: 0,
+      viewportWidth: 23,
+    });
+
+    expect(tape.viewportWidth).toBe(23);
+    expect(tape.viewport.length).toBe(23);
+  });
+
+  test('viewportWidth default leaves a single-cell viewport', () => {
+    const alphabet = new Alphabet(['0', '1']);
+    const tape = new Tape({ alphabet });
+
+    expect(tape.viewportWidth).toBe(1);
+    expect(tape.viewport.length).toBe(1);
+  });
+
+  test('even viewportWidth is bumped to the next odd value', () => {
+    const alphabet = new Alphabet(['0', '1']);
+    const tape = new Tape({ alphabet, viewportWidth: 4 });
+
+    expect(tape.viewportWidth).toBe(5);
+    expect(tape.viewport.length).toBe(5);
+  });
+
+  test('viewportWidth < 1 throws from the constructor', () => {
+    const alphabet = new Alphabet(['0', '1']);
+
+    expect(() => new Tape({ alphabet, viewportWidth: 0 }))
+      .toThrow('Invalid viewportWidth');
+    expect(() => new Tape({ alphabet, viewportWidth: -1 }))
+      .toThrow('Invalid viewportWidth');
+  });
 });
 
 describe('Tape properties', () => {

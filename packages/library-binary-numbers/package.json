@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/library-binary-numbers",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "A standard library for working with binary numbers",
   "engines": {
     "npm": ">=7.0.0"
