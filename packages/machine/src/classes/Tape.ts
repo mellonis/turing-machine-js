@@ -2,12 +2,17 @@ import Alphabet from './Alphabet';
 
 type TapeConstructorParameter = { alphabet: Alphabet, symbols?: string[], position?: number, viewportWidth?: number };
 
+const BLANK_INDEX = 0;
+
 export default class Tape {
   readonly #alphabet: Alphabet;
-  readonly #symbols: number[];
+  readonly #right: number[] = [];
+  readonly #left: number[] = [];
 
-  #position;
+  #position: number;
   #viewportWidth: number;
+  #viewportBuffer: string[] = [];
+  #viewportDirty = true;
 
   constructor({
                 alphabet, symbols = [], position = 0, viewportWidth = 1,
@@ -22,13 +27,11 @@ export default class Tape {
     this.#position = position;
     this.#viewportWidth = 1;
 
-    const symbolsCopy = Array.from(symbols);
+    const initialSymbols = symbols.length === 0 ? [this.#alphabet.blankSymbol] : symbols;
 
-    if (symbolsCopy.length === 0) {
-      symbolsCopy.push(this.#alphabet.blankSymbol);
+    for (const symbol of initialSymbols) {
+      this.#right.push(this.#alphabet.index(symbol));
     }
-
-    this.#symbols = symbolsCopy.map((symbol) => this.#alphabet.index(symbol));
 
     this.viewportWidth = viewportWidth;
   }
@@ -42,11 +45,14 @@ export default class Tape {
   }
 
   get position() {
-    return this.#position;
+    // Public contract: index of the head in the `symbols` array. With the
+    // two-array deque, `#position` is the head's logical position; adding
+    // `#left.length` shifts it back into "index from the leftmost backed cell".
+    return this.#position + this.#left.length;
   }
 
   get symbol() {
-    return this.#alphabet.get(this.#symbols[this.#position]);
+    return this.#alphabet.get(this.#cellAt(this.#position));
   }
 
   set symbol(symbol) {
@@ -54,21 +60,42 @@ export default class Tape {
       throw new Error('Invalid symbol');
     }
 
-    this.#symbols[this.#position] = this.#alphabet.index(symbol);
+    const index = this.#alphabet.index(symbol);
+
+    if (this.#position >= 0) {
+      this.#right[this.#position] = index;
+    } else {
+      this.#left[-this.#position - 1] = index;
+    }
+
+    this.#viewportDirty = true;
   }
 
   get symbols() {
-    return this.#symbols
-      .map((index) => this.#alphabet.get(index));
+    const result: string[] = new Array(this.#left.length + this.#right.length);
+
+    for (let i = 0; i < this.#left.length; i += 1) {
+      result[i] = this.#alphabet.get(this.#left[this.#left.length - 1 - i]);
+    }
+    for (let i = 0; i < this.#right.length; i += 1) {
+      result[this.#left.length + i] = this.#alphabet.get(this.#right[i]);
+    }
+
+    return result;
   }
 
   get viewport() {
-    const startIx = this.#position - this.extraCellsCount;
-    const endIx = this.#position + this.extraCellsCount + 1;
+    if (this.#viewportDirty) {
+      const start = this.#position - this.extraCellsCount;
 
-    return this.#symbols
-      .slice(startIx, endIx)
-      .map((index) => this.#alphabet.get(index));
+      for (let i = 0; i < this.#viewportWidth; i += 1) {
+        this.#viewportBuffer[i] = this.#alphabet.get(this.#cellAt(start + i));
+      }
+
+      this.#viewportDirty = false;
+    }
+
+    return [...this.#viewportBuffer];
   }
 
   get viewportWidth() {
@@ -87,6 +114,8 @@ export default class Tape {
     }
 
     this.#viewportWidth = finalWidth;
+    this.#viewportBuffer.length = finalWidth;
+    this.#viewportDirty = true;
 
     this.normalise();
   }
@@ -94,21 +123,35 @@ export default class Tape {
   left() {
     this.#position -= 1;
     this.normalise();
+    this.#viewportDirty = true;
   }
 
   normalise() {
-    while (this.#position - this.extraCellsCount < 0) {
-      this.#symbols.unshift(0);
-      this.#position += 1;
+    const minLogical = this.#position - this.extraCellsCount;
+    const maxLogical = this.#position + this.extraCellsCount;
+
+    while (-this.#left.length > minLogical) {
+      this.#left.push(BLANK_INDEX);
     }
 
-    while (this.#position + this.extraCellsCount >= this.#symbols.length) {
-      this.#symbols.push(0);
+    while (this.#right.length - 1 < maxLogical) {
+      this.#right.push(BLANK_INDEX);
     }
   }
 
   right() {
     this.#position += 1;
     this.normalise();
+    this.#viewportDirty = true;
+  }
+
+  #cellAt(logical: number): number {
+    if (logical >= 0) {
+      return logical < this.#right.length ? this.#right[logical] : BLANK_INDEX;
+    }
+
+    const ix = -logical - 1;
+
+    return ix < this.#left.length ? this.#left[ix] : BLANK_INDEX;
   }
 }

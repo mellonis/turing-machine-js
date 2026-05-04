@@ -195,4 +195,19 @@ describe('Tape properties', () => {
     expect(tape.symbols)
       .toEqual(alphabetSymbols.reverse());
   });
+
+  test('many left() calls preserve symbols and position-as-index (issue #94)', () => {
+    const alphabet = new Alphabet(['␣', 'x']);
+    const tape = new Tape({ alphabet, symbols: ['x'] });
+
+    for (let i = 0; i < 1000; i += 1) {
+      tape.left();
+    }
+
+    expect(tape.symbols.length).toBe(1001);
+    expect(tape.symbols[1000]).toBe('x');
+    expect(tape.position).toBe(0);
+    expect(tape.symbol).toBe('␣');
+  });
+
 });
