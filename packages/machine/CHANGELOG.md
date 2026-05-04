@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.2] - 2026-05-04
+
+### Fixed
+
+- **`Tape` constructor now normalises and validates `viewportWidth`** ([#95](https://github.com/mellonis/turing-machine-js/issues/95)). The constructor stored `viewportWidth` raw — the setter padded `#symbols` via `normalise()` and validated `>= 1` / bumped even values to odd, but the constructor did neither. As a result, `new Tape({ alphabet, symbols: ['a','b','a','b'], viewportWidth: 23 }).viewport.length` was `4` instead of `23`, and `viewportWidth: 0` or `viewportWidth: 4` silently produced an invalid tape. The constructor now defers to the setter, so a single source of truth handles validation + normalisation.
+
+### Changed (observable)
+
+- A constructor call with an out-of-range `position` (e.g. `position: 5` with `symbols: ['x']`) now normalises at construction — the symbol array is padded with blanks so `position` lands inside the viewport. Previously the tape was left in a malformed state until the first head movement triggered `normalise()`. Strictly a fix, but observable if user code inspected `.symbols.length` immediately after construction.
+
 ## [3.0.1] - 2026-04-30
 
 ### Fixed
