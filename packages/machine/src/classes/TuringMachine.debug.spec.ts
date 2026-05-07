@@ -162,3 +162,71 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     }
   });
 });
+
+describe('TuringMachine — haltState.debug.before', () => {
+  afterEach(() => {
+    // haltState is a singleton — clear after each test to avoid cross-pollution.
+    haltState.debug = null;
+  });
+
+  test('haltState.debug.before = true fires on program halt', () => {
+    const {machine, state} = buildMachine();
+    haltState.debug = {before: true};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // Last step's transition leads to halt — that yield should carry debugBreak.before
+    // (because nextState is halt and haltState.debug.before === true).
+    const last = steps[steps.length - 1];
+    expect(last.nextState).toBe(haltState);
+    expect(last.debugBreak?.before).toBe(true);
+  });
+
+  test('haltState.debug.before fires on subroutine return (halt-pop)', () => {
+    const tape = new Tape({alphabet, symbols: ['A']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+
+    // Inner subroutine: erases 'A', halts.
+    const inner = new State({
+      [symbol(['A'])]: {
+        command: [{symbol: symbolCommands.erase, movement: movements.right}],
+      },
+      [ifOtherSymbol]: {nextState: haltState},
+    });
+
+    // Outer continuation: just halts on blank.
+    const continuation = new State({
+      [ifOtherSymbol]: {nextState: haltState},
+    });
+
+    const wrapped = inner.withOverrodeHaltState(continuation);
+
+    haltState.debug = {before: true};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: wrapped, onStep: (s) => steps.push(s)});
+
+    // The yield where inner transitions to haltState (which gets popped to continuation)
+    // should still carry debugBreak.before — we paused before entering halt logic.
+    const popYield = steps.find((s) => s.nextState === continuation);
+    expect(popYield?.debugBreak?.before).toBe(true);
+  });
+
+  test('haltState.debug.before with symbol list NEVER matches (no head symbol at halt)', () => {
+    const {machine, state, symbol} = buildMachine();
+    const symA = symbol(['A']);
+    haltState.debug = {before: [symA]};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // Halt has no head symbol; list filter cannot match. No debug break should fire
+    // because of haltState.debug. (state.debug is null, so no other source.)
+    for (const step of steps) {
+      expect(step).not.toHaveProperty('debugBreak');
+    }
+  });
+});

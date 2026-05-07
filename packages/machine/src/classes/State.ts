@@ -187,6 +187,10 @@ export default class State {
   ): void {
     if (filter === undefined || filter === true) return;
 
+    // haltState has no own transitions; symbol-list filters on it are silent
+    // no-ops at the engine level (spec §8.6), so accept any list shape here.
+    if (this.isHalt) return;
+
     for (const sym of filter) {
       if (sym !== ifOtherSymbol && !this.#symbolToDataMap.has(sym)) {
         throw new Error(

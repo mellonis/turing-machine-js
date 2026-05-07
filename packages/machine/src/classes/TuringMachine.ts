@@ -92,7 +92,8 @@ export default class TuringMachine {
         let nextState = state.getNextState(symbol).ref;
 
         try {
-          const beforeMatch = matchFilter(state.debug?.before, symbol);
+          const beforeMatch = matchFilter(state.debug?.before, symbol)
+            || (nextState.isHalt && nextState.debug?.before === true);
 
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
