@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-05-07
+
+### Added
+
+- **`State.debug` field** — runtime-mutable per-state breakpoints with `{ before, after }` symbol filtering ([#98](https://github.com/mellonis/turing-machine-js/issues/98)). Backed by a shared `Ref` cell so `withOverrodeHaltState` wrappers see assignments propagated from the original state. Validator rejects symbols that aren't transition keys of the owning state (catches cross-tape-block / cross-state mistakes); for `haltState`, list filters are silent no-ops because halt has no resolved head symbol.
+- **`DebugConfig` class** — exported from the package. Per-property setters validate and freeze the stored array, so push / index-write throw `TypeError`. Plain-object input to `state.debug = { ... }` is wrapped in a `DebugConfig` instance automatically.
+- **`onDebugBreak` hook** on `run()` — awaited at every break (one or two times per yield: `after` from the previous step, then `before` for the current step). For `after` calls, `run()` substitutes the previous yield's snapshot so `m.state` corresponds to the state whose `after` fired. `onStep` always sees the original (un-substituted) yield.
+- **`haltState.debug.before = true`** — pauses on every halt entry (program exit AND subroutine return via halt-stack pop). Symbol-list filters on `haltState` are silent no-ops; only the `true` wildcard activates. `haltState` is a module-level singleton — clear in `afterEach` / `finally` for test isolation.
+- **`MachineState.debugBreak`** field — optional metadata on every yield from `runStepByStep`; consumers can opt in to reading it and mirror `run()`'s pause behavior if desired.
+
+### Changed (BREAKING)
+
+- **`run()` is now `async`** and returns `Promise<void>`. Existing callers must update to `await machine.run({ ... })` (or `void machine.run({ ... })` if intentionally discarding the result). Without an `onDebugBreak` hook, debug breaks fire-and-resume invisibly — the trajectory observed by `onStep` is identical to running with all `debug` fields cleared.
+
 ## [3.0.2] - 2026-05-04
 
 ### Fixed
