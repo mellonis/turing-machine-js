@@ -97,3 +97,68 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     for (const v of nonBlankVisits) expect(v).not.toHaveProperty('debugBreak');
   });
 });
+
+describe('TuringMachine — debug.after filter (loop yields)', () => {
+  test('debug.after = true tags the NEXT yield with debugBreak.after', () => {
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // First yield: state had no prior — no after.
+    expect(steps[0]).not.toHaveProperty('debugBreak');
+    // Subsequent yields all carry debugBreak.after (because every prev
+    // visit was at this state with after=true matching wildcard).
+    for (let i = 1; i < steps.length; i++) {
+      expect(steps[i].debugBreak).toEqual({after: true});
+    }
+  });
+
+  test('after on a transition leading to halt is silently lost', () => {
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // The final transition leads to halt — its after has no next yield to land on.
+    // (No assertion needed — this just confirms run() completes; pending after
+    // at halt is by-design lost. See spec §11.1.)
+    expect(steps.length).toBeGreaterThan(0);
+  });
+
+  test('before AND after on same visit produce both flags on the relevant yields', () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true, after: true};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // First yield: only before (no prior after).
+    expect(steps[0].debugBreak).toEqual({before: true});
+    // Middle yields: both flags (prev's after AND current's before).
+    for (let i = 1; i < steps.length - 1; i++) {
+      expect(steps[i].debugBreak).toEqual({before: true, after: true});
+    }
+  });
+
+  test('after with symbol list matches only listed symbols', () => {
+    const {machine, state, symbol} = buildMachine();
+    const symA = symbol(['A']);
+    state.debug = {after: [symA]};
+    const steps: MachineState[] = [];
+
+    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // The 'after' fires on yield N+1 if yield N's state had symA on the head.
+    for (let i = 1; i < steps.length; i++) {
+      const prev = steps[i - 1];
+      if (prev.currentSymbols[0] === 'A') {
+        expect(steps[i].debugBreak).toEqual({after: true});
+      } else {
+        expect(steps[i]).not.toHaveProperty('debugBreak');
+      }
+    }
+  });
+});

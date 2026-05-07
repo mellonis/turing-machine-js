@@ -78,6 +78,7 @@ export default class TuringMachine {
       }
 
       let i = 0;
+      let pendingAfterFromPrev = false;
 
       while (!state.isHalt) {
         if (i === stepsLimit) {
@@ -119,11 +120,17 @@ export default class TuringMachine {
             nextState: nextStateForYield,
           };
 
-          if (beforeMatch) {
-            yielded.debugBreak = {before: true};
+          if (pendingAfterFromPrev || beforeMatch) {
+            const dbg: { before?: true; after?: true } = {};
+            if (pendingAfterFromPrev) dbg.after = true;
+            if (beforeMatch) dbg.before = true;
+            yielded.debugBreak = dbg;
           }
 
           yield yielded;
+
+          // Re-evaluate 'after' for THIS visit, to fire on the NEXT yield.
+          pendingAfterFromPrev = matchFilter(state.debug?.after, symbol);
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
 
