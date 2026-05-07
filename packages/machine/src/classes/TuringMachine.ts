@@ -1,4 +1,4 @@
-import State, {haltState} from './State';
+import State, {haltState, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
@@ -11,7 +11,28 @@ export type MachineState = {
   nextSymbols: string[];
   movements: symbol[];
   nextState: State;
+  /**
+   * Set only when this iteration boundary is a debug break.
+   * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
+   * At least one of `before` / `after` is `true` when the field is present.
+   *
+   * For consumers of the `runStepByStep` generator the `state` field reflects
+   * the current iteration regardless of timing; `run()` substitutes the prior
+   * yield's snapshot for `after` calls so consumers see the source state.
+   */
+  debugBreak?: {
+    before?: true;
+    after?: true;
+  };
 };
+
+// True iff `filter` matches `symbol` per the DebugConfig semantics.
+// undefined / [] -> never; true -> always; symbol[] -> exact membership.
+function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
+  if (filter === undefined) return false;
+  if (filter === true) return true;
+  return filter.includes(symbol);
+}
 
 export default class TuringMachine {
   readonly #tapeBlock: TapeBlock;
@@ -31,13 +52,34 @@ export default class TuringMachine {
     return this.#tapeBlock;
   }
 
-  run({initialState, stepsLimit = 1e5, onStep}: RunParameter & { onStep?: (machineState: MachineState) => void }) {
+  async run({
+    initialState,
+    stepsLimit = 1e5,
+    onStep,
+    onDebugBreak,
+  }: RunParameter & {
+    onStep?: (machineState: MachineState) => void;
+    onDebugBreak?: (machineState: MachineState) => void | Promise<void>;
+  }): Promise<void> {
     const generator = this.runStepByStep({initialState, stepsLimit});
+    let prevYield: MachineState | null = null;
 
     for (const machineState of generator) {
+      // 'after' (from prev step) — fire FIRST, with prev yield substituted as the source view.
+      if (machineState.debugBreak?.after && onDebugBreak && prevYield) {
+        await onDebugBreak({...prevYield, debugBreak: {after: true}});
+      }
+
+      // 'before' (current step) — pass current machineState with only the before flag.
+      if (machineState.debugBreak?.before && onDebugBreak) {
+        await onDebugBreak({...machineState, debugBreak: {before: true}});
+      }
+
       if (onStep instanceof Function) {
         onStep(machineState);
       }
+
+      prevYield = machineState;
     }
   }
 
@@ -57,6 +99,7 @@ export default class TuringMachine {
       }
 
       let i = 0;
+      let pendingAfterFromPrev = false;
 
       while (!state.isHalt) {
         if (i === stepsLimit) {
@@ -70,11 +113,14 @@ export default class TuringMachine {
         let nextState = state.getNextState(symbol).ref;
 
         try {
+          const beforeMatch = matchFilter(state.debug?.before, symbol)
+            || (nextState.isHalt && nextState.debug?.before === true);
+
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
             : nextState;
 
-          yield {
+          const yielded: MachineState = {
             step: i,
             state,
             currentSymbols: this.#tapeBlock.currentSymbols,
@@ -95,6 +141,18 @@ export default class TuringMachine {
             movements: command.tapesCommands.map((tapeCommand) => tapeCommand.movement),
             nextState: nextStateForYield,
           };
+
+          if (pendingAfterFromPrev || beforeMatch) {
+            const dbg: { before?: true; after?: true } = {};
+            if (pendingAfterFromPrev) dbg.after = true;
+            if (beforeMatch) dbg.before = true;
+            yielded.debugBreak = dbg;
+          }
+
+          yield yielded;
+
+          // Re-evaluate 'after' for THIS visit, to fire on the NEXT yield.
+          pendingAfterFromPrev = matchFilter(state.debug?.after, symbol);
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
 
