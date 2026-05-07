@@ -63,7 +63,7 @@ tapeBlock.replaceTape(tape);
 
 const machine = new TuringMachine({ tapeBlock });
 
-machine.run({ initialState: binaryNumbers.states.plusOne });
+await machine.run({ initialState: binaryNumbers.states.plusOne });
 
 console.log(tape.symbols.join('').trim()); // "^110$" (binary 6)
 ```
