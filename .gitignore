@@ -17,6 +17,7 @@
 .env.production.local
 
 npm-debug.log*
+lerna-debug.log*
 
 /packages/*/dist/
 /packages/*/*.tsbuildinfo
