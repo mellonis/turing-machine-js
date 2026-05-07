@@ -17,6 +17,53 @@ import {
 
 export const ifOtherSymbol = Symbol('other symbol');
 
+// Module-private symbol used by DebugConfig setters to call State's validator
+// without exposing the validator on the public surface.
+const validateDebugFilter = Symbol('validateDebugFilter');
+
+export class DebugConfig {
+  readonly #ownerState: State;
+
+  #before?: readonly symbol[] | true;
+
+  #after?: readonly symbol[] | true;
+
+  constructor(
+    ownerState: State,
+    initial?: { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true },
+  ) {
+    this.#ownerState = ownerState;
+
+    if (initial) {
+      if (initial.before !== undefined) {
+        this.before = initial.before as symbol[] | true;
+      }
+
+      if (initial.after !== undefined) {
+        this.after = initial.after as symbol[] | true;
+      }
+    }
+  }
+
+  get before(): readonly symbol[] | true | undefined {
+    return this.#before;
+  }
+
+  set before(v: symbol[] | readonly symbol[] | true | undefined) {
+    this.#ownerState[validateDebugFilter]('before', v);
+    this.#before = Array.isArray(v) ? Object.freeze([...v]) : v as true | undefined;
+  }
+
+  get after(): readonly symbol[] | true | undefined {
+    return this.#after;
+  }
+
+  set after(v: symbol[] | readonly symbol[] | true | undefined) {
+    this.#ownerState[validateDebugFilter]('after', v);
+    this.#after = Array.isArray(v) ? Object.freeze([...v]) : v as true | undefined;
+  }
+}
+
 export default class State {
   readonly #id: number = id(this);
 
@@ -25,6 +72,12 @@ export default class State {
   #overrodeHaltState: State | null = null;
 
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
+
+  // Shared mutable cell — withOverrodeHaltState wrappers reference the same
+  // object so that `state.debug = ...` (and nullings) propagate across them.
+  // Note: toGraph / fromGraph deliberately do not serialize debug — debug is
+  // a runtime concern, not part of the structural graph.
+  #debugRef: { current: DebugConfig | null } = {current: null};
 
   constructor(stateDefinition: Record<string | symbol, {
     command?: Command | ConstructorParameters<typeof TapeCommand>[0] | ConstructorParameters<typeof TapeCommand>[0][],
@@ -107,6 +160,44 @@ export default class State {
     return this;
   }
 
+  get debug(): DebugConfig | null {
+    return this.#debugRef.current;
+  }
+
+  set debug(
+    value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
+  ) {
+    if (value === null) {
+      this.#debugRef.current = null;
+      return;
+    }
+
+    if (value instanceof DebugConfig) {
+      this.#debugRef.current = value;
+      return;
+    }
+
+    this.#debugRef.current = new DebugConfig(this, value);
+  }
+
+  /** @internal — invoked by DebugConfig setters via module-private symbol. */
+  [validateDebugFilter](
+    fieldName: 'before' | 'after',
+    filter: readonly symbol[] | true | undefined,
+  ): void {
+    if (filter === undefined || filter === true) return;
+
+    for (const sym of filter) {
+      if (sym !== ifOtherSymbol && !this.#symbolToDataMap.has(sym)) {
+        throw new Error(
+          `State.debug.${fieldName}: symbol is not a transition key of this state `
+          + `(state name: ${this.#name}). Common cause: symbol comes from a `
+          + 'different tape block, or doesn\'t match any of this state\'s transitions.',
+        );
+      }
+    }
+  }
+
   getSymbol(tapeBlock: TapeBlock) {
     const symbol = [...this.#symbolToDataMap.keys()].find((currentSymbol) => tapeBlock.isMatched({
       symbol: currentSymbol,
@@ -140,6 +231,7 @@ export default class State {
 
     state.#symbolToDataMap = this.#symbolToDataMap;
     state.#overrodeHaltState = overrodeHaltState;
+    state.#debugRef = this.#debugRef;
 
     return state;
   }
