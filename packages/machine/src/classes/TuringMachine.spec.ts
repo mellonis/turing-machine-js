@@ -80,10 +80,10 @@ describe('run tests', () => {
     ];
   });
 
-  test('run', () => {
+  test('run', async () => {
     const steps: MachineState[] = [];
 
-    machine.run({initialState, stepsLimit: 1e5, onStep: (step) => steps.push(step)});
+    await machine.run({initialState, stepsLimit: 1e5, onStep: (step) => steps.push(step)});
 
     expect(steps)
       .toEqual(expectedSteps);
@@ -91,32 +91,32 @@ describe('run tests', () => {
       .toBe(0);
   });
 
-  test('stepsLimit', () => {
+  test('stepsLimit', async () => {
     const onStepsLimit0Mock = jest.fn();
 
-    expect(() => machine.run({
+    await expect(machine.run({
       initialState,
       stepsLimit: 0,
       onStep: () => onStepsLimit0Mock()
-    })).toThrow('Long execution');
+    })).rejects.toThrow('Long execution');
     expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
 
     const onStepsLimit1Mock = jest.fn();
 
-    expect(() => machine.run({
+    await expect(machine.run({
       initialState,
       stepsLimit: 1,
       onStep: () => onStepsLimit1Mock()
-    })).toThrow('Long execution');
+    })).rejects.toThrow('Long execution');
     expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
 
     const onStepsLimit2Mock = jest.fn();
 
-    expect(() => machine.run({
+    await expect(machine.run({
       initialState,
       stepsLimit: 2,
       onStep: () => onStepsLimit2Mock()
-    })).toThrow('Long execution');
+    })).rejects.toThrow('Long execution');
     expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
   });
 

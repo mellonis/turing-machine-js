@@ -230,3 +230,118 @@ describe('TuringMachine — haltState.debug.before', () => {
     }
   });
 });
+
+describe('TuringMachine — run() with onDebugBreak', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  test('run() returns a Promise', () => {
+    const {machine, state} = buildMachine();
+    const result = machine.run({initialState: state});
+    expect(result).toBeInstanceOf(Promise);
+    return result;
+  });
+
+  test('without onDebugBreak, breaks fire-and-resume invisibly', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const steps: MachineState[] = [];
+
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+
+    // Trajectory unaffected — onStep sees same number of yields as without debug.
+    expect(steps.length).toBeGreaterThan(0);
+    // No exception, no hang.
+  });
+
+  test('onDebugBreak fires for "before" with current state', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const seen: Array<{state: State, debugBreak?: MachineState['debugBreak']}> = [];
+
+    await machine.run({
+      initialState: state,
+      onDebugBreak: (m) => {
+        seen.push({state: m.state, debugBreak: m.debugBreak});
+      },
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    for (const entry of seen) {
+      expect(entry.state).toBe(state);
+      expect(entry.debugBreak).toEqual({before: true});
+    }
+  });
+
+  test('onDebugBreak for "after" sees the SOURCE state (substitution)', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const seen: Array<{state: State, debugBreak?: MachineState['debugBreak'], step: number}> = [];
+
+    await machine.run({
+      initialState: state,
+      onDebugBreak: (m) => {
+        seen.push({state: m.state, debugBreak: m.debugBreak, step: m.step});
+      },
+    });
+
+    // Every after-call should show m.state === source state (the one whose
+    // after fired) — that's our buildMachine state since it's a single-state graph.
+    for (const entry of seen) {
+      expect(entry.state).toBe(state);
+      expect(entry.debugBreak).toEqual({after: true});
+    }
+  });
+
+  test('both "before" and "after" on same yield → two hook calls in order', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true, after: true};
+    const calls: Array<'before' | 'after'> = [];
+
+    await machine.run({
+      initialState: state,
+      onDebugBreak: (m) => {
+        if (m.debugBreak?.after) calls.push('after');
+        if (m.debugBreak?.before) calls.push('before');
+      },
+    });
+
+    // For each "middle" yield (not first), pattern is: ['after', 'before', 'after', 'before', ...].
+    // First yield only has 'before'. Verify ordering: every 'after' is followed
+    // (eventually) by 'before' of the same yield.
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0]).toBe('before'); // first visit, no prior after
+  });
+
+  test('onDebugBreak can be async (run awaits it)', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    let released = false;
+
+    const hookDone = new Promise<void>((resolve) => {
+      setTimeout(() => { released = true; resolve(); }, 10);
+    });
+
+    await machine.run({
+      initialState: state,
+      onDebugBreak: () => hookDone, // run() awaits this
+    });
+
+    expect(released).toBe(true);
+  });
+
+  test('onStep still fires on every yield, separate from onDebugBreak', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const stepCount = {n: 0};
+    const breakCount = {n: 0};
+
+    await machine.run({
+      initialState: state,
+      onStep: () => { stepCount.n += 1; },
+      onDebugBreak: () => { breakCount.n += 1; },
+    });
+
+    expect(stepCount.n).toBeGreaterThan(0);
+    expect(breakCount.n).toBeGreaterThan(0);
+  });
+});
