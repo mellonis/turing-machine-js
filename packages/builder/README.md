@@ -32,7 +32,7 @@ machine.tapeBlock.replaceTape(new Tape({
   symbols: '#011#'.split(''),
 }));
 
-machine.run({ initialState, stepsLimit: 100 });
+await machine.run({ initialState, stepsLimit: 100 });
 // tape now contains: #011#011#  (the input duplicated)
 ```
 
