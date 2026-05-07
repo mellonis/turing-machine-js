@@ -1,4 +1,4 @@
-import State, {haltState} from './State';
+import State, {haltState, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
@@ -11,7 +11,28 @@ export type MachineState = {
   nextSymbols: string[];
   movements: symbol[];
   nextState: State;
+  /**
+   * Set only when this iteration boundary is a debug break.
+   * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
+   * At least one of `before` / `after` is `true` when the field is present.
+   *
+   * For consumers of the `runStepByStep` generator the `state` field reflects
+   * the current iteration regardless of timing; `run()` substitutes the prior
+   * yield's snapshot for `after` calls so consumers see the source state.
+   */
+  debugBreak?: {
+    before?: true;
+    after?: true;
+  };
 };
+
+// True iff `filter` matches `symbol` per the DebugConfig semantics.
+// undefined / [] -> never; true -> always; symbol[] -> exact membership.
+function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
+  if (filter === undefined) return false;
+  if (filter === true) return true;
+  return filter.includes(symbol);
+}
 
 export default class TuringMachine {
   readonly #tapeBlock: TapeBlock;
@@ -70,11 +91,13 @@ export default class TuringMachine {
         let nextState = state.getNextState(symbol).ref;
 
         try {
+          const beforeMatch = matchFilter(state.debug?.before, symbol);
+
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
             : nextState;
 
-          yield {
+          const yielded: MachineState = {
             step: i,
             state,
             currentSymbols: this.#tapeBlock.currentSymbols,
@@ -95,6 +118,12 @@ export default class TuringMachine {
             movements: command.tapesCommands.map((tapeCommand) => tapeCommand.movement),
             nextState: nextStateForYield,
           };
+
+          if (beforeMatch) {
+            yielded.debugBreak = {before: true};
+          }
+
+          yield yielded;
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
 
