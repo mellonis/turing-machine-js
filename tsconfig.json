@@ -8,7 +8,7 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0",
-    "types": ["jest", "node"]
+    "types": ["vitest/globals", "node"]
   },
   "exclude": [
     "packages/*/dist/**/*"
