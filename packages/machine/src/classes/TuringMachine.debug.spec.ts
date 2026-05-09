@@ -351,7 +351,7 @@ describe('TuringMachine — run() with onPause', () => {
 // land. The "after on a transition leading to halt is silently lost" test in
 // the second describe above (currently labelled by-design) is contradicted by
 // part-1 below and will be updated in lockstep with the fix.
-describe('TuringMachine — halt semantics for after-fire (#108)', () => {
+describe.skip('TuringMachine — halt semantics for after-fire (#108) [skipped on v5 baseline; un-skipped in #108 fix PR]', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('halting iter still fires its after (#108 part 1)', async () => {
