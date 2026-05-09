@@ -261,7 +261,7 @@ flowchart TD
 
 > 💡 **Mermaid renders at most one edge per source/target pair.** If a state has two distinct transitions back to itself (or two parallel transitions to the same target), only one shows in the diagram. The string output is correct — this is a viewer-side limitation. For graphs with multiple parallel edges, paste the `toMermaid` output into [mermaid.live](https://mermaid.live) and switch to the `stateDiagram-v2` renderer, or post-process the output to your preferred format.
 
-`fromMermaid` parses the same format back into a `Graph` — the round-trip is lossless for graphs produced by `toMermaid`.
+`fromMermaid` parses the same format back into a `Graph`. The round-trip is **behaviorally** lossless — the rebuilt graph runs to the same outputs on the same inputs (tested in `test/round-trip.spec.ts` for the binary-numbers libraries). It is *not* bytewise lossless: state IDs auto-reassign on each rebuild, and for `withOverrodeHaltState` wrappers the composite name gains a `>${override.name}` suffix on each pass (e.g., `scanToX>eraseHere` becomes `scanToX>eraseHere>eraseHere` on a second round-trip — tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138)).
 
 ### Reference
 
