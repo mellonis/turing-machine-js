@@ -1,93 +1,117 @@
 import Alphabet from './Alphabet';
 
 describe('Alphabet constructor', () => {
-  test('throws an error on empty array', () => {
-    expect(() => new Alphabet([]))
-      .toThrow('Invalid symbols length');
+  test('throws on empty array', () => {
+    expect(() => new Alphabet([])).toThrow('Invalid symbols length');
   });
 
-  test('throws an error on one element array', () => {
-    expect(() => new Alphabet(['1']))
-      .toThrow('Invalid symbols length');
+  test('throws on single-element array', () => {
+    expect(() => new Alphabet(['1'])).toThrow('Invalid symbols length');
   });
 
-  test('throws an error on one element array (unique)', () => {
-    expect(() => new Alphabet(['1', '1']))
-      .toThrow('Invalid symbols length');
+  test('throws when duplicates collapse to a single unique symbol', () => {
+    expect(() => new Alphabet(['1', '1'])).toThrow('Invalid symbols length');
   });
 
-  test('ok with two element array', () => {
-    expect(new Alphabet(['0', '1']))
-      .toBeTruthy();
+  test('throws on a multi-character symbol (audit gap: untested branch)', () => {
+    // Source: `every(symbol => symbol.length === 1)` — a multi-char entry
+    // takes the "symbols contains invalid symbol" throw path. Previously
+    // unexercised; now pinned.
+    expect(() => new Alphabet(['ab', 'cd'])).toThrow('symbols contains invalid symbol');
+    expect(() => new Alphabet(['0', 'longer'])).toThrow('symbols contains invalid symbol');
   });
 
-  test('copy alphabet', () => {
+  test('two-element array constructs an Alphabet with both symbols intact', () => {
     const alphabet = new Alphabet(['0', '1']);
-    const alphabetCopy = new Alphabet(alphabet);
 
-    expect(alphabet)
-      .toBeTruthy();
-    expect(alphabetCopy)
-      .toBeTruthy();
-    expect(alphabet)
-      .toEqual(alphabetCopy);
+    expect(alphabet.symbols).toEqual(['0', '1']);
+    expect(alphabet.symbols).toHaveLength(2);
+  });
+
+  test('duplicate-collapsing keeps the first occurrence order', () => {
+    // ['1', '0', '1'] → unique [1, 0] (first-seen order). Documents that the
+    // dedup uses uniquePredicate, which is order-preserving.
+    const alphabet = new Alphabet(['1', '0', '1']);
+
+    expect(alphabet.symbols).toEqual(['1', '0']);
+    expect(alphabet.blankSymbol).toBe('1');
+  });
+
+  test('copy constructor preserves the original symbols', () => {
+    const original = new Alphabet(['0', '1']);
+    const copy = new Alphabet(original);
+
+    expect(copy.symbols).toEqual(original.symbols);
+    // The copy's symbols array is a fresh array (the getter returns a fresh
+    // array each call), but contents match.
+    expect(copy.symbols).not.toBe(original.symbols);
   });
 });
 
-describe('Alphabet properties', () => {
-  const alphabetSymbols = '012345';
-  const alphabet = new Alphabet(alphabetSymbols.split(''));
+describe('Alphabet.symbols / .blankSymbol getters', () => {
+  const alphabetSymbols = '012345'.split('');
+  const alphabet = new Alphabet(alphabetSymbols);
 
-  test('symbolList', () => {
-    expect(alphabet.symbols)
-      .toEqual(alphabetSymbols.split(''));
+  test('symbols returns a fresh array each call (defensive copy)', () => {
+    expect(alphabet.symbols).toEqual(alphabetSymbols);
+    expect(alphabet.symbols).not.toBe(alphabet.symbols);
   });
 
-  test('blankSymbol', () => {
-    expect(alphabet.blankSymbol)
-      .toBe(alphabetSymbols[0]);
+  test('blankSymbol is the first element', () => {
+    expect(alphabet.blankSymbol).toBe('0');
+  });
+});
+
+describe('Alphabet.has', () => {
+  const alphabet = new Alphabet('012345'.split(''));
+
+  test('returns true for every alphabet member', () => {
+    for (const symbol of '012345') {
+      expect(alphabet.has(symbol)).toBe(true);
+    }
   });
 
-  test('has', () => {
-    const hasAllSymbols = alphabetSymbols.split('')
-      .every((symbol) => alphabet.has(symbol));
+  test('returns false for non-members', () => {
+    expect(alphabet.has('\0')).toBe(false);
+    expect(alphabet.has('')).toBe(false);
+    expect(alphabet.has('multi')).toBe(false); // multi-char query
+    expect(alphabet.has('A')).toBe(false);
+  });
+});
 
-    expect(hasAllSymbols)
-      .toBe(true);
+describe('Alphabet.get', () => {
+  const alphabet = new Alphabet('012345'.split(''));
+
+  test('returns the symbol at each valid index', () => {
+    for (let i = 0; i < 6; i += 1) {
+      expect(alphabet.get(i)).toBe(String(i));
+    }
   });
 
-  test('has not', () => {
-    expect(alphabet.has('\0'))
-      .toBe(false);
+  test('throws on negative index', () => {
+    expect(() => alphabet.get(-1)).toThrow('Invalid index');
   });
 
-  test('get', () => {
-    const areAllSymbolsCorrect = alphabetSymbols.split('')
-      .every((symbol, index) => symbol === alphabet.get(index));
-
-    expect(areAllSymbolsCorrect)
-      .toBe(true);
+  test('throws on index === length (off-by-one boundary)', () => {
+    expect(() => alphabet.get(6)).toThrow('Invalid index');
   });
 
-  test('get invalid index: -1', () => {
-    expect(() => {
-      alphabet.get(-1);
-    })
-      .toThrow('Invalid index');
+  test('throws on index way beyond length', () => {
+    expect(() => alphabet.get(100)).toThrow('Invalid index');
+  });
+});
+
+describe('Alphabet.index', () => {
+  const alphabet = new Alphabet('012345'.split(''));
+
+  test('returns the position of every alphabet member', () => {
+    '012345'.split('').forEach((symbol, ix) => {
+      expect(alphabet.index(symbol)).toBe(ix);
+    });
   });
 
-  test(`get invalid index: ${alphabetSymbols.length}`, () => {
-    expect(() => {
-      alphabet.get(alphabetSymbols.length);
-    })
-      .toThrow('Invalid index');
-  });
-
-  test('index.spec.ts', () => {
-    const areAllIndexesCorrect = alphabetSymbols.split('')
-      .every((symbol, index) => index === alphabet.index(symbol));
-
-    expect(areAllIndexesCorrect)
-      .toBe(true);
+  test('returns -1 for non-members', () => {
+    expect(alphabet.index('\0')).toBe(-1);
+    expect(alphabet.index('A')).toBe(-1);
   });
 });
