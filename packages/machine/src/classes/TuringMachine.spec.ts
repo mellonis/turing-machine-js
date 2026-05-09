@@ -1,3 +1,4 @@
+import {vi} from 'vitest';
 import Alphabet from './Alphabet';
 import State, {haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
@@ -92,7 +93,7 @@ describe('run tests', () => {
   });
 
   test('stepsLimit', async () => {
-    const onStepsLimit0Mock = jest.fn();
+    const onStepsLimit0Mock = vi.fn();
 
     await expect(machine.run({
       initialState,
@@ -101,7 +102,7 @@ describe('run tests', () => {
     })).rejects.toThrow('Long execution');
     expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
 
-    const onStepsLimit1Mock = jest.fn();
+    const onStepsLimit1Mock = vi.fn();
 
     await expect(machine.run({
       initialState,
@@ -110,7 +111,7 @@ describe('run tests', () => {
     })).rejects.toThrow('Long execution');
     expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
 
-    const onStepsLimit2Mock = jest.fn();
+    const onStepsLimit2Mock = vi.fn();
 
     await expect(machine.run({
       initialState,
@@ -196,7 +197,11 @@ describe('parallel execution with same tape block', () => {
     const executionGeneratorB = machineB.runStepByStep({
       initialState: infiniteState,
     });
-    expect(executionGeneratorA).not.toBe(executionGeneratorB);
+    // NOTE: avoid `expect(a).not.toBe(b)` with generator args — vitest 4.x's
+    // matcher inspects the comparison target enough to invoke iteration,
+    // which prematurely runs the generator body (here: takes the lock).
+    // Comparing the boolean result keeps the matcher off the generator.
+    expect(executionGeneratorA !== executionGeneratorB).toBe(true);
     expect(() => executionGeneratorA.next()).not.toThrow();
     expect(() => executionGeneratorA.next()).not.toThrow();
     expect(() => executionGeneratorB.next()).toThrow('Lock check failed');
