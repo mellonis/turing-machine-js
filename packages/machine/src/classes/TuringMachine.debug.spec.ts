@@ -115,18 +115,10 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     }
   });
 
-  test('after on a transition leading to halt is silently lost', () => {
-    const {machine, state} = buildMachine();
-    state.debug = {after: true};
-    const steps: MachineState[] = [];
-
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
-
-    // The final transition leads to halt — its after has no next yield to land on.
-    // (No assertion needed — this just confirms run() completes; pending after
-    // at halt is by-design lost. See spec §11.1.)
-    expect(steps.length).toBeGreaterThan(0);
-  });
+  // (Removed in v5 — the "by-design lost" semantics on halting after-fires
+  // was a #108 bug, not a design choice. The new behavior is verified in the
+  // dedicated `halt semantics for after-fire (#108)` describe block below,
+  // which exercises the run()-level drain.)
 
   test('before AND after on same visit produce both flags on the relevant yields', () => {
     const {machine, state} = buildMachine();
@@ -351,7 +343,7 @@ describe('TuringMachine — run() with onPause', () => {
 // land. The "after on a transition leading to halt is silently lost" test in
 // the second describe above (currently labelled by-design) is contradicted by
 // part-1 below and will be updated in lockstep with the fix.
-describe.skip('TuringMachine — halt semantics for after-fire (#108) [skipped on v5 baseline; un-skipped in #108 fix PR]', () => {
+describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('halting iter still fires its after (#108 part 1)', async () => {

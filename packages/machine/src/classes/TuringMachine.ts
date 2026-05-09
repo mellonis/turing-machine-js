@@ -78,7 +78,14 @@ export default class TuringMachine {
     const generator = this.runStepByStep({initialState, stepsLimit});
     let prevYield: MachineState | null = null;
 
-    for (const machineState of generator) {
+    // Manual iteration so we can pick up the generator's RETURN value (the
+    // post-loop after-fire drain from #108 part 1, signalled when the
+    // halting iter armed an after).
+    let result = generator.next();
+
+    while (!result.done) {
+      const machineState = result.value;
+
       // 'after' (from prev step) — fire FIRST, with prev yield substituted as the source view.
       if (machineState.debugBreak?.after && onPause && prevYield) {
         await onPause({...prevYield, debugBreak: {after: true}});
@@ -94,11 +101,23 @@ export default class TuringMachine {
       }
 
       prevYield = machineState;
+      result = generator.next();
+    }
+
+    // #108 part 1: drain the halting iter's after-fire if it armed one.
+    // The generator returns a non-null tail when the last visited state's
+    // `state.debug.after` matched its symbol but the loop exited before a
+    // next yield could carry the metadata. We dispatch using the source
+    // (prevYield), matching the in-loop after-fire payload shape.
+    if (result.value && onPause && prevYield) {
+      await onPause({...prevYield, debugBreak: {after: true}});
     }
   }
 
-  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState> {
+  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState, MachineState | null> {
     const executionSymbol = Symbol('execution');
+    let lastYielded: MachineState | null = null;
+    let pendingAfterFromPrev = false;
 
     try {
       this.#tapeBlock[lockSymbol].check(executionSymbol);
@@ -113,7 +132,6 @@ export default class TuringMachine {
       }
 
       let i = 0;
-      let pendingAfterFromPrev = false;
 
       while (!state.isHalt) {
         if (i === stepsLimit) {
@@ -164,8 +182,11 @@ export default class TuringMachine {
           }
 
           yield yielded;
+          lastYielded = yielded;
 
-          // Re-evaluate 'after' for THIS visit, to fire on the NEXT yield.
+          // Re-evaluate 'after' for THIS visit, to fire on the NEXT yield
+          // (or, if this turns out to be the halting iter, on the post-loop
+          // drain — see #108 part 1).
           pendingAfterFromPrev = matchFilter(state.debug?.after, symbol);
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
@@ -190,5 +211,16 @@ export default class TuringMachine {
     } finally {
       this.#tapeBlock[lockSymbol].unlock(executionSymbol);
     }
+
+    // #108 part 1: signal the after-fire armed by the halting iter so run()
+    // (or any direct generator consumer) can dispatch one final after-break.
+    // Returning the synthesized MachineState (rather than yielding it) keeps
+    // `for..of` consumers — which ignore the return value — unaffected; only
+    // consumers that opt in via manual iteration see the drain.
+    if (pendingAfterFromPrev && lastYielded) {
+      return {...lastYielded, debugBreak: {after: true}};
+    }
+
+    return null;
   }
 }

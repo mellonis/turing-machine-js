@@ -185,10 +185,24 @@ export default class State {
     fieldName: 'before' | 'after',
     filter: readonly symbol[] | true | undefined,
   ): void {
-    if (filter === undefined || filter === true) return;
+    if (filter === undefined) return;
 
-    // haltState has no own transitions; symbol-list filters on it are silent
-    // no-ops at the engine level (spec §8.6), so accept any list shape here.
+    // #108 part 2: `.after` on haltState has no semantic anchor — halt is
+    // terminal, so there is no iteration-after-halt for an after-fire to
+    // attach to. Reject any truthy assignment (true OR list) at write time
+    // so misuse surfaces immediately rather than silently no-op'ing.
+    if (this.isHalt && fieldName === 'after') {
+      throw new Error(
+        'haltState.debug.after is not supported: halt is terminal, so there is '
+        + 'no iteration-after-halt for an after-fire to anchor on. Use '
+        + '{ before: true } to pause on halt entry.',
+      );
+    }
+
+    if (filter === true) return;
+
+    // haltState has no own transitions; symbol-list filters on `before` are
+    // silent no-ops at the engine level (spec §8.6), so accept any list shape.
     if (this.isHalt) return;
 
     for (const sym of filter) {
