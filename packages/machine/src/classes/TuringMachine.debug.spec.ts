@@ -7,6 +7,16 @@ import {movements, symbolCommands} from './TapeCommand';
 
 const alphabet = new Alphabet(' AB'.split(''));
 
+// Deterministic single-state machine: tape ['A','B','A'] traverses 4 visits
+// before halting on the trailing blank.
+//   visit 1 (i=1): head 'A' → erase + right (state self-loops)
+//   visit 2 (i=2): head 'B' → erase + right
+//   visit 3 (i=3): head 'A' → erase + right
+//   visit 4 (i=4): head blank → ifOtherSymbol → halt
+const VISIT_COUNT = 4;
+const A_VISIT_COUNT = 2; // visits 1, 3 have head 'A'
+const HALT_VISIT_COUNT = 1; // visit 4 (blank/ifOtherSymbol)
+
 const buildMachine = () => {
   const tape = new Tape({alphabet, symbols: ['A', 'B', 'A']});
   const tapeBlock = TapeBlock.fromTapes([tape]);
@@ -34,6 +44,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
+    expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step).not.toHaveProperty('debugBreak');
     }
@@ -46,7 +57,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    expect(steps.length).toBeGreaterThan(0);
+    expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step.debugBreak).toEqual({before: true});
     }
@@ -60,11 +71,11 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // Visits where head shows 'A' carry debugBreak.before; others don't.
     const aVisits = steps.filter((s) => s.currentSymbols[0] === 'A');
     const nonAVisits = steps.filter((s) => s.currentSymbols[0] !== 'A');
 
-    expect(aVisits.length).toBeGreaterThan(0);
+    expect(aVisits).toHaveLength(A_VISIT_COUNT);
+    expect(nonAVisits).toHaveLength(VISIT_COUNT - A_VISIT_COUNT);
     for (const v of aVisits) expect(v.debugBreak).toEqual({before: true});
     for (const v of nonAVisits) expect(v).not.toHaveProperty('debugBreak');
   });
@@ -76,6 +87,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
+    expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step).not.toHaveProperty('debugBreak');
     }
@@ -88,11 +100,10 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // The only catch-all visit is when the head shows blank (ifOtherSymbol path).
     const blankVisits = steps.filter((s) => s.currentSymbols[0] === alphabet.blankSymbol);
     const nonBlankVisits = steps.filter((s) => s.currentSymbols[0] !== alphabet.blankSymbol);
 
-    expect(blankVisits.length).toBe(1);
+    expect(blankVisits).toHaveLength(HALT_VISIT_COUNT);
     expect(blankVisits[0].debugBreak).toEqual({before: true});
     for (const v of nonBlankVisits) expect(v).not.toHaveProperty('debugBreak');
   });
@@ -110,9 +121,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // Every yield (including the first) carries debugBreak.after because the
-    // wildcard filter matches every visit's resolved symbol.
-    expect(steps.length).toBeGreaterThan(0);
+    expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step.debugBreak).toEqual({after: true});
     }
@@ -125,10 +134,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // No "first yield is special" anymore: each iter's before and after both
-    // refer to that iter, so both flags appear together on every yield where
-    // the wildcard filters match.
-    expect(steps.length).toBeGreaterThan(0);
+    expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step.debugBreak).toEqual({before: true, after: true});
     }
@@ -142,15 +148,13 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // The 'after' fires on yield N if yield N's resolved symbol matches the
-    // filter (no longer "yield N+1 if yield N's symbol matched").
-    for (const step of steps) {
-      if (step.currentSymbols[0] === 'A') {
-        expect(step.debugBreak).toEqual({after: true});
-      } else {
-        expect(step).not.toHaveProperty('debugBreak');
-      }
-    }
+    expect(steps).toHaveLength(VISIT_COUNT);
+    const aHits = steps.filter((s) => s.currentSymbols[0] === 'A');
+    const nonAHits = steps.filter((s) => s.currentSymbols[0] !== 'A');
+    expect(aHits).toHaveLength(A_VISIT_COUNT);
+
+    for (const step of aHits) expect(step.debugBreak).toEqual({after: true});
+    for (const step of nonAHits) expect(step).not.toHaveProperty('debugBreak');
   });
 });
 
@@ -160,27 +164,38 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = null;
   });
 
-  test('haltState.debug.before = true fires on program halt', () => {
+  test('haltState.debug.before = true fires on program halt (last visit only)', () => {
     const {machine, state} = buildMachine();
     haltState.debug = {before: true};
     const steps: MachineState[] = [];
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // Last step's transition leads to halt — that yield should carry debugBreak.before
-    // (because nextState is halt and haltState.debug.before === true).
-    const last = steps[steps.length - 1];
+    expect(steps).toHaveLength(VISIT_COUNT);
+    // Only the visit that transitions to halt (the trailing blank) carries
+    // debugBreak.before from haltState.debug.before — the earlier visits
+    // transition self-loop, not to halt.
+    for (let i = 0; i < VISIT_COUNT - 1; i++) {
+      expect(steps[i]).not.toHaveProperty('debugBreak');
+    }
+    const last = steps[VISIT_COUNT - 1];
     expect(last.nextState).toBe(haltState);
-    expect(last.debugBreak?.before).toBe(true);
+    expect(last.debugBreak).toEqual({before: true});
   });
 
   test('haltState.debug.before fires on subroutine return (halt-pop)', () => {
+    // Custom 1-cell tape + nested-state setup. Trajectory:
+    //   visit 1: head 'A', state=wrapped → erase+right, transition to inner
+    //   visit 2: head blank, state=inner → ifOtherSymbol → would halt;
+    //            wrapped's override redirects to continuation. nextState=continuation.
+    //            haltState.debug.before fires (because original nextState was haltState).
+    //   visit 3: head blank, state=continuation → ifOtherSymbol → halt.
+    //            haltState.debug.before fires again.
     const tape = new Tape({alphabet, symbols: ['A']});
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
     const {symbol} = tapeBlock;
 
-    // Inner subroutine: erases 'A', halts.
     const inner = new State({
       [symbol(['A'])]: {
         command: [{symbol: symbolCommands.erase, movement: movements.right}],
@@ -188,7 +203,6 @@ describe('TuringMachine — haltState.debug.before', () => {
       [ifOtherSymbol]: {nextState: haltState},
     });
 
-    // Outer continuation: just halts on blank.
     const continuation = new State({
       [ifOtherSymbol]: {nextState: haltState},
     });
@@ -200,10 +214,21 @@ describe('TuringMachine — haltState.debug.before', () => {
 
     machine.run({initialState: wrapped, onStep: (s) => steps.push(s)});
 
-    // The yield where inner transitions to haltState (which gets popped to continuation)
-    // should still carry debugBreak.before — we paused before entering halt logic.
+    expect(steps).toHaveLength(3);
+
+    // Visit 1: just self-loops into inner — no halt-related break.
+    expect(steps[0]).not.toHaveProperty('debugBreak');
+
+    // Visit 2: transitions to continuation via halt-pop. debugBreak.before fires
+    // because nextState (pre-pop) was haltState.
     const popYield = steps.find((s) => s.nextState === continuation);
-    expect(popYield?.debugBreak?.before).toBe(true);
+    expect(popYield).toBeDefined();
+    expect(popYield).toBe(steps[1]);
+    expect(popYield!.debugBreak).toEqual({before: true});
+
+    // Visit 3: transitions to halt directly. debugBreak.before fires.
+    expect(steps[2].nextState).toBe(haltState);
+    expect(steps[2].debugBreak).toEqual({before: true});
   });
 
   test('haltState.debug.before with symbol list NEVER matches (no head symbol at halt)', () => {
@@ -214,6 +239,7 @@ describe('TuringMachine — haltState.debug.before', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
+    expect(steps).toHaveLength(VISIT_COUNT);
     // Halt has no head symbol; list filter cannot match. No debug break should fire
     // because of haltState.debug. (state.debug is null, so no other source.)
     for (const step of steps) {
@@ -240,8 +266,7 @@ describe('TuringMachine — run() with onPause', () => {
     await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     // Trajectory unaffected — onStep sees same number of yields as without debug.
-    expect(steps.length).toBeGreaterThan(0);
-    // No exception, no hang.
+    expect(steps).toHaveLength(VISIT_COUNT);
   });
 
   test('onPause fires for "before" with current state', async () => {
@@ -256,7 +281,7 @@ describe('TuringMachine — run() with onPause', () => {
       },
     });
 
-    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).toHaveLength(VISIT_COUNT);
     for (const entry of seen) {
       expect(entry.state).toBe(state);
       expect(entry.debugBreak).toEqual({before: true});
@@ -275,6 +300,7 @@ describe('TuringMachine — run() with onPause', () => {
       },
     });
 
+    expect(seen).toHaveLength(VISIT_COUNT);
     // v6.0.0: the after-call's `m.state` is the iter that armed the after
     // (no substitution dance — `before` and `after` for the SAME iter both
     // fire on that iter's own yield).
@@ -299,8 +325,8 @@ describe('TuringMachine — run() with onPause', () => {
 
     // v6.0.0 per-iter lifecycle: before → step → after. Every yield (including
     // the first) dispatches both hooks in this order.
-    expect(calls.length).toBeGreaterThan(0);
-    // Pattern is purely alternating: [before, after, before, after, ...].
+    // For VISIT_COUNT visits, expect: [before, after, before, after, …]
+    expect(calls).toHaveLength(VISIT_COUNT * 2);
     for (let i = 0; i < calls.length; i++) {
       expect(calls[i]).toBe(i % 2 === 0 ? 'before' : 'after');
     }
@@ -310,33 +336,38 @@ describe('TuringMachine — run() with onPause', () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     let released = false;
+    let callCount = 0;
 
-    const hookDone = new Promise<void>((resolve) => {
+    const hookFor = () => new Promise<void>((resolve) => {
       setTimeout(() => { released = true; resolve(); }, 10);
     });
 
     await machine.run({
       initialState: state,
-      onPause: () => hookDone, // run() awaits this
+      onPause: () => {
+        callCount += 1;
+        return hookFor(); // run() awaits this
+      },
     });
 
     expect(released).toBe(true);
+    expect(callCount).toBe(VISIT_COUNT);
   });
 
   test('onStep still fires on every yield, separate from onPause', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
-    const stepCount = {n: 0};
-    const breakCount = {n: 0};
+    let stepCount = 0;
+    let breakCount = 0;
 
     await machine.run({
       initialState: state,
-      onStep: () => { stepCount.n += 1; },
-      onPause: () => { breakCount.n += 1; },
+      onStep: () => { stepCount += 1; },
+      onPause: () => { breakCount += 1; },
     });
 
-    expect(stepCount.n).toBeGreaterThan(0);
-    expect(breakCount.n).toBeGreaterThan(0);
+    expect(stepCount).toBe(VISIT_COUNT);
+    expect(breakCount).toBe(VISIT_COUNT);
   });
 });
 
@@ -344,13 +375,10 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('halting iter still fires its after (#108 part 1)', async () => {
-    // Tape ['A','B','A'] traverses 4 visits in the single-state machine:
-    //   visit 1 head 'A'  → erase+right (state self-loops)
-    //   visit 2 head 'B'  → erase+right
-    //   visit 3 head 'A'  → erase+right
-    //   visit 4 head blank→ ifOtherSymbol → halt
     // debug.after = true matches every visit. v6.0.0 (#119) dispatches the
-    // halting iter's after directly on its own yield, so all 4 visits fire.
+    // halting iter's after directly on its own yield, so all VISIT_COUNT
+    // visits fire (previously only VISIT_COUNT - 1 because the halting iter's
+    // after had no anchor yield).
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const after: MachineState[] = [];
@@ -360,7 +388,7 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
       onPause: (m) => { if (m.debugBreak?.after) after.push(m); },
     });
 
-    expect(after.length).toBe(4);
+    expect(after).toHaveLength(VISIT_COUNT);
   });
 
   test('haltState.debug.after = true throws on assignment (#108 part 2)', () => {
@@ -427,7 +455,7 @@ describe('TuringMachine — run({debug}) flag (#106)', () => {
       // debug omitted → defaults to true
     });
 
-    expect(pauses.length).toBeGreaterThan(0);
+    expect(pauses).toHaveLength(VISIT_COUNT);
   });
 
   test('debug: false does NOT suppress onStep', async () => {
@@ -444,7 +472,7 @@ describe('TuringMachine — run({debug}) flag (#106)', () => {
       debug: false,
     });
 
-    expect(stepCount).toBeGreaterThan(0);
+    expect(stepCount).toBe(VISIT_COUNT);
   });
 
   test('debug: false leaves m.debugBreak metadata on yields (gating is run-level only)', async () => {
@@ -462,7 +490,11 @@ describe('TuringMachine — run({debug}) flag (#106)', () => {
       debug: false,
     });
 
-    // At least one yield carries the metadata even though no onPause fires.
-    expect(yields.some((y) => y.debugBreak?.before)).toBe(true);
+    expect(yields).toHaveLength(VISIT_COUNT);
+    // EVERY yield carries the metadata (wildcard before-filter), even though
+    // no onPause fires.
+    for (const y of yields) {
+      expect(y.debugBreak).toEqual({before: true});
+    }
   });
 });
