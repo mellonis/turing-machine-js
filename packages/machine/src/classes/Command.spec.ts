@@ -7,18 +7,25 @@ describe('Command constructor', () => {
       .toThrow('invalid parameter');
   });
 
-  test('valid tapeCommand', () => {
+  test('stores the passed TapeCommand list on .tapesCommands', () => {
+    // Previously: two separate `new Command([tapeCommand])` calls — first
+    // wrapped in `expect(() => ...).not.toThrow()`, second to inspect the
+    // result. Single construction is enough; if the constructor throws,
+    // the next assertion would fail.
     const tapeCommand = new TapeCommand({});
+    const command = new Command([tapeCommand]);
 
-    expect(() => new Command([
-      tapeCommand,
-    ]))
-      .not
-      .toThrow();
+    expect(command.tapesCommands).toEqual([tapeCommand]);
+  });
 
-    expect(new Command([
-      tapeCommand,
-    ]).tapesCommands)
-      .toEqual([tapeCommand]);
+  test('preserves the order of multiple TapeCommands', () => {
+    // The original spec didn't pin order — this catches a refactor that
+    // would, say, sort or reverse the input.
+    const a = new TapeCommand({});
+    const b = new TapeCommand({});
+    const c = new TapeCommand({});
+    const command = new Command([a, b, c]);
+
+    expect(command.tapesCommands).toEqual([a, b, c]);
   });
 });

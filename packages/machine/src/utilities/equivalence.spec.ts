@@ -90,7 +90,7 @@ describe('equivalentOn', () => {
     // comparable step but lengths differ" fallback path, force outputs to disagree
     // (compareOutputs: () => false) and snapshots to always agree
     // (compareSnapshots: () => true). The post-loop length-mismatch branch then
-    // sets firstDivergenceStep = minLen.
+    // sets firstDivergenceStep = minLen (the smaller of the two step counts).
     const report = equivalentOn(
       {state: binaryNumbers.states.minusOne, getTapeBlock: binaryNumbers.getTapeBlock},
       {state: binaryNumbers.states.minusOneFast, getTapeBlock: binaryNumbers.getTapeBlock},
@@ -101,7 +101,34 @@ describe('equivalentOn', () => {
       },
     );
 
+    const {referenceSteps, candidateSteps, firstDivergenceStep} = report.results[0];
+
     expect(report.results[0].agree).toBe(false);
-    expect(report.results[0].firstDivergenceStep).not.toBeNull();
+    // Pin the exact fallback value: 1-indexed step number at which the
+    // SHORTER side ran out of comparable iterations, i.e. minLen + 1
+    // (the first step the longer side took without a reference snapshot
+    // to compare against).
+    expect(firstDivergenceStep).toBe(Math.min(referenceSteps, candidateSteps) + 1);
+    // Sanity: the heavy composition really does run more steps than the
+    // direct-borrow variant on this input.
+    expect(referenceSteps).toBeGreaterThan(candidateSteps);
+  });
+
+  test('compareSnapshots: null skips mid-run divergence detection on same alphabet', () => {
+    // Audit gap: the `compareSnapshots: null` branch was exercised only in
+    // cross-alphabet tests. This test pins the same-alphabet contract:
+    // when outputs disagree but compareSnapshots is null, firstDivergenceStep
+    // is null (the engine doesn't probe step-by-step).
+    const report = equivalentOn(
+      {state: binaryNumbers.states.plusOne, getTapeBlock: binaryNumbers.getTapeBlock},
+      {state: binaryNumbers.states.minusOne, getTapeBlock: binaryNumbers.getTapeBlock},
+      ['^10$'],
+      {
+        compareSnapshots: null,
+      },
+    );
+
+    expect(report.results[0].agree).toBe(false);
+    expect(report.results[0].firstDivergenceStep).toBeNull();
   });
 });
