@@ -1,8 +1,8 @@
-import {State, Tape, TapeBlock, TuringMachine,} from '@turing-machine-js/machine';
+import {State, Tape, TapeBlock, TuringMachine} from '@turing-machine-js/machine';
 import binaryNumbers from './index';
 
-const alphabetSymbols = ' ^$01';
-const stateNames: (keyof typeof binaryNumbers['states'])[] = [
+const ALPHABET = ' ^$01';
+const STATE_NAMES: (keyof typeof binaryNumbers['states'])[] = [
   'goToNumber',
   'goToNextNumber',
   'goToPreviousNumber',
@@ -15,318 +15,93 @@ const stateNames: (keyof typeof binaryNumbers['states'])[] = [
   'minusOneFast',
 ];
 
-describe('general tests', () => {
-  test('has getTapeBlock', () => {
-    expect(binaryNumbers.getTapeBlock)
-      .toBeTruthy();
-
-    expect(binaryNumbers.getTapeBlock() instanceof TapeBlock)
-      .toBe(true);
-
-    const {alphabet} = binaryNumbers.getTapeBlock().tapes[0];
-
-    expect(alphabet.symbols.length)
-      .toBe(alphabetSymbols.length);
-    expect(alphabetSymbols.split('').every((symbol) => alphabet.has(symbol)))
-      .toBe(true);
-  });
-
-  test('has all declared states', () => {
-    expect(stateNames.every((stateName) => binaryNumbers.states[stateName] instanceof State))
-      .toBe(true);
-  });
-});
-
-describe('goToNumber algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapesSymbols = [
-    '$',
-    '1$',
-    '0$',
-    '^$',
-    ' $',
-    '11$',
-    '00$',
-    '^^$',
-    '  $',
-  ];
-
-  tapesSymbols.forEach((tapeSymbols) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: tapeSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${tapeSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.goToNumber,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbol)
-        .toBe('$');
-    });
-  });
-});
-
-describe('goToNumbersStart algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapesSymbols = [
-    '^$',
-    '^1$',
-    '^0$',
-    '^11$',
-    '^00$',
-  ];
-
-  tapesSymbols.forEach((tapeSymbols) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: tapeSymbols.split(''),
-      position: tapeSymbols.length - 1,
-    });
-
-    test(`tapeInitialState = [${tapeSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.goToNumbersStart,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbol)
-        .toBe('^');
-    });
-  });
-});
-
-describe('deleteNumber algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapesSymbols = [
-    '^$',
-    '^1$',
-    '^0$',
-    '^11$',
-    '^00$',
-  ];
-
-  tapesSymbols.forEach((tapeSymbols) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: tapeSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${tapeSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.deleteNumber,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbol)
-        .toBe(tape.alphabet.blankSymbol);
-    });
-  });
-});
-
-describe('normalizeNumber algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapeStartSymbolsAndEndSymbolsPairs = [
-    ['^$', '^$'],
-    ['^1$', '^1$'],
-    ['^01$', '^1$'],
-    ['^101$', '^101$'],
-    ['^0101$', '^101$'],
-  ];
-
-  tapeStartSymbolsAndEndSymbolsPairs.forEach(([startState, endState]) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: startState.split(''),
-    });
-
-    test(`tapeInitialState = [${startState}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.normalizeNumber,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbols.join('').trim())
-        .toBe(endState);
-    });
-  });
-});
-
-describe('invertNumber algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapesSymbols = ['^$', '^$', '^1$', '^0$', '^11$', '^00$', '^101$', '^010$'];
-
-  tapesSymbols.forEach((tapeSymbols, ix, tapesSymbols) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: tapeSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${tapeSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.invertNumber,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbols.join(''))
-        .toBe(tapesSymbols[ix % 2 === 0 ? ix + 1 : ix - 1]);
-    });
-  });
-});
-
-describe('plusOne algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapeStartSymbolsAndEndSymbolsPairs = [
-    ['^$', '^1$'],
-    ['^1$', '^10$'],
-    ['^10$', '^11$'],
-    ['^101$', '^110$'],
-    ['^110$', '^111$'],
-    ['^111$', '^1000$'],
-  ];
-
-  tapeStartSymbolsAndEndSymbolsPairs.forEach(([startSymbols, endSymbols]) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: startSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${startSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.plusOne,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbols.join('').trim())
-        .toBe(endSymbols);
-    });
-  });
-});
-
-describe('minusOne algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapeEndSymbolsAndStartSymbolsPairs = [
-    ['^$', '^1$'],
-    ['^1$', '^10$'],
-    ['^10$', '^11$'],
-    ['^101$', '^110$'],
-    ['^110$', '^111$'],
-    ['^111$', '^1000$'],
-  ];
-
-  tapeEndSymbolsAndStartSymbolsPairs.forEach(([endSymbols, startSymbols]) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: startSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${startSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.minusOne,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbols.join('').trim())
-        .toBe(endSymbols);
-    });
-  });
-});
-
-describe('minusOneFast algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({
-    tapeBlock,
-  });
-  const tapeEndSymbolsAndStartSymbolsPairs = [
-    ['^$', '^1$'],
-    ['^1$', '^10$'],
-    ['^10$', '^11$'],
-    ['^101$', '^110$'],
-    ['^110$', '^111$'],
-    ['^111$', '^1000$'],
-    ['^$', '^$'],
-  ];
-
-  tapeEndSymbolsAndStartSymbolsPairs.forEach(([endSymbols, startSymbols]) => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: startSymbols.split(''),
-    });
-
-    test(`tapeInitialState = [${startSymbols}]`, () => {
-      tapeBlock.replaceTape(tape);
-
-      expect(() => machine.run({
-        initialState: binaryNumbers.states.minusOneFast,
-      }))
-        .not
-        .toThrow();
-
-      expect(tape.symbols.join('').trim())
-        .toBe(endSymbols);
-    });
-  });
-});
-
-describe('goToNextNumber algo', () => {
+// Fresh machine + tape per test. The previous shape constructed `tapeBlock`
+// and `machine` once at `describe` body level and reused them via
+// `tapeBlock.replaceTape(tape)`; tape head position and the engine's tape lock
+// would leak across tests in subtle ways. Every test now starts from a clean
+// fixture.
+function setup(symbols: string, position?: number) {
   const tapeBlock = binaryNumbers.getTapeBlock();
   const machine = new TuringMachine({tapeBlock});
+  const tape = new Tape({
+    alphabet: tapeBlock.tapes[0].alphabet,
+    symbols: symbols.split(''),
+    ...(position !== undefined ? {position} : {}),
+  });
+  tapeBlock.replaceTape(tape);
 
-  // Tape with two numbers (1 and 2), separated by a blank.
-  // Head starts at the first number's '$' (position 2).
-  // After running, head should be at the second number's '$' (position 7).
-  test('moves head to the next number\'s $', () => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: '^1$ ^10$'.split(''),
-      position: 2,
-    });
+  return {machine, tape};
+}
 
-    tapeBlock.replaceTape(tape);
+// Strip leading/trailing blanks so the algorithm's logical output (number
+// markers and digits) can be compared without caring about tape padding.
+const trimmed = (tape: Tape) => tape.symbols.join('').trim();
+
+describe('public surface', () => {
+  test('getTapeBlock returns a fresh TapeBlock with the documented alphabet', () => {
+    const block = binaryNumbers.getTapeBlock();
+
+    expect(block).toBeInstanceOf(TapeBlock);
+    expect(block.tapes[0].alphabet.symbols).toEqual(ALPHABET.split(''));
+  });
+
+  test('getTapeBlock returns a new instance on each call (no shared state)', () => {
+    expect(binaryNumbers.getTapeBlock()).not.toBe(binaryNumbers.getTapeBlock());
+  });
+
+  test('every advertised state is a State instance', () => {
+    for (const name of STATE_NAMES) {
+      expect(binaryNumbers.states[name]).toBeInstanceOf(State);
+    }
+  });
+});
+
+describe('goToNumber — walk right to the first $', () => {
+  // [initial tape, start position, expected halt position]
+  const cases: Array<[string, number, number]> = [
+    ['$', 0, 0], // already at $
+    ['1$', 0, 1], // step over one digit
+    ['111$', 0, 3], // step over three digits
+    ['^11$', 0, 3], // step over the start marker too
+    ['1$10$', 0, 1], // multi-number: stop at FIRST $, not the second
+  ];
+
+  test.each(cases)('start [%s] @ %d → halt @ %d on $', (symbols, start, expectedPos) => {
+    const {machine, tape} = setup(symbols, start);
+
+    machine.run({initialState: binaryNumbers.states.goToNumber});
+
+    expect(tape.symbol).toBe('$');
+    expect(tape.position).toBe(expectedPos);
+    // Read-only walk — tape symbols unchanged.
+    expect(trimmed(tape)).toBe(symbols);
+  });
+});
+
+describe('goToNumbersStart — walk left to the first ^', () => {
+  // Start position is the rightmost cell (after the trailing $).
+  const cases: Array<[string, number]> = [
+    ['^$', 0],
+    ['^1$', 0],
+    ['^11$', 0],
+    ['^1$ ^0$', 4], // multi-number: stop at THIS number's ^, not the previous one
+  ];
+
+  test.each(cases)('start [%s] from end → halt @ %d on ^', (symbols, expectedPos) => {
+    const {machine, tape} = setup(symbols, symbols.length - 1);
+
+    machine.run({initialState: binaryNumbers.states.goToNumbersStart});
+
+    expect(tape.symbol).toBe('^');
+    expect(tape.position).toBe(expectedPos);
+    expect(trimmed(tape)).toBe(symbols);
+  });
+});
+
+describe('goToNextNumber — step right then walk to the following $', () => {
+  // Tape with two numbers; head starts at the first number's $.
+  test('multi-number tape: lands on the second number\'s $', () => {
+    const {machine, tape} = setup('^1$ ^10$', 2);
 
     machine.run({initialState: binaryNumbers.states.goToNextNumber});
 
@@ -335,24 +110,183 @@ describe('goToNextNumber algo', () => {
   });
 });
 
-describe('goToPreviousNumber algo', () => {
-  const tapeBlock = binaryNumbers.getTapeBlock();
-  const machine = new TuringMachine({tapeBlock});
-
-  // Same tape; head starts at the second number's '$' (position 7).
-  // After running, head should be at the first number's '$' (position 2).
-  test('moves head to the previous number\'s $', () => {
-    const tape = new Tape({
-      alphabet: tapeBlock.tapes[0].alphabet,
-      symbols: '^1$ ^10$'.split(''),
-      position: 7,
-    });
-
-    tapeBlock.replaceTape(tape);
+describe('goToPreviousNumber — step left then walk back to the previous $', () => {
+  test('multi-number tape: lands on the first number\'s $', () => {
+    const {machine, tape} = setup('^1$ ^10$', 7);
 
     machine.run({initialState: binaryNumbers.states.goToPreviousNumber});
 
     expect(tape.symbol).toBe('$');
     expect(tape.position).toBe(2);
+  });
+});
+
+describe('deleteNumber — erase ^...$ in place', () => {
+  // [initial tape] — head starts at position 0 on the ^ so the
+  // goToNumbersStart-wrapped path picks up the deletion subroutine.
+  const cases: string[] = ['^$', '^1$', '^0$', '^11$', '^00$'];
+
+  test.each(cases)('start [%s] → fully erased', (symbols) => {
+    const {machine, tape} = setup(symbols);
+
+    machine.run({initialState: binaryNumbers.states.deleteNumber});
+
+    // Every cell that was previously a marker or digit is now blank.
+    expect(trimmed(tape)).toBe('');
+    // Head halts on the cell where the trailing $ used to be.
+    expect(tape.symbol).toBe(tape.alphabet.blankSymbol);
+    expect(tape.position).toBe(symbols.length - 1);
+  });
+
+  test('no-op halt: head not on a number marker leaves the tape untouched', () => {
+    // Source has [ifOtherSymbol]: {nextState: haltState} for symbols outside ^10$.
+    // Blank in cell 0 hits that branch — the deletion subroutine is never entered.
+    const {machine, tape} = setup(' ^1$', 0);
+
+    machine.run({initialState: binaryNumbers.states.deleteNumber});
+
+    expect(trimmed(tape)).toBe('^1$');
+    expect(tape.position).toBe(0);
+  });
+});
+
+describe('normalizeNumber — strip leading zeros, preserve "0" as ^$', () => {
+  // [initial, expected]
+  const cases: Array<[string, string]> = [
+    ['^$', '^$'],
+    ['^1$', '^1$'],
+    ['^01$', '^1$'],
+    ['^101$', '^101$'],
+    ['^0101$', '^101$'],
+    ['^00$', '^$'], // all zeros normalize to ^$ (representing 0)
+  ];
+
+  test.each(cases)('start [%s] → [%s]', (start, expected) => {
+    const {machine, tape} = setup(start);
+
+    machine.run({initialState: binaryNumbers.states.normalizeNumber});
+
+    expect(trimmed(tape)).toBe(expected);
+  });
+
+  test('no-op halt: head off-marker leaves the tape untouched', () => {
+    const {machine, tape} = setup(' ^01$', 0);
+
+    machine.run({initialState: binaryNumbers.states.normalizeNumber});
+
+    expect(trimmed(tape)).toBe('^01$');
+  });
+});
+
+describe('invertNumber — flip every bit between ^ and $', () => {
+  // [initial, expected]
+  const cases: Array<[string, string]> = [
+    ['^$', '^$'], // empty number is its own inverse
+    ['^1$', '^0$'],
+    ['^0$', '^1$'],
+    ['^11$', '^00$'],
+    ['^00$', '^11$'],
+    ['^101$', '^010$'],
+    ['^010$', '^101$'],
+  ];
+
+  test.each(cases)('start [%s] → [%s]', (start, expected) => {
+    const {machine, tape} = setup(start);
+
+    machine.run({initialState: binaryNumbers.states.invertNumber});
+
+    expect(trimmed(tape)).toBe(expected);
+  });
+
+  test('no-op halt: head off-marker leaves the tape untouched', () => {
+    const {machine, tape} = setup(' ^1$', 0);
+
+    machine.run({initialState: binaryNumbers.states.invertNumber});
+
+    expect(trimmed(tape)).toBe('^1$');
+  });
+});
+
+describe('plusOne — add 1, growing the number when carry overflows', () => {
+  // [initial, expected]
+  const cases: Array<[string, string]> = [
+    ['^$', '^1$'], // empty + 1 = 1
+    ['^1$', '^10$'],
+    ['^10$', '^11$'],
+    ['^101$', '^110$'],
+    ['^110$', '^111$'],
+    ['^111$', '^1000$'], // overflow: ^ relocates one cell left
+  ];
+
+  test.each(cases)('start [%s] → [%s]', (start, expected) => {
+    const {machine, tape} = setup(start);
+
+    machine.run({initialState: binaryNumbers.states.plusOne});
+
+    expect(trimmed(tape)).toBe(expected);
+  });
+
+  test('no-op halt: head off-marker leaves the tape untouched', () => {
+    const {machine, tape} = setup(' ^1$', 0);
+
+    machine.run({initialState: binaryNumbers.states.plusOne});
+
+    expect(trimmed(tape)).toBe('^1$');
+  });
+});
+
+// Both subtractors are tested against the same input/output pairs (they should
+// be observationally equivalent on positive inputs). The pairs are written
+// "result, input" so the output sits where you'd read it after subtracting.
+const subtractorCases: Array<[string, string]> = [
+  ['^$', '^1$'], // 1 - 1 = 0 → ^$
+  ['^1$', '^10$'],
+  ['^10$', '^11$'],
+  ['^101$', '^110$'],
+  ['^110$', '^111$'],
+  ['^111$', '^1000$'],
+];
+
+describe('minusOne — subtract 1 via the ~(~x + 1) composition', () => {
+  test.each(subtractorCases)('input [%s] becomes [%s]', (expected, start) => {
+    const {machine, tape} = setup(start);
+
+    machine.run({initialState: binaryNumbers.states.minusOne});
+
+    expect(trimmed(tape)).toBe(expected);
+  });
+
+  test('no-op halt: head off-marker leaves the tape untouched', () => {
+    const {machine, tape} = setup(' ^1$', 0);
+
+    machine.run({initialState: binaryNumbers.states.minusOne});
+
+    expect(trimmed(tape)).toBe('^1$');
+  });
+});
+
+describe('minusOneFast — subtract 1 via direct borrow', () => {
+  test.each(subtractorCases)('input [%s] becomes [%s]', (expected, start) => {
+    const {machine, tape} = setup(start);
+
+    machine.run({initialState: binaryNumbers.states.minusOneFast});
+
+    expect(trimmed(tape)).toBe(expected);
+  });
+
+  test('input ^$ stays ^$ (zero stays zero)', () => {
+    const {machine, tape} = setup('^$');
+
+    machine.run({initialState: binaryNumbers.states.minusOneFast});
+
+    expect(trimmed(tape)).toBe('^$');
+  });
+
+  test('no-op halt: head off-marker leaves the tape untouched', () => {
+    const {machine, tape} = setup(' ^1$', 0);
+
+    machine.run({initialState: binaryNumbers.states.minusOneFast});
+
+    expect(trimmed(tape)).toBe('^1$');
   });
 });
