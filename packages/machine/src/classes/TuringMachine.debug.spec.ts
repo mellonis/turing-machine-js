@@ -345,3 +345,51 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     expect(breakCount.n).toBeGreaterThan(0);
   });
 });
+
+// These tests assert the v5 spec from #108. They are intentionally RED on the
+// v4 codebase — they turn green when the loop-drain fix and haltState rejection
+// land. The "after on a transition leading to halt is silently lost" test in
+// the second describe above (currently labelled by-design) is contradicted by
+// part-1 below and will be updated in lockstep with the fix.
+describe('TuringMachine — halt semantics for after-fire (#108)', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  test('halting iter still fires its after (#108 part 1)', async () => {
+    // Tape ['A','B','A'] traverses 4 visits in the single-state machine:
+    //   visit 1 head 'A'  → erase+right (state self-loops)
+    //   visit 2 head 'B'  → erase+right
+    //   visit 3 head 'A'  → erase+right
+    //   visit 4 head blank→ ifOtherSymbol → halt
+    // debug.after = true matches every visit. Today only 3 after-fires reach
+    // onDebugBreak (visit 4's after has no anchor yield); v5 must drain it
+    // and produce 4.
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const after: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onDebugBreak: (m) => { if (m.debugBreak?.after) after.push(m); },
+    });
+
+    expect(after.length).toBe(4);
+  });
+
+  test('haltState.debug.after = true throws on assignment (#108 part 2)', () => {
+    // Halt is terminal — no iteration-after-halt for an after-fire to anchor on.
+    // v5 rejects the assignment to surface the misuse rather than silently
+    // ignore it.
+    expect(() => {
+      haltState.debug = {after: true};
+    }).toThrow();
+  });
+
+  test('haltState.debug with both flags throws (#108 part 2)', () => {
+    // Setting before+after symmetrically is the most likely user mistake; the
+    // .after part is meaningless and v5 rejects the whole assignment. Use
+    // { before: true } alone.
+    expect(() => {
+      haltState.debug = {before: true, after: true};
+    }).toThrow();
+  });
+});

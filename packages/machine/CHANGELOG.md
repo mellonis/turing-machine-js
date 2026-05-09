@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - UNRELEASED
+
+> Draft. Lands as v5.0.0 once the linked issues are closed.
+
+### Changed (BREAKING)
+
+- **Hook renamed: `onDebugBreak` → `onPause`** on `run()` ([#110](https://github.com/mellonis/turing-machine-js/issues/110)). Hard rename, no deprecation alias. The hook signature, payload shape, and dispatch semantics are unchanged — only the option key on `run()` differs. Resolution of the [#109 RFC](https://github.com/mellonis/turing-machine-js/issues/109): the hook now describes the consumer's relationship (this is where you can pause) rather than the engine's event (a debug break fired). The `m.debugBreak` payload field is unchanged.
+- **`haltState.debug.after` now throws on assignment** ([#108](https://github.com/mellonis/turing-machine-js/issues/108) part 2). Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Symmetric `{ before: true, after: true }` writes also throw; use `{ before: true }`. Symbol-list filters on `haltState.debug.before` remain silent no-ops as in v4.
+
+### Fixed
+
+- **Halting iter's `state.debug.after` now fires** ([#108](https://github.com/mellonis/turing-machine-js/issues/108) part 1). Previously `pendingAfterFromPrev` set after the halting iter's yield was discarded when the `while (!state.isHalt)` loop exited — losing that after-fire. `run()` now drains a final after-fire after the loop when the prior yield armed one. Observable: a debugger UI sees a "we just halted because of state X's after-filter" event that was silent before.
+
+### Added
+
+- **`run({ debug: boolean })` flag** ([#106](https://github.com/mellonis/turing-machine-js/issues/106)). Gates whether `state.debug` assignments produce `debugBreak` metadata on yields, without editing the assignments. Defaults to `true` when an `onPause` hook is provided (preserves v4 behavior); set `false` to suppress all break dispatches while keeping `state.debug = ...` in code.
+
+### Migration
+
+```diff
+  await machine.run({
+    initialState,
+-   onDebugBreak: (m) => { ... },
++   onPause: (m) => { ... },
+  });
+```
+
+```diff
+- haltState.debug = { before: true, after: true }; // throws in v5
++ haltState.debug = { before: true };
+```
+
 ## [4.0.0] - 2026-05-07
 
 ### Added
