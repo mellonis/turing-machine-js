@@ -417,7 +417,14 @@ flowchart TD
   s3 -. onHalt .-> s2
 ```
 
-The engine's wrapped output is denser than the simplified BEFORE/AFTER above. It shows: the wrapper (`scanToX>eraseHere`, round) with its OWN copy of `scanToX`'s edges; `scanToX` and `eraseHere` as separate reachable nodes; and a dotted `onHalt` edge from the wrapper to `eraseHere` — that's the override's static fingerprint. At runtime, the wrapper's `X → ·/S → s0` edge is intercepted via the `onHalt` redirect to `eraseHere` instead of halting.
+**Reading guide** — the wrapped diagram is denser than the simplified hand-drawn version above. To parse it:
+
+1. **Three non-halt nodes:** the wrapper `scanToX>eraseHere` (round, the initial state); `scanToX` (square, the original subroutine — unmodified); `eraseHere` (square, the override target). The wrapper appears as a *separate* state from `scanToX`-the-original because `withOverrodeHaltState` returns a new `State` instance — even though it shares the transition map.
+2. **Solid edges from the wrapper duplicate `scanToX`'s edges.** That's because the wrapper inherits the same `symbolToDataMap`. Importantly, the wrapper's `* → ·/R` edge points at *`scanToX`-the-original*, not at the wrapper itself — so after the first iteration, control transfers to `scanToX` and stays there.
+3. **The dotted `onHalt` edge is attached to the wrapper** but it doesn't fire on a single edge at runtime. Instead, the runtime pushes `eraseHere` onto an internal stack at startup, and *any* halt-bound transition reachable during the run (whether on the wrapper itself or on `scanToX`) gets redirected to `eraseHere` via stack-pop. The dotted edge is the engine's static fingerprint of "this graph was wrapped by `withOverrodeHaltState`."
+4. **What actually fires at runtime, on tape `['a','b','X','b','a']`:** the wrapper runs once, transferring to `scanToX`; `scanToX` self-loops on `* → ·/R` until it sees `X`; the `X → ·/S` edge tries to go to halt; the runtime pops `eraseHere` off the stack and substitutes it; `eraseHere` erases the cell and halts. The wrapper's own `X → ·/S → halt` edge in the diagram is *never traversed* because control left the wrapper after iteration 1.
+
+> 💡 **The engine's emit could be more user-friendly here.** Tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138) — the wrapper's duplicated edges and the misleading single-edge `onHalt` placement are candidates for a cleaner `toMermaid` output.
 
 </details>
 
