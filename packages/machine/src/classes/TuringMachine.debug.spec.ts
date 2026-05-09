@@ -385,3 +385,88 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     }).toThrow();
   });
 });
+
+describe('TuringMachine — run({debug}) flag (#106)', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  test('debug: false suppresses onPause for "before" matches', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      debug: false,
+    });
+
+    expect(pauses).toHaveLength(0);
+  });
+
+  test('debug: false suppresses onPause for "after" matches AND the halting drain', async () => {
+    // With state.debug.after = true, the in-loop after-fires plus the #108
+    // post-loop drain would normally produce one onPause call per visit. The
+    // master switch must gate all of them.
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      debug: false,
+    });
+
+    expect(pauses).toHaveLength(0);
+  });
+
+  test('debug: true (default) dispatches onPause as v4', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      // debug omitted → defaults to true
+    });
+
+    expect(pauses.length).toBeGreaterThan(0);
+  });
+
+  test('debug: false does NOT suppress onStep', async () => {
+    // The flag is specifically about pause-capable dispatch; trace/logging
+    // continues regardless.
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    let stepCount = 0;
+
+    await machine.run({
+      initialState: state,
+      onStep: () => { stepCount += 1; },
+      onPause: () => {},
+      debug: false,
+    });
+
+    expect(stepCount).toBeGreaterThan(0);
+  });
+
+  test('debug: false leaves m.debugBreak metadata on yields (gating is run-level only)', async () => {
+    // Direct runStepByStep consumers see the metadata regardless of how run()
+    // is configured. Here we observe via onStep, which receives the original
+    // yielded MachineState — its debugBreak field is unaffected.
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const yields: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onStep: (m) => { yields.push(m); },
+      onPause: () => {},
+      debug: false,
+    });
+
+    // At least one yield carries the metadata even though no onPause fires.
+    expect(yields.some((y) => y.debugBreak?.before)).toBe(true);
+  });
+});

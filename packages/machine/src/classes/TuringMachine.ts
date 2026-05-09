@@ -57,6 +57,7 @@ export default class TuringMachine {
     stepsLimit = 1e5,
     onStep,
     onPause,
+    debug = true,
   }: RunParameter & {
     /**
      * Sync, ~free hook fired on every iteration. Use for logging/tracing —
@@ -74,6 +75,18 @@ export default class TuringMachine {
      * keeps its name (it describes the engine's reason for pausing).
      */
     onPause?: (machineState: MachineState) => void | Promise<void>;
+    /**
+     * Master switch for `onPause` dispatch. When `false`, suppresses all
+     * pause-fires (before, after, and the post-loop after-drain) regardless
+     * of `state.debug` assignments. `onStep` is unaffected. Defaults to
+     * `true`.
+     *
+     * The `m.debugBreak` field is still populated on yields by the underlying
+     * generator (it's a property of the iteration, not of the consumer); only
+     * `run()`'s hook dispatch is gated. Direct `runStepByStep` consumers see
+     * the metadata regardless.
+     */
+    debug?: boolean;
   }): Promise<void> {
     const generator = this.runStepByStep({initialState, stepsLimit});
     let prevYield: MachineState | null = null;
@@ -87,12 +100,12 @@ export default class TuringMachine {
       const machineState = result.value;
 
       // 'after' (from prev step) — fire FIRST, with prev yield substituted as the source view.
-      if (machineState.debugBreak?.after && onPause && prevYield) {
+      if (debug && machineState.debugBreak?.after && onPause && prevYield) {
         await onPause({...prevYield, debugBreak: {after: true}});
       }
 
       // 'before' (current step) — pass current machineState with only the before flag.
-      if (machineState.debugBreak?.before && onPause) {
+      if (debug && machineState.debugBreak?.before && onPause) {
         await onPause({...machineState, debugBreak: {before: true}});
       }
 
@@ -109,7 +122,7 @@ export default class TuringMachine {
     // `state.debug.after` matched its symbol but the loop exited before a
     // next yield could carry the metadata. We dispatch using the source
     // (prevYield), matching the in-loop after-fire payload shape.
-    if (result.value && onPause && prevYield) {
+    if (debug && result.value && onPause && prevYield) {
       await onPause({...prevYield, debugBreak: {after: true}});
     }
   }
