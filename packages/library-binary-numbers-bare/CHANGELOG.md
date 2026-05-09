@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-05-09
+
+### Changed (BREAKING)
+
+- **`peerDependencies."@turing-machine-js/machine"` widened from `^4.0.0` to `^5.0.0`** to match the v5 lockstep. Consumers pinned to `@turing-machine-js/machine@4` will see an unmet-peer warning when installing this version.
+
+Released in lockstep with `@turing-machine-js/machine` 5.0.0. No source or behavior changes in this package beyond the peer-dep widening.
+
 ## [4.0.0] - 2026-05-07
 
 ### Changed (BREAKING)
