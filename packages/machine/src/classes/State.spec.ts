@@ -4,208 +4,75 @@ import State, {haltState, ifOtherSymbol} from './State';
 import TapeBlock from './TapeBlock';
 import {movements, symbolCommands} from './TapeCommand';
 
-describe('State constructor', () => {
-  const alphabet = new Alphabet(' 01'.split(''));
-  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
-  const {symbol} = tapeBlock;
+const alphabet = new Alphabet(' 01'.split(''));
+const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+const {symbol} = tapeBlock;
 
-  test('State', () => {
-    expect(new State())
-      .toBeTruthy();
-  });
+describe('State constructor — happy path', () => {
+  // The default command (when a transition entry omits `command`) is
+  // { symbol: keep, movement: stay }; the default nextState is the state
+  // being constructed itself (i.e., self-loop). These four tests pin that
+  // contract across both ifOtherSymbol and explicit-symbol entries.
 
-  test('ifOtherSymbol empty object', () => {
+  test('ifOtherSymbol with empty entry: self-loop with keep+stay', () => {
     const state = new State({
       [ifOtherSymbol]: {},
     });
 
-    expect(state)
-      .toBeTruthy();
+    const resolved = state.getSymbol(tapeBlock);
+    const command = state.getCommand(resolved);
+    const nextState = state.getNextState(resolved);
 
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForZero = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(nextState.ref)
-      .toBe(state);
-    expect(commandForZero.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForZero.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
+    expect(nextState.ref).toBe(state); // self-loop
+    expect(command.tapesCommands[0].movement).toBe(movements.stay);
+    expect(command.tapesCommands[0].symbol).toBe(symbolCommands.keep);
   });
 
-  test('ifOtherSymbol unbound reference', () => {
+  test('ifOtherSymbol with unbound Reference: command defaults preserved, ref-read still throws', () => {
     const state = new State({
-      [ifOtherSymbol]: {
-        nextState: new Reference(),
-      },
+      [ifOtherSymbol]: {nextState: new Reference()},
     });
 
-    expect(state)
-      .toBeTruthy();
+    const resolved = state.getSymbol(tapeBlock);
+    const nextState = state.getNextState(resolved);
 
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForZero = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(() => nextState.ref)
-      .toThrow('unbounded reference');
-    expect(commandForZero.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForZero.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
+    expect(() => nextState.ref).toThrow('unbounded reference');
+    const command = state.getCommand(resolved);
+    expect(command.tapesCommands[0].movement).toBe(movements.stay);
+    expect(command.tapesCommands[0].symbol).toBe(symbolCommands.keep);
   });
 
-  test('ifOtherSymbol bound reference', () => {
+  test('ifOtherSymbol with bound Reference: nextState resolves to the bound target', () => {
     const ref = new Reference();
-    const state = new State({
-      [ifOtherSymbol]: {
-        nextState: ref,
-      },
-    });
-    const state2 = new State({
-      [ifOtherSymbol]: {},
-    });
-    ref.bind(state2);
+    const target = new State({[ifOtherSymbol]: {}});
+    const state = new State({[ifOtherSymbol]: {nextState: ref}});
+    ref.bind(target);
 
-    expect(state)
-      .toBeTruthy();
-    expect(state2)
-      .toBeTruthy();
+    const resolved = state.getSymbol(tapeBlock);
+    const nextState = state.getNextState(resolved);
 
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForZero = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(nextState.ref)
-      .toBe(state2);
-    expect(commandForZero.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForZero.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
+    expect(nextState.ref).toBe(target);
   });
 
-  test('some symbol empty object', () => {
+  test('explicit symbol with empty entry: same defaults as ifOtherSymbol case', () => {
     const state = new State({
       [symbol(alphabet.symbols[0])]: {},
     });
 
-    expect(state)
-      .toBeTruthy();
+    const resolved = state.getSymbol(tapeBlock);
+    const command = state.getCommand(resolved);
+    const nextState = state.getNextState(resolved);
 
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForBlankSymbol = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(nextState.ref)
-      .toBe(state);
-    expect(commandForBlankSymbol.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForBlankSymbol.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
-  });
-
-  test('some symbol unbound reference', () => {
-    const state = new State({
-      [symbol(alphabet.symbols[0])]: {
-        nextState: new Reference(),
-      },
-    });
-
-    expect(state)
-      .toBeTruthy();
-
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForBlankSymbol = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(() => nextState.ref)
-      .toThrow('unbounded reference');
-    expect(commandForBlankSymbol.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForBlankSymbol.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
-  });
-
-  test('some symbol bound reference', () => {
-    const ref = new Reference();
-    const state = new State({
-      [symbol(alphabet.symbols[0])]: {
-        nextState: ref,
-      },
-    });
-    const state2 = new State({
-      [ifOtherSymbol]: {},
-    });
-    ref.bind(state2);
-
-    expect(state)
-      .toBeTruthy();
-    expect(state2)
-      .toBeTruthy();
-
-    const appropriateSymbol = state.getSymbol(tapeBlock);
-    const commandForBlankSymbol = state.getCommand(appropriateSymbol);
-    const nextState = state.getNextState(appropriateSymbol);
-
-    expect(nextState.ref)
-      .toBe(state2);
-    expect(commandForBlankSymbol.tapesCommands[0].movement)
-      .toBe(movements.stay);
-    expect(commandForBlankSymbol.tapesCommands[0].symbol)
-      .toBe(symbolCommands.keep);
-  });
-
-  test('invalid symbol: zero length', () => {
-    expect(() => new State({}))
-      .toThrow('invalid state definition');
-  });
-});
-
-describe('properties', () => {
-  test('has id', () => {
-    expect(new State().id).toBeDefined();
-  });
-});
-
-describe('methods', () => {
-  test('getSymbol exists', () => {
-    expect(new State().getSymbol)
-      .toBeTruthy();
-  });
-
-  test('getCommand exists', () => {
-    expect(new State().getCommand)
-      .toBeTruthy();
-  });
-
-  test('getCommand: no command for the symbol', () => {
-    expect(() => new State().getCommand(ifOtherSymbol))
-      .toThrow(/^No command for symbol at state named/);
-  });
-
-  test('getNextState exists', () => {
-    expect(new State().getNextState)
-      .toBeTruthy();
-  });
-
-  test('getNextState: no nextState for the symbol', () => {
-    expect(() => new State().getNextState(ifOtherSymbol))
-      .toThrow(/^No nextState for symbol at state named/);
-  });
-
-  test('withOverrodeHaltState', () => {
-    const state = new State();
-    const state2 = state.withOverrodeHaltState(haltState);
-
-    expect(state2.name).toBe(`${state.name}>${haltState.name}`);
+    expect(nextState.ref).toBe(state);
+    expect(command.tapesCommands[0].movement).toBe(movements.stay);
+    expect(command.tapesCommands[0].symbol).toBe(symbolCommands.keep);
   });
 });
 
 describe('State constructor — invalid inputs', () => {
-  const alphabet = new Alphabet(' 01'.split(''));
-  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
-  const {symbol} = tapeBlock;
+  test('throws when stateDefinition is empty (no transitions)', () => {
+    expect(() => new State({})).toThrow('invalid state definition');
+  });
 
   test('throws when stateDefinition has string-keyed properties (only symbol keys allowed)', () => {
     expect(() => new State({foo: {nextState: haltState}} as never))
@@ -219,39 +86,102 @@ describe('State constructor — invalid inputs', () => {
   });
 
   test('throws "invalid command" when Command construction fails (empty array)', () => {
-    // command: [] is an Array, so the constructor takes the `try { new Command([]) }`
-    // branch. Command rejects empty input with "invalid parameter"; the catch
-    // swallows it (exercises the `void error` line), commandLocal remains
-    // the plain [], fails the `instanceof Command` check, and throws.
+    // command: [] takes the `try { new Command([]) }` branch. Command rejects
+    // empty input; the catch swallows the inner error and commandLocal stays
+    // as the plain []. The instanceof Command check then fails → throws.
     expect(() => new State({
       [symbol(['0'])]: {command: [] as never, nextState: haltState},
     })).toThrow('invalid command');
   });
 });
 
-describe('State.getSymbol — fallback', () => {
-  const alphabet = new Alphabet(' 01'.split(''));
-  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
-  const {symbol} = tapeBlock;
+describe('State.getCommand / .getNextState — error paths', () => {
+  // Default-constructed State has an empty symbolToDataMap; any lookup throws.
 
+  test('getCommand on an unmapped symbol throws "No command for symbol at state named …"', () => {
+    expect(() => new State().getCommand(ifOtherSymbol))
+      .toThrow(/^No command for symbol at state named/);
+  });
+
+  test('getNextState on an unmapped symbol throws "No nextState for symbol at state named …"', () => {
+    expect(() => new State().getNextState(ifOtherSymbol))
+      .toThrow(/^No nextState for symbol at state named/);
+  });
+});
+
+describe('State.getSymbol — head resolution', () => {
   test('returns ifOtherSymbol when no specific transition matches the head', () => {
-    // State has only a transition for '1'. Tape head is on the blank ' '.
-    // No specific symbol in the map matches → fallback to ifOtherSymbol.
+    // State has only a transition for '1'. Tape head defaults to blank ' '.
+    // No specific symbol matches → fallback to ifOtherSymbol.
     const state = new State({
       [symbol(['1'])]: {nextState: haltState},
     });
 
-    // Tape default position 0, default symbols → blank ' '. The state's only
-    // key is the symbol(['1']) pattern which does NOT match a blank head.
     expect(state.getSymbol(tapeBlock)).toBe(ifOtherSymbol);
   });
 });
 
-describe('State.toGraph — unbound Reference', () => {
-  const alphabet = new Alphabet(' 01'.split(''));
-  const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
-  const {symbol} = tapeBlock;
+describe('State.withOverrodeHaltState', () => {
+  // The wrapper shares the original's symbolToDataMap and debugRef but adds
+  // an overrodeHaltState. Audit-flagged: the previous test only checked the
+  // name pattern; these tests pin the actual wrapping contract.
 
+  test('wrapper exposes the override target', () => {
+    const original = new State({[ifOtherSymbol]: {nextState: haltState}});
+    const override = new State({[ifOtherSymbol]: {}});
+
+    const wrapped = original.withOverrodeHaltState(override);
+
+    expect(wrapped.overrodeHaltState).toBe(override);
+    expect(original.overrodeHaltState).toBeNull(); // original unchanged
+  });
+
+  test('wrapper proxies getCommand / getNextState to the original transitions', () => {
+    const original = new State({
+      [symbol(['0'])]: {
+        command: [{symbol: '1', movement: movements.right}],
+        nextState: haltState,
+      },
+    });
+    const wrapped = original.withOverrodeHaltState(haltState);
+
+    const sym = symbol(['0']);
+    expect(wrapped.getCommand(sym)).toBe(original.getCommand(sym));
+    expect(wrapped.getNextState(sym)).toBe(original.getNextState(sym));
+  });
+
+  test('wrapper shares debugRef with the original (assignment on either is visible from both)', () => {
+    const original = new State({[ifOtherSymbol]: {}});
+    const wrapped = original.withOverrodeHaltState(haltState);
+
+    original.debug = {before: true};
+
+    expect(wrapped.debug?.before).toBe(true);
+
+    // And the reverse — assigning on the wrapper updates the original.
+    wrapped.debug = {after: true};
+
+    expect(original.debug?.after).toBe(true);
+  });
+
+  test('wrapper has its own id (not shared with the original)', () => {
+    const original = new State({[ifOtherSymbol]: {}});
+    const wrapped = original.withOverrodeHaltState(haltState);
+
+    expect(wrapped.id).not.toBe(original.id);
+  });
+
+  test('wrapper name encodes the override target', () => {
+    const original = new State({[ifOtherSymbol]: {}}, 'inner');
+    const override = new State({[ifOtherSymbol]: {}}, 'outer');
+
+    const wrapped = original.withOverrodeHaltState(override);
+
+    expect(wrapped.name).toBe('inner>outer');
+  });
+});
+
+describe('State.toGraph — unbound Reference', () => {
   test('skips a transition whose nextState is an unbound Reference', () => {
     // An unbound Reference throws when its `.ref` getter is read. State.toGraph
     // catches that and skips the transition rather than failing the whole walk.
