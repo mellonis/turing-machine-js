@@ -52,6 +52,19 @@ await machine.run({
 console.log(tape.symbols.join('').trim()); // a*c*a
 ```
 
+The state graph for the example above:
+
+```mermaid
+flowchart LR
+    S(("**S**"))
+    H((("**halt**")))
+    S -- "b → *, R" --> S
+    S -- "_ → keep, L" --> H
+    S -- "any other → keep, R" --> S
+```
+
+*Reading the labels: `read → write, move`. `_` is the blank symbol.*
+
 A `State` is keyed by JS `Symbol`s returned from `tapeBlock.symbol(pattern)` — the pattern lists the expected symbol under each tape's head. `ifOtherSymbol` is the fallback key when nothing else matches; transitioning into `haltState` stops the run.
 
 For multi-tape machines, pass one element per tape: `tapeBlock.symbol(['0', 'a'])` matches only when tape 1 is at `'0'` and tape 2 is at `'a'`.
@@ -143,6 +156,16 @@ tape.right();       // move head right; auto-extends with blanks at the edge
 tape.symbol = 'X';  // write the cell under head
 ```
 
+For visualization-friendly UIs, `Tape` exposes a fixed-width viewport centered on the head:
+
+```javascript
+const tape = new Tape({ alphabet, symbols: ['a', 'b', 'c'], viewportWidth: 7 });
+tape.viewport;       // 7-cell snapshot centered on the head, padded with blanks
+tape.viewportWidth;  // 7 (the constructor bumps even values to the next odd)
+```
+
+`viewportWidth` defaults to `1` and must be ≥ 1; `tape.viewport` always has exactly `viewportWidth` cells regardless of how many symbols the tape actually holds. Useful for rendering a sliding window in a UI; ignore if you only need `tape.symbols` / `tape.position`.
+
 ### TapeBlock
 
 A bundle of one or more `Tape`s that the machine reads/writes together in lock-step. Construct via either factory:
@@ -198,6 +221,29 @@ Notable members and statics:
 - **`State.toGraph(state, tapeBlock)`** — walks the reachable graph from `state` and returns a serializable `Graph` (states, transitions, alphabets).
 - **`State.fromGraph(graph)`** — inverse of `toGraph`: rebuilds `State` instances + a fresh `TapeBlock` from a `Graph`. Round-trips together with `toMermaid` / `fromMermaid`.
 
+For visualization, pair `State.toGraph` with `toMermaid` to render the graph in any Mermaid-aware viewer (GitHub, VS Code, mermaid.live):
+
+```javascript
+import { State, toMermaid } from '@turing-machine-js/machine';
+
+const graph = State.toGraph(s, tapeBlock);
+console.log(toMermaid(graph));
+```
+
+The string `toMermaid` produces is a real Mermaid flowchart that renders in-place anywhere Mermaid is supported:
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","0","1","$"]]
+  s0(((halt)))
+  s1["name"]
+  s1 -- "1 → 0/R" --> s1
+  s1 -- "$ → ·/S" --> s0
+  s1 -- "- → ·/R" --> s1
+```
+
+`fromMermaid` parses the same format back into a `Graph` — the round-trip is lossless for graphs produced by `toMermaid`.
+
 ### Reference
 
 A forward-declaration handle, used when a `State` needs to point at another `State` that doesn't exist yet (cyclic graphs). Construct unbound, pass as `nextState`, call `.bind(actualState)` once that state has been built.
@@ -209,7 +255,17 @@ const b = new State({ [symbol(['y'])]: { nextState: a  } }, 'b');
 ref.bind(b);   // a's transition now resolves to b at run time
 ```
 
-`reference.ref` returns the bound state and throws if the reference is still unbound when the machine runs.
+The resulting cycle:
+
+```mermaid
+flowchart LR
+    a(("**a**"))
+    b(("**b**"))
+    a -- "x" --> b
+    b -- "y" --> a
+```
+
+`reference.ref` returns the bound state and throws if the reference is still unbound when the machine runs. `bind()` is sticky — the first call wins; subsequent calls are silent no-ops that return the existing binding.
 
 ### TuringMachine
 
@@ -226,6 +282,18 @@ for (const step of machine.runStepByStep({ initialState })) {
   console.log(step.state.name, step.currentSymbols, '→', step.nextSymbols, step.movements);
 }
 ```
+
+Each yielded `step` (`MachineState`) has these fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `step` | `number` | 1-indexed iteration number |
+| `state` | `State` | the state about to execute |
+| `currentSymbols` | `string[]` | per-tape head symbols, before the command applies |
+| `nextSymbols` | `string[]` | per-tape symbols that will be written |
+| `movements` | `symbol[]` | per-tape head moves (`movements.left/right/stay`) |
+| `nextState` | `State` | the state that will execute next |
+| `debugBreak?` | `{ before?: true, after?: true }` | only set when `state.debug` matched on this iter — see *Debugging breakpoints* below |
 
 `stepsLimit` (default `1e5`) guards against runaway loops — exceeding it throws.
 
@@ -254,7 +322,9 @@ haltState.debug = { before: true };
 myState.debug = null;
 ```
 
-The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper.
+> ⚠️ **`haltState.debug.after` throws.** Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Assigning a truthy `.after` to `haltState.debug` (including `{ before: true, after: true }`) throws at write time. Symbol-list filters on `haltState.debug.before` are silent no-ops, since halt has no head symbol; only the wildcard `true` activates.
+
+The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. Plain-object input (`state.debug = { before: true }`) is wrapped in a `DebugConfig` instance automatically; the wrapper's per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` throws `TypeError`.
 
 `run()` is async and accepts an `onPause` hook:
 
