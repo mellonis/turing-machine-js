@@ -312,3 +312,110 @@ describe('README example: toMermaid output is stable', () => {
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
   });
 });
+
+// Tests for the engine-generated Mermaid blocks shown (in <details>) in the
+// READMEs. Each test asserts the expected lines are present; we don't pin
+// state IDs as exact values because they auto-increment globally and depend
+// on test ordering. The test catches engine emit-format changes (e.g. if
+// "b → */R" notation drifts) without being fragile to ID assignment.
+import Reference from '../classes/Reference';
+import {ifOtherSymbol} from '../classes/State';
+
+describe('README diagrams: engine-generated outputs', () => {
+  function expectAllLines(output: string, lines: string[]) {
+    for (const line of lines) {
+      expect(output).toContain(line);
+    }
+  }
+
+  test('Quick Start ("replaceB" machine, root + machine README)', () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'c', '*']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const initialState = new State({
+      [tapeBlock.symbol(['b'])]: {command: [{symbol: '*', movement: movements.right}]},
+      [tapeBlock.symbol([alphabet.blankSymbol])]: {command: [{movement: movements.left}], nextState: haltState},
+      [ifOtherSymbol]: {command: [{movement: movements.right}]},
+    }, 'replaceB');
+
+    const output = toMermaid(State.toGraph(initialState, tapeBlock));
+
+    expectAllLines(output, [
+      'flowchart TD',
+      '%% alphabets: [[" ","a","b","c","*"]]',
+      '(((halt)))',
+      '(("replaceB"))',
+      '"b → */R"',
+      '"- → ·/L"',
+      '"* → ·/R"',
+    ]);
+  });
+
+  test('Reference cycle (a ↔ b, machine README)', () => {
+    const alphabet = new Alphabet([' ', 'x', 'y']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+    const ref = new Reference();
+    const a = new State({[symbol(['x'])]: {nextState: ref}}, 'a');
+    const b = new State({[symbol(['y'])]: {nextState: a}}, 'b');
+    ref.bind(b);
+
+    const output = toMermaid(State.toGraph(a, tapeBlock));
+
+    expectAllLines(output, [
+      'flowchart TD',
+      '%% alphabets: [[" ","x","y"]]',
+      '(("a"))', // a is the initial state passed to toGraph → round
+      '["b"]', // b is reachable from a → square
+      '"x → ·/S"',
+      '"y → ·/S"',
+    ]);
+  });
+
+  test('withOverrodeHaltState BEFORE (scanToX standalone, machine README)', () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+    const scanToX = new State({
+      [symbol(['X'])]: {nextState: haltState},
+      [ifOtherSymbol]: {command: {movement: movements.right}},
+    }, 'scanToX');
+
+    const output = toMermaid(State.toGraph(scanToX, tapeBlock));
+
+    expectAllLines(output, [
+      'flowchart TD',
+      '%% alphabets: [[" ","a","b","X"]]',
+      '(((halt)))',
+      '(("scanToX"))',
+      '"X → ·/S"',
+      '"* → ·/R"',
+    ]);
+  });
+
+  test('withOverrodeHaltState AFTER (scanThenErase, machine README) — emits the onHalt dotted edge', () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+    const scanToX = new State({
+      [symbol(['X'])]: {nextState: haltState},
+      [ifOtherSymbol]: {command: {movement: movements.right}},
+    }, 'scanToX');
+    const eraseHere = new State({
+      [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
+    }, 'eraseHere');
+    const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+
+    const output = toMermaid(State.toGraph(scanThenErase, tapeBlock));
+
+    expectAllLines(output, [
+      'flowchart TD',
+      '%% alphabets: [[" ","a","b","X"]]',
+      '(((halt)))',
+      '["scanToX"]', // original scanToX is reachable from the wrapper → square
+      '["eraseHere"]', // eraseHere is reachable via onHalt → square
+      '(("scanToX>eraseHere"))', // wrapper is the initial state → round
+      '"* → ⌫/S"', // eraseHere's erase command
+      '-. onHalt .->', // the dotted override-halt edge — engine's static fingerprint of the override
+    ]);
+  });
+});
