@@ -56,23 +56,37 @@ export default class TuringMachine {
     initialState,
     stepsLimit = 1e5,
     onStep,
-    onDebugBreak,
+    onPause,
   }: RunParameter & {
+    /**
+     * Sync, ~free hook fired on every iteration. Use for logging/tracing —
+     * the hot loop runs this without a microtask boundary, so it must not
+     * be async.
+     */
     onStep?: (machineState: MachineState) => void;
-    onDebugBreak?: (machineState: MachineState) => void | Promise<void>;
+    /**
+     * Async hook fired only when `state.debug[when]` matches at the current
+     * iteration. The promise is awaited inline, so the consumer can suspend
+     * execution by deferring its resolution. Use for pause-capable inspection
+     * (debugger UIs, conditional breakpoints in tests).
+     *
+     * Renamed from `onDebugBreak` in v5.0.0. The `m.debugBreak` payload field
+     * keeps its name (it describes the engine's reason for pausing).
+     */
+    onPause?: (machineState: MachineState) => void | Promise<void>;
   }): Promise<void> {
     const generator = this.runStepByStep({initialState, stepsLimit});
     let prevYield: MachineState | null = null;
 
     for (const machineState of generator) {
       // 'after' (from prev step) — fire FIRST, with prev yield substituted as the source view.
-      if (machineState.debugBreak?.after && onDebugBreak && prevYield) {
-        await onDebugBreak({...prevYield, debugBreak: {after: true}});
+      if (machineState.debugBreak?.after && onPause && prevYield) {
+        await onPause({...prevYield, debugBreak: {after: true}});
       }
 
       // 'before' (current step) — pass current machineState with only the before flag.
-      if (machineState.debugBreak?.before && onDebugBreak) {
-        await onDebugBreak({...machineState, debugBreak: {before: true}});
+      if (machineState.debugBreak?.before && onPause) {
+        await onPause({...machineState, debugBreak: {before: true}});
       }
 
       if (onStep instanceof Function) {
