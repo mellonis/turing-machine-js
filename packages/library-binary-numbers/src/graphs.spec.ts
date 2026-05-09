@@ -1,35 +1,74 @@
-import {writeFileSync} from 'node:fs';
-import {resolve} from 'node:path';
-import {State, toMermaid} from '@turing-machine-js/machine';
+import {State, fromMermaid, toMermaid} from '@turing-machine-js/machine';
 import binaryNumbers from './index';
 
-describe('library-binary-numbers state graphs', () => {
-  test('renders Mermaid for every exported state', () => {
-    const sections: string[] = ['# library-binary-numbers — state graphs', ''];
-    const stateNames = Object.keys(binaryNumbers.states) as Array<keyof typeof binaryNumbers.states>;
+// Per-state node counts pinned from the source comments above each declaration
+// in `index.ts`. Each count includes haltState (`State.toGraph` walks the full
+// reachable graph, and every algorithm transitions to halt). Regressions caught:
+// a refactor that accidentally grows or shrinks an algorithm's state graph
+// fails this table.
+const expectedNodeCount: Record<keyof typeof binaryNumbers['states'], number> = {
+  goToNumber: 2,
+  goToNextNumber: 3,
+  goToPreviousNumber: 3,
+  goToNumbersStart: 2,
+  deleteNumber: 5,
+  invertNumber: 5,
+  normalizeNumber: 7,
+  plusOne: 5,
+  minusOne: 17,
+  minusOneFast: 10,
+};
 
-    for (const name of stateNames) {
+const stateNames = Object.keys(expectedNodeCount) as Array<keyof typeof expectedNodeCount>;
+
+describe('library-binary-numbers state graphs', () => {
+  test.each(stateNames)(
+    '%s: toGraph produces the documented node count',
+    (name) => {
       const tapeBlock = binaryNumbers.getTapeBlock();
       const graph = State.toGraph(binaryNumbers.states[name], tapeBlock);
-      const mermaid = toMermaid(graph);
-      const nodeCount = Object.keys(graph.nodes).length;
 
-      sections.push(`## ${name}`);
-      sections.push('');
-      sections.push(`*${nodeCount} state${nodeCount === 1 ? '' : 's'} (including \`haltState\`)*`);
-      sections.push('');
-      sections.push('```mermaid');
-      sections.push(mermaid);
-      sections.push('```');
-      sections.push('');
-    }
+      expect(Object.keys(graph.nodes)).toHaveLength(expectedNodeCount[name]);
+    },
+  );
 
-    const output = sections.join('\n');
-    const outputPath = resolve(__dirname, '..', 'states.md');
+  test.each(stateNames)(
+    '%s: graph has at least one halt-reachable node',
+    (name) => {
+      const tapeBlock = binaryNumbers.getTapeBlock();
+      const graph = State.toGraph(binaryNumbers.states[name], tapeBlock);
 
-    writeFileSync(outputPath, output);
+      const haltNodes = Object.values(graph.nodes).filter((node) => node.isHalt);
 
-    expect(output.length).toBeGreaterThan(0);
-    expect(stateNames.length).toBeGreaterThan(0);
+      // Every algorithm has exactly one halt node (the singleton's id is shared
+      // across all states' graphs).
+      expect(haltNodes).toHaveLength(1);
+    },
+  );
+
+  test.each(stateNames)(
+    '%s: toMermaid → fromMermaid round-trips with the same node count',
+    (name) => {
+      const tapeBlock = binaryNumbers.getTapeBlock();
+      const original = State.toGraph(binaryNumbers.states[name], tapeBlock);
+
+      const mermaid = toMermaid(original);
+      const reparsed = fromMermaid(mermaid);
+
+      expect(Object.keys(reparsed.nodes)).toHaveLength(Object.keys(original.nodes).length);
+      // Mermaid output starts with a `flowchart` directive — sanity check it's
+      // well-formed beyond just length > 0.
+      expect(mermaid).toMatch(/^flowchart\s+(?:LR|TD|TB|RL|BT)/);
+    },
+  );
+
+  test('every state in the public surface has a documented count', () => {
+    // If a state is added to `binaryNumbers.states` without an entry in
+    // `expectedNodeCount`, this catches it (rather than silently skipping
+    // the new state in the parametrised tests above).
+    const exportedNames = Object.keys(binaryNumbers.states).sort();
+    const documentedNames = stateNames.slice().sort();
+
+    expect(exportedNames).toEqual(documentedNames);
   });
 });
