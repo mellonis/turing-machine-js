@@ -5,7 +5,7 @@
   "engines": {
     "npm": ">=7.0.0"
   },
-  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
+  "author": "Ruslan Gilmullin <mellonis@yandex.ru>",
   "homepage": "https://github.com/mellonis/turing-machine-js#readme",
   "license": "GPL-3.0-or-later",
   "publishConfig": {
