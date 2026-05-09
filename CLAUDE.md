@@ -47,7 +47,15 @@ Key shapes that take reading multiple files to grasp:
 
 - **`TapeBlock` has a `Lock`** that `TuringMachine.run` grabs for the duration of a run, asserting the block isn't being mutated by another machine. Calls to `applyCommand` from outside a run must pass the matching capture symbol.
 
-- **`state.debug` (v4)** — runtime-mutable breakpoint cell with `{ before, after }` symbol filtering. Shared across `withOverrodeHaltState` wrappers via a private `Ref` so an assignment on the original is visible from every wrapper instance — useful when the same primitive is reused in composition chains. Pauses dispatch via the optional `onPause` hook on `run()` (awaited; without the hook, breaks fire-and-resume invisibly). Renamed from `onDebugBreak` in v5. `haltState.debug.before = true` pauses on every halt entry (program exit + subroutine pop). See `packages/machine/README.md` "Debugging breakpoints (v4+)" for the full API.
+- **`state.debug` (v4+)** — runtime-mutable breakpoint cell with `{ before, after }` symbol filtering. Shared across `withOverrodeHaltState` wrappers via a private `Ref` so an assignment on the original is visible from every wrapper instance — useful when the same primitive is reused in composition chains. Pauses dispatch via the optional `onPause` hook on `run()` (awaited; without the hook, breaks fire-and-resume invisibly). `haltState.debug.before = true` pauses on every halt entry (program exit + subroutine pop). See `packages/machine/README.md` "Debugging breakpoints (v4+)" for the full API.
+
+  Cross-version notes:
+  - **v5**: hook renamed `onDebugBreak` → `onPause` (#110). `haltState.debug.after = true` (or `{ before, after }` together) now throws at write-time — halt is terminal, no iteration-after-halt to anchor on (#108 part 2). Halting iter's after-fire stopped being silently lost (#108 part 1). New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without editing `state.debug` assignments (#106).
+  - **v6**: `onPause(after, K)` now fires on iter K's *own* yield, alongside `onPause(before, K)` and `onStep(K)` — per-iter lifecycle is `before → step → after` (#119). Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. Implication: tests asserting cross-hook ordering at the lifecycle level need v6-aware shape.
+
+### Visualization & round-trip
+
+`packages/machine` ships `State.toGraph(state, tapeBlock)` → `Graph` and `State.fromGraph(graph)` → `{start, tapeBlock, states}` for serialization. `toMermaid(graph)` and `fromMermaid(text)` round-trip the same Graph through Mermaid flowchart syntax. The round-trip is **behaviorally** lossless (rebuilt graph runs to same outputs on same inputs — covered by `test/round-trip.spec.ts`); not bytewise lossless because state IDs auto-reassign, and for `withOverrodeHaltState` wrappers the composite name accumulates `>${override.name}` suffixes on each pass. Tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138) (cleaner emit for wrapped states) + [#139](https://github.com/mellonis/turing-machine-js/issues/139) (regression test that fails until #138 is fixed).
 
 ### Builder package
 
