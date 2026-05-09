@@ -99,39 +99,38 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 });
 
 describe('TuringMachine — debug.after filter (loop yields)', () => {
-  test('debug.after = true tags the NEXT yield with debugBreak.after', () => {
+  // v6.0.0 (#119): both `before` and `after` refer to THIS iter, dispatched
+  // on the same yield. Previously `after` was on the NEXT yield with a
+  // substituted source-state payload — see #109/#119 for the rationale.
+
+  test('debug.after = true tags every yield with debugBreak.after', () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const steps: MachineState[] = [];
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // First yield: state had no prior — no after.
-    expect(steps[0]).not.toHaveProperty('debugBreak');
-    // Subsequent yields all carry debugBreak.after (because every prev
-    // visit was at this state with after=true matching wildcard).
-    for (let i = 1; i < steps.length; i++) {
-      expect(steps[i].debugBreak).toEqual({after: true});
+    // Every yield (including the first) carries debugBreak.after because the
+    // wildcard filter matches every visit's resolved symbol.
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expect(step.debugBreak).toEqual({after: true});
     }
   });
 
-  // (Removed in v5 — the "by-design lost" semantics on halting after-fires
-  // was a #108 bug, not a design choice. The new behavior is verified in the
-  // dedicated `halt semantics for after-fire (#108)` describe block below,
-  // which exercises the run()-level drain.)
-
-  test('before AND after on same visit produce both flags on the relevant yields', () => {
+  test('before AND after on same visit produce both flags on every yield', () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true, after: true};
     const steps: MachineState[] = [];
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // First yield: only before (no prior after).
-    expect(steps[0].debugBreak).toEqual({before: true});
-    // Middle yields: both flags (prev's after AND current's before).
-    for (let i = 1; i < steps.length - 1; i++) {
-      expect(steps[i].debugBreak).toEqual({before: true, after: true});
+    // No "first yield is special" anymore: each iter's before and after both
+    // refer to that iter, so both flags appear together on every yield where
+    // the wildcard filters match.
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expect(step.debugBreak).toEqual({before: true, after: true});
     }
   });
 
@@ -143,13 +142,13 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
-    // The 'after' fires on yield N+1 if yield N's state had symA on the head.
-    for (let i = 1; i < steps.length; i++) {
-      const prev = steps[i - 1];
-      if (prev.currentSymbols[0] === 'A') {
-        expect(steps[i].debugBreak).toEqual({after: true});
+    // The 'after' fires on yield N if yield N's resolved symbol matches the
+    // filter (no longer "yield N+1 if yield N's symbol matched").
+    for (const step of steps) {
+      if (step.currentSymbols[0] === 'A') {
+        expect(step.debugBreak).toEqual({after: true});
       } else {
-        expect(steps[i]).not.toHaveProperty('debugBreak');
+        expect(step).not.toHaveProperty('debugBreak');
       }
     }
   });
@@ -264,7 +263,7 @@ describe('TuringMachine — run() with onPause', () => {
     }
   });
 
-  test('onPause for "after" sees the SOURCE state (substitution)', async () => {
+  test('onPause for "after" carries the same iter\'s state', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const seen: Array<{state: State, debugBreak?: MachineState['debugBreak'], step: number}> = [];
@@ -276,15 +275,16 @@ describe('TuringMachine — run() with onPause', () => {
       },
     });
 
-    // Every after-call should show m.state === source state (the one whose
-    // after fired) — that's our buildMachine state since it's a single-state graph.
+    // v6.0.0: the after-call's `m.state` is the iter that armed the after
+    // (no substitution dance — `before` and `after` for the SAME iter both
+    // fire on that iter's own yield).
     for (const entry of seen) {
       expect(entry.state).toBe(state);
       expect(entry.debugBreak).toEqual({after: true});
     }
   });
 
-  test('both "before" and "after" on same yield → two hook calls in order', async () => {
+  test('both "before" and "after" on same yield → two hook calls in lifecycle order', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true, after: true};
     const calls: Array<'before' | 'after'> = [];
@@ -292,16 +292,18 @@ describe('TuringMachine — run() with onPause', () => {
     await machine.run({
       initialState: state,
       onPause: (m) => {
-        if (m.debugBreak?.after) calls.push('after');
         if (m.debugBreak?.before) calls.push('before');
+        if (m.debugBreak?.after) calls.push('after');
       },
     });
 
-    // For each "middle" yield (not first), pattern is: ['after', 'before', 'after', 'before', ...].
-    // First yield only has 'before'. Verify ordering: every 'after' is followed
-    // (eventually) by 'before' of the same yield.
+    // v6.0.0 per-iter lifecycle: before → step → after. Every yield (including
+    // the first) dispatches both hooks in this order.
     expect(calls.length).toBeGreaterThan(0);
-    expect(calls[0]).toBe('before'); // first visit, no prior after
+    // Pattern is purely alternating: [before, after, before, after, ...].
+    for (let i = 0; i < calls.length; i++) {
+      expect(calls[i]).toBe(i % 2 === 0 ? 'before' : 'after');
+    }
   });
 
   test('onPause can be async (run awaits it)', async () => {
@@ -338,11 +340,6 @@ describe('TuringMachine — run() with onPause', () => {
   });
 });
 
-// These tests assert the v5 spec from #108. They are intentionally RED on the
-// v4 codebase — they turn green when the loop-drain fix and haltState rejection
-// land. The "after on a transition leading to halt is silently lost" test in
-// the second describe above (currently labelled by-design) is contradicted by
-// part-1 below and will be updated in lockstep with the fix.
 describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   afterEach(() => { haltState.debug = null; });
 
@@ -352,9 +349,8 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     //   visit 2 head 'B'  → erase+right
     //   visit 3 head 'A'  → erase+right
     //   visit 4 head blank→ ifOtherSymbol → halt
-    // debug.after = true matches every visit. Today only 3 after-fires reach
-    // onPause (visit 4's after has no anchor yield); v5 must drain it
-    // and produce 4.
+    // debug.after = true matches every visit. v6.0.0 (#119) dispatches the
+    // halting iter's after directly on its own yield, so all 4 visits fire.
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const after: MachineState[] = [];
@@ -403,9 +399,9 @@ describe('TuringMachine — run({debug}) flag (#106)', () => {
     expect(pauses).toHaveLength(0);
   });
 
-  test('debug: false suppresses onPause for "after" matches AND the halting drain', async () => {
-    // With state.debug.after = true, the in-loop after-fires plus the #108
-    // post-loop drain would normally produce one onPause call per visit. The
+  test('debug: false suppresses onPause for "after" matches (every visit, including halting iter)', async () => {
+    // With state.debug.after = true, every visit normally produces an
+    // after-fire dispatch (including the halting iter, post-#108/#119). The
     // master switch must gate all of them.
     const {machine, state} = buildMachine();
     state.debug = {after: true};
