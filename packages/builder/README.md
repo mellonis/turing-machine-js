@@ -12,31 +12,30 @@ Constructs a Turing machine from a declarative state-table object. Every transit
 import { Tape } from '@turing-machine-js/machine';
 import buildMachine from '@turing-machine-js/builder';
 
+// Flip every bit on the tape; halt when the head reaches a blank.
 const [machine, initialState] = buildMachine({
-  alphabetString: '_01XY#',
-  initialState: 'Q8',
-  finalStateList: ['Q5'],
+  alphabetString: ' 01',
+  initialState: 'flip',
+  finalStateList: ['DONE'],
   states: {
-    Q8: { '#': { state: 'Q6', symbol: '#', movement: 'R' } },
-    Q6: {
-      '0': { state: 'Q0', symbol: 'X', movement: 'R' },
-      '1': { state: 'Q1', symbol: 'Y', movement: 'R' },
-      '#': { state: 'Q2', symbol: '#', movement: 'R' },
+    flip: {
+      '0': { state: 'flip', symbol: '1', movement: 'R' },
+      '1': { state: 'flip', symbol: '0', movement: 'R' },
+      ' ': { state: 'DONE', symbol: ' ', movement: 'S' },
     },
-    // ... more states ...
   },
 });
 
 machine.tapeBlock.replaceTape(new Tape({
   alphabet: machine.tapeBlock.alphabets[0],
-  symbols: '#011#'.split(''),
+  symbols: '0101'.split(''),
 }));
 
 await machine.run({ initialState, stepsLimit: 100 });
-// tape now contains: #011#011#  (the input duplicated)
+console.log(machine.tapeBlock.tapes[0].symbols.join('').trim()); // "1010"
 ```
 
-See [`builder.spec.ts`](src/builder.spec.ts) for a complete worked example, including a small parser that reads the `(state,symbol)→(state,symbol,movement);` textual notation often used in textbooks.
+See [`builder.spec.ts`](src/builder.spec.ts) for a longer worked example — a 27-state binary-string-duplicator (input `#011#` → output `#011#011#`) — including a small parser that reads the textbook `(state,symbol)→(state,symbol,movement);` notation.
 
 ## Limitations
 

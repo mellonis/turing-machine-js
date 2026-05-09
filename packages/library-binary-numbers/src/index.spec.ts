@@ -290,3 +290,24 @@ describe('minusOneFast — subtract 1 via direct borrow', () => {
     expect(trimmed(tape)).toBe('^1$');
   });
 });
+
+// Pin the example shown in packages/library-binary-numbers/README.md.
+// Mirrors the README's code byte-for-byte to ensure the docs example
+// stays accurate.
+describe('README example: plusOne on ^101$', () => {
+  test('produces ^110$ (binary 5 → 6)', async () => {
+    const tapeBlock = binaryNumbers.getTapeBlock();
+    const tape = new Tape({
+      alphabet: tapeBlock.alphabets[0],
+      symbols: '^101$'.split(''),
+    });
+
+    tapeBlock.replaceTape(tape);
+
+    const machine = new TuringMachine({tapeBlock});
+
+    await machine.run({initialState: binaryNumbers.states.plusOne});
+
+    expect(tape.symbols.join('').trim()).toBe('^110$');
+  });
+});

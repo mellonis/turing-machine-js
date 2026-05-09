@@ -176,3 +176,32 @@ describe('buildMachine — debug config (#101)', () => {
     expect(() => buildLoopMachine({Q0: {before: ['Z']}})).toThrow(/not in the alphabet/);
   });
 });
+
+// Pin the example shown in packages/builder/README.md so the docs stay in
+// lockstep with real engine behavior. If a future refactor changes the
+// example's output, the test fails and someone must update both.
+describe('README example: bit-flipper', () => {
+  test('flips every bit of "0101" to "1010" and halts on the trailing blank', async () => {
+    const [machine, initialState] = buildMachine({
+      alphabetString: ' 01',
+      initialState: 'flip',
+      finalStateList: ['DONE'],
+      states: {
+        flip: {
+          '0': {state: 'flip', symbol: '1', movement: 'R'},
+          '1': {state: 'flip', symbol: '0', movement: 'R'},
+          ' ': {state: 'DONE', symbol: ' ', movement: 'S'},
+        },
+      },
+    });
+
+    machine.tapeBlock.replaceTape(new Tape({
+      alphabet: machine.tapeBlock.alphabets[0],
+      symbols: '0101'.split(''),
+    }));
+
+    await machine.run({initialState, stepsLimit: 100});
+
+    expect(machine.tapeBlock.tapes[0].symbols.join('').trim()).toBe('1010');
+  });
+});
