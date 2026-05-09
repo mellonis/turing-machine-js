@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **`run({ debug: boolean })` flag** ([#106](https://github.com/mellonis/turing-machine-js/issues/106)). Gates whether `state.debug` assignments produce `debugBreak` metadata on yields, without editing the assignments. Defaults to `true` when an `onPause` hook is provided (preserves v4 behavior); set `false` to suppress all break dispatches while keeping `state.debug = ...` in code.
+- **`run({ debug: boolean })` flag** ([#106](https://github.com/mellonis/turing-machine-js/issues/106)). Master switch for `onPause` dispatch. When `false`, suppresses all pause-fires (before, after, and the post-loop after-drain) regardless of `state.debug` assignments. `onStep` is unaffected. Defaults to `true`. The `m.debugBreak` field is still populated on yields by the underlying generator (it's a property of the iteration); only `run()`'s hook dispatch is gated. Useful for toggling "debug mode" without editing `state.debug = ...` across the state graph.
 
 ### Migration
 
