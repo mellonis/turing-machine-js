@@ -13,7 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint ."
   },
-  "author": "Ruslan Gilmullin <mellonis14@gmain.com>",
+  "author": "Ruslan Gilmullin <mellonis@yandex.ru>",
   "workspaces": [
     "packages/*"
   ],
