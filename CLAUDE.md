@@ -45,7 +45,7 @@ Key shapes that take reading multiple files to grasp:
 
 - **`TapeBlock` has a `Lock`** that `TuringMachine.run` grabs for the duration of a run, asserting the block isn't being mutated by another machine. Calls to `applyCommand` from outside a run must pass the matching capture symbol.
 
-- **`state.debug` (v4)** — runtime-mutable breakpoint cell with `{ before, after }` symbol filtering. Shared across `withOverrodeHaltState` wrappers via a private `Ref` so an assignment on the original is visible from every wrapper instance — useful when the same primitive is reused in composition chains. Pauses dispatch via the optional `onDebugBreak` hook on `run()` (awaited; without the hook, breaks fire-and-resume invisibly). `haltState.debug.before = true` pauses on every halt entry (program exit + subroutine pop). See `packages/machine/README.md` "Debugging breakpoints (v4+)" for the full API.
+- **`state.debug` (v4)** — runtime-mutable breakpoint cell with `{ before, after }` symbol filtering. Shared across `withOverrodeHaltState` wrappers via a private `Ref` so an assignment on the original is visible from every wrapper instance — useful when the same primitive is reused in composition chains. Pauses dispatch via the optional `onPause` hook on `run()` (awaited; without the hook, breaks fire-and-resume invisibly). Renamed from `onDebugBreak` in v5. `haltState.debug.before = true` pauses on every halt entry (program exit + subroutine pop). See `packages/machine/README.md` "Debugging breakpoints (v4+)" for the full API.
 
 ### Builder package
 

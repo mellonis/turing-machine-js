@@ -231,7 +231,7 @@ describe('TuringMachine — haltState.debug.before', () => {
   });
 });
 
-describe('TuringMachine — run() with onDebugBreak', () => {
+describe('TuringMachine — run() with onPause', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('run() returns a Promise', () => {
@@ -241,7 +241,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     return result;
   });
 
-  test('without onDebugBreak, breaks fire-and-resume invisibly', async () => {
+  test('without onPause, breaks fire-and-resume invisibly', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const steps: MachineState[] = [];
@@ -253,14 +253,14 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     // No exception, no hang.
   });
 
-  test('onDebugBreak fires for "before" with current state', async () => {
+  test('onPause fires for "before" with current state', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const seen: Array<{state: State, debugBreak?: MachineState['debugBreak']}> = [];
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         seen.push({state: m.state, debugBreak: m.debugBreak});
       },
     });
@@ -272,14 +272,14 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     }
   });
 
-  test('onDebugBreak for "after" sees the SOURCE state (substitution)', async () => {
+  test('onPause for "after" sees the SOURCE state (substitution)', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const seen: Array<{state: State, debugBreak?: MachineState['debugBreak'], step: number}> = [];
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         seen.push({state: m.state, debugBreak: m.debugBreak, step: m.step});
       },
     });
@@ -299,7 +299,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         if (m.debugBreak?.after) calls.push('after');
         if (m.debugBreak?.before) calls.push('before');
       },
@@ -312,7 +312,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     expect(calls[0]).toBe('before'); // first visit, no prior after
   });
 
-  test('onDebugBreak can be async (run awaits it)', async () => {
+  test('onPause can be async (run awaits it)', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     let released = false;
@@ -323,13 +323,13 @@ describe('TuringMachine — run() with onDebugBreak', () => {
 
     await machine.run({
       initialState: state,
-      onDebugBreak: () => hookDone, // run() awaits this
+      onPause: () => hookDone, // run() awaits this
     });
 
     expect(released).toBe(true);
   });
 
-  test('onStep still fires on every yield, separate from onDebugBreak', async () => {
+  test('onStep still fires on every yield, separate from onPause', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const stepCount = {n: 0};
@@ -338,7 +338,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     await machine.run({
       initialState: state,
       onStep: () => { stepCount.n += 1; },
-      onDebugBreak: () => { breakCount.n += 1; },
+      onPause: () => { breakCount.n += 1; },
     });
 
     expect(stepCount.n).toBeGreaterThan(0);
@@ -361,7 +361,7 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     //   visit 3 head 'A'  → erase+right
     //   visit 4 head blank→ ifOtherSymbol → halt
     // debug.after = true matches every visit. Today only 3 after-fires reach
-    // onDebugBreak (visit 4's after has no anchor yield); v5 must drain it
+    // onPause (visit 4's after has no anchor yield); v5 must drain it
     // and produce 4.
     const {machine, state} = buildMachine();
     state.debug = {after: true};
@@ -369,7 +369,7 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => { if (m.debugBreak?.after) after.push(m); },
+      onPause: (m) => { if (m.debugBreak?.after) after.push(m); },
     });
 
     expect(after.length).toBe(4);

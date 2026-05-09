@@ -85,7 +85,7 @@ describe('README.md — Debugging breakpoints', () => {
     const {machine, myState} = buildExampleMachine();
     myState.debug = {before: true};
     let breakCount = 0;
-    await machine.run({initialState: myState, onDebugBreak: () => { breakCount += 1; }});
+    await machine.run({initialState: myState, onPause: () => { breakCount += 1; }});
     expect(breakCount).toBeGreaterThan(0);
   });
 
@@ -95,7 +95,7 @@ describe('README.md — Debugging breakpoints', () => {
     let symASeen = 0;
     await machine.run({
       initialState: myState,
-      onDebugBreak: (m) => { if (m.currentSymbols[0] === 'A') symASeen += 1; },
+      onPause: (m) => { if (m.currentSymbols[0] === 'A') symASeen += 1; },
     });
     expect(symASeen).toBeGreaterThan(0);
   });
@@ -106,7 +106,7 @@ describe('README.md — Debugging breakpoints', () => {
     const order: Array<'before' | 'after'> = [];
     await machine.run({
       initialState: myState,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         if (m.debugBreak?.before) order.push('before');
         if (m.debugBreak?.after) order.push('after');
       },
@@ -121,7 +121,7 @@ describe('README.md — Debugging breakpoints', () => {
     let haltPause = false;
     await machine.run({
       initialState: myState,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         if (m.nextState === haltState && m.debugBreak?.before) haltPause = true;
       },
     });
@@ -143,7 +143,7 @@ describe('README.md — Debugging breakpoints', () => {
     expect(myState.debug!.before).toEqual([symA, ifOtherSymbol]);
   });
 
-  test('onStep + onDebugBreak fire independently', async () => {
+  test('onStep + onPause fire independently', async () => {
     const {machine, myState} = buildExampleMachine();
     myState.debug = {before: true};
     let stepCount = 0;
@@ -151,7 +151,7 @@ describe('README.md — Debugging breakpoints', () => {
     await machine.run({
       initialState: myState,
       onStep: () => { stepCount += 1; },
-      onDebugBreak: () => { breakCount += 1; },
+      onPause: () => { breakCount += 1; },
     });
     expect(stepCount).toBeGreaterThan(0);
     expect(breakCount).toBeGreaterThan(0);

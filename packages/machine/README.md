@@ -256,13 +256,13 @@ myState.debug = null;
 
 The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper.
 
-`run()` is async and accepts an `onDebugBreak` hook:
+`run()` is async and accepts an `onPause` hook:
 
 ```ts
 await machine.run({
   initialState,
   onStep: (m) => { /* logger sees every step */ },
-  onDebugBreak: async (m) => {
+  onPause: async (m) => {
     // Awaited at every break — hold execution until you resolve.
     if (m.debugBreak?.before) console.log('before:', m.state.name);
     if (m.debugBreak?.after)  console.log('after:',  m.state.name);
@@ -272,7 +272,7 @@ await machine.run({
 
 For `after` calls, `m` is the previous yield's snapshot — `m.state` is the state whose `after` filter fired. For `before` calls, `m` is the current iteration. `onStep` always sees the original (un-substituted) yield.
 
-If `onDebugBreak` is not provided, breaks fire-and-resume invisibly — the trajectory is identical to running without `debug` set.
+If `onPause` is not provided, breaks fire-and-resume invisibly — the trajectory is identical to running without `debug` set.
 
 **Filter semantics:** `true` is a wildcard (match any symbol). `[ifOtherSymbol]` is NOT a wildcard — it matches only the catch-all resolution case (same meaning as in transition keys).
 
