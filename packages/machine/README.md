@@ -235,7 +235,7 @@ The string `toMermaid` produces is a real Mermaid flowchart that renders in-plac
 flowchart TD
 %% alphabets: [[" ","0","1","$"]]
   s0(((halt)))
-  s1["name"]
+  s1(("name"))
   s1 -- "1 → 0/R" --> s1
   s1 -- "$ → ·/L" --> s0
 ```
