@@ -299,6 +299,64 @@ Each yielded `step` (`MachineState`) has these fields:
 
 `stepsLimit` (default `1e5`) guards against runaway loops — exceeding it throws.
 
+## Subroutine composition with `withOverrodeHaltState`
+
+`state.withOverrodeHaltState(other)` returns a copy of `state` whose would-be halt transitions fall through to `other` at run time. The original is left untouched. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
+
+```javascript
+import { Alphabet, State, TapeBlock, TuringMachine, Tape, haltState, ifOtherSymbol, movements, symbolCommands } from '@turing-machine-js/machine';
+
+const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
+const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+const { symbol } = tapeBlock;
+
+// Reusable subroutine 1: walk right until 'X', halt on it.
+const scanToX = new State({
+  [symbol(['X'])]: { nextState: haltState },
+  [ifOtherSymbol]: { command: { movement: movements.right } },
+}, 'scanToX');
+
+// Reusable subroutine 2: erase the head cell, halt.
+const eraseHere = new State({
+  [ifOtherSymbol]: { command: { symbol: symbolCommands.erase }, nextState: haltState },
+}, 'eraseHere');
+
+// Compose: scan to X, then ERASE it. scanToX is unmodified.
+const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+
+const tape = new Tape({ alphabet, symbols: ['a', 'b', 'X', 'b', 'a'] });
+tapeBlock.replaceTape(tape);
+await new TuringMachine({ tapeBlock }).run({ initialState: scanThenErase });
+
+console.log(tape.symbols.join('')); // "ab ba" — the X at index 2 is gone, head landed there.
+```
+
+What changes between *running `scanToX` standalone* and *running the composed wrapper*:
+
+```mermaid
+flowchart LR
+    subgraph standalone["scanToX (standalone) — halts at X"]
+        direction LR
+        a1(("scanToX"))
+        h1(((halt)))
+        a1 -- "X → keep, S" --> h1
+        a1 -- "any other → keep, R" --> a1
+    end
+    subgraph composed["scanToX.withOverrodeHaltState(eraseHere) — halt is intercepted"]
+        direction LR
+        a2(("scanToX"))
+        b2(("eraseHere"))
+        h2(((halt)))
+        a2 -. "X → keep, S<br/>intercepted" .-> b2
+        a2 -- "any other → keep, R" --> a2
+        b2 -- "any → erase, S" --> h2
+    end
+```
+
+> 💡 **The override is runtime-only.** `State.toGraph(scanThenErase, tapeBlock)` produces the *standalone* `scanToX` graph (with the halt edge intact) — `toGraph` walks the static structure, not the runtime stack. The composed behavior in the right-hand diagram is what you'd see in the actual execution trace.
+
+Wrappers nest: `inner.withOverrodeHaltState(middle).withOverrodeHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
+
 ## Debugging breakpoints (v4+)
 
 Any `State` can carry a runtime-mutable `debug` config that pauses execution at chosen points.

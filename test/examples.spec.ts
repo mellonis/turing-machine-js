@@ -266,6 +266,63 @@ describe('README.md — Building from a state table', () => {
   });
 });
 
+// Pin the withOverrodeHaltState subroutine-composition example from the README.
+describe('README.md — Subroutine composition with withOverrodeHaltState', () => {
+  test('scanToX.withOverrodeHaltState(eraseHere) erases the first X and lands on it', async () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const scanToX = new State({
+      [symbol(['X'])]: {nextState: haltState},
+      [ifOtherSymbol]: {command: {movement: movements.right}},
+    }, 'scanToX');
+
+    const eraseHere = new State({
+      [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
+    }, 'eraseHere');
+
+    const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+
+    const tape = new Tape({alphabet, symbols: ['a', 'b', 'X', 'b', 'a']});
+    tapeBlock.replaceTape(tape);
+
+    await new TuringMachine({tapeBlock}).run({initialState: scanThenErase});
+
+    expect(tape.symbols.join('')).toBe('ab ba');
+    expect(tape.position).toBe(2); // head landed where the X used to be
+  });
+
+  test('the original scanToX is left unmodified by withOverrodeHaltState', async () => {
+    const alphabet = new Alphabet([' ', 'X']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const scanToX = new State({
+      [symbol(['X'])]: {nextState: haltState},
+      [ifOtherSymbol]: {command: {movement: movements.right}},
+    }, 'scanToX');
+
+    const eraseHere = new State({
+      [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
+    }, 'eraseHere');
+
+    // Wrapping doesn't mutate the original.
+    scanToX.withOverrodeHaltState(eraseHere);
+
+    expect(scanToX.overrodeHaltState).toBeNull();
+
+    // Running scanToX standalone (no wrapper) just halts at the X — the
+    // X is NOT erased.
+    const tape = new Tape({alphabet, symbols: ['X']});
+    tapeBlock.replaceTape(tape);
+
+    await new TuringMachine({tapeBlock}).run({initialState: scanToX});
+
+    expect(tape.symbols.join('')).toBe('X');
+  });
+});
+
 // Pin the Reference cyclic-graph example from the same README.
 describe('README.md — Reference cyclic graph', () => {
   test('ref.bind() lets a transition forward-declare its target', () => {
