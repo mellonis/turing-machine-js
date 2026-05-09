@@ -2,27 +2,20 @@ name: build
 
 on:
   push:
-    branches: [ master, next ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, next ]
+    branches: [ master ]
   workflow_dispatch: # allow manual trigger from the Actions tab
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [ 22.x ]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '24'
       - run: npm ci
       - run: npm run lint
       - run: npm run test:coverage

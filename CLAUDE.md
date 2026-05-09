@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run docs:states` — runs `scripts/build-states-md.mjs`, which imports the built `dist/` of each binary-numbers library and regenerates `packages/library-binary-numbers/states.md` and `packages/library-binary-numbers-bare/states.md`. Requires a prior `npm run build`. Doc artifact is committed; refresh manually when state graphs change.
 - Run a single test: `npx vitest run packages/machine/src/classes/State.spec.ts` (or `-t "name"`). Vitest uses esbuild for TypeScript, so `.ts` runs without prior compilation; no babel toolchain.
 
-`npm` >= 7 is required (workspaces). Node 22 is what CI uses.
+`npm` >= 7 is required (workspaces). Node 24 is what CI uses.
 
 ## Architecture
 
