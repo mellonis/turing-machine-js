@@ -209,8 +209,7 @@ A node in the transition graph. Construct with a definition object whose keys ar
 ```javascript
 const s = new State({
   [tapeBlock.symbol(['1'])]: { command: { symbol: '0', movement: movements.right } },
-  [tapeBlock.symbol(['$'])]: { nextState: haltState },
-  [ifOtherSymbol]:           { command: { movement: movements.right } },
+  [tapeBlock.symbol(['$'])]: { command: { movement: movements.left }, nextState: haltState },
 }, 'name');
 ```
 
@@ -238,9 +237,12 @@ flowchart TD
   s0(((halt)))
   s1["name"]
   s1 -- "1 → 0/R" --> s1
-  s1 -- "$ → ·/S" --> s0
-  s1 -- "- → ·/R" --> s1
+  s1 -- "$ → ·/L" --> s0
 ```
+
+*Edge labels are `read → write/move`. `·` is the keep-current-symbol marker (no write); `L` / `R` / `S` are head moves.*
+
+> 💡 **Mermaid renders at most one edge per source/target pair.** If a state has two distinct transitions back to itself (or two parallel transitions to the same target), only one shows in the diagram. The string output is correct — this is a viewer-side limitation. For graphs with multiple parallel edges, paste the `toMermaid` output into [mermaid.live](https://mermaid.live) and switch to the `stateDiagram-v2` renderer, or post-process the output to your preferred format.
 
 `fromMermaid` parses the same format back into a `Graph` — the round-trip is lossless for graphs produced by `toMermaid`.
 
