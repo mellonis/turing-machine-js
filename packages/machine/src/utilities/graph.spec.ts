@@ -7,6 +7,9 @@ import {
   splitUnescaped,
 } from './graph';
 import {fromMermaid, toMermaid} from './graphFormats';
+import Alphabet from '../classes/Alphabet';
+import State, {haltState} from '../classes/State';
+import TapeBlock from '../classes/TapeBlock';
 import {movements, symbolCommands} from '../classes/TapeCommand';
 
 describe('decodePatternDescription', () => {
@@ -282,5 +285,30 @@ describe('fromMermaid ensureNode update branches', () => {
     const graph = fromMermaid(mermaid);
 
     expect(graph.nodes[1].isHalt).toBe(true);
+  });
+});
+
+// Pin the exact toMermaid output shown in packages/machine/README.md so the
+// docs example can't drift away from real engine behavior. If this test
+// fails after a refactor, update both the engine and the README in lockstep.
+describe('README example: toMermaid output is stable', () => {
+  test('the State shown in the README emits the documented Mermaid string', () => {
+    const alphabet = new Alphabet([' ', '0', '1', '$']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['1'])]: {command: {symbol: '0', movement: movements.right}},
+      [tapeBlock.symbol(['$'])]: {command: {movement: movements.left}, nextState: haltState},
+    }, 'name');
+
+    const expected = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1","$"]]',
+      '  s0(((halt)))',
+      '  s1(("name"))',
+      '  s1 -- "1 → 0/R" --> s1',
+      '  s1 -- "$ → ·/L" --> s0',
+    ].join('\n');
+
+    expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
   });
 });

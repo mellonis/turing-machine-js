@@ -3,6 +3,7 @@ import {
   haltState,
   ifOtherSymbol,
   movements,
+  Reference,
   State,
   symbolCommands,
   Tape,
@@ -193,5 +194,91 @@ describe('README.md — Debugging breakpoints', () => {
 
     expect(stepCount).toBe(VISIT_COUNT);
     expect(breakCount).toBe(VISIT_COUNT);
+  });
+});
+
+// Pin the inline `buildFromTable` helper shown in
+// packages/machine/README.md ("Building from a state table"). The helper is
+// reproduced here verbatim — if it stops compiling or producing the
+// documented output, this test fails and the README must update.
+describe('README.md — Building from a state table', () => {
+  // Verbatim from the README:
+  function buildFromTable({alphabetString, initialState, finalStates, table}: {
+    alphabetString: string;
+    initialState: string;
+    finalStates: string[];
+    table: Record<string, Record<string, {write?: string; move?: 'L' | 'R' | 'S'; goto: string}>>;
+  }) {
+    const alphabet = new Alphabet(alphabetString.split(''));
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const movementOf: Record<'L' | 'R' | 'S', symbol> = {
+      L: movements.left,
+      R: movements.right,
+      S: movements.stay,
+    };
+
+    const refs = Object.fromEntries(Object.keys(table).map((name) => [name, new Reference()]));
+    const states: Record<string, State> = {};
+
+    for (const [name, row] of Object.entries(table)) {
+      const def: ConstructorParameters<typeof State>[0] = {};
+      for (const [read, action] of Object.entries(row)) {
+        const key = read === '*' ? ifOtherSymbol : tapeBlock.symbol([read]);
+        def![key] = {
+          command: {
+            symbol: action.write ?? symbolCommands.keep,
+            movement: movementOf[action.move ?? 'S'],
+          },
+          nextState: finalStates.includes(action.goto) ? haltState : refs[action.goto],
+        };
+      }
+      states[name] = new State(def, name);
+      refs[name].bind(states[name]);
+    }
+
+    return {
+      tapeBlock,
+      machine: new TuringMachine({tapeBlock}),
+      initialState: states[initialState],
+    };
+  }
+
+  test('the same "replace b with *" machine, declared as a table, produces a*c*a', async () => {
+    const {tapeBlock, machine, initialState} = buildFromTable({
+      alphabetString: ' abc*',
+      initialState: 'scan',
+      finalStates: ['HALT'],
+      table: {
+        scan: {
+          'b': {write: '*', move: 'R', goto: 'scan'},
+          ' ': {              move: 'L', goto: 'HALT'},
+          '*': {              move: 'R', goto: 'scan'}, // '*' = ifOtherSymbol per the helper
+        },
+      },
+    });
+
+    const tape = new Tape({alphabet: tapeBlock.alphabets[0], symbols: ['a', 'b', 'c', 'b', 'a']});
+    tapeBlock.replaceTape(tape);
+
+    await machine.run({initialState});
+
+    expect(tape.symbols.join('').trim()).toBe('a*c*a');
+  });
+});
+
+// Pin the Reference cyclic-graph example from the same README.
+describe('README.md — Reference cyclic graph', () => {
+  test('ref.bind() lets a transition forward-declare its target', () => {
+    const alphabet = new Alphabet([' ', 'x', 'y']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const ref = new Reference();
+    const a = new State({[symbol(['x'])]: {nextState: ref}}, 'a');
+    const b = new State({[symbol(['y'])]: {nextState: a}}, 'b');
+    ref.bind(b); // a's transition now resolves to b
+
+    expect((a.getNextState(symbol(['x'])) as Reference).ref).toBe(b);
+    expect(b.getNextState(symbol(['y']))).toBe(a);
   });
 });
