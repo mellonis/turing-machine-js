@@ -5,10 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `npm run build` — TypeScript project-references build (`tsc --build tsconfig.build.json`) then `scripts/build-node-entries.mjs`, which uses Rollup to repackage each `packages/*/dist/index.js` into `index.mjs` (ES) and `index.cjs` (CJS). The Rollup step marks `@turing-machine-js/machine` as `external` for the dependent packages, so cross-package imports stay as runtime dependencies rather than being inlined.
-- `npm test` — Jest across the root project + each package (configured via `projects` in `jest.config.mjs`). Tests are `*.spec.ts` colocated with source.
-- `npm run test:coverage` — same, with coverage. CI runs this and uploads to Coveralls.
-- `npm run lint` — ESLint (flat config, `typescript-eslint` recommended). `dist/` and per-package `babel.config.js` are ignored.
-- Run a single test: `npx jest packages/machine/src/classes/State.spec.ts` (or any `--testPathPattern`/`-t "name"` form). Jest is wired through `babel-jest` with `@babel/preset-typescript`, so `.ts` runs without prior compilation.
+- `npm test` — Vitest (one-shot run via `vitest run`). Single root `vitest.config.ts`; tests are `*.spec.ts` colocated with source plus `test/**/*.spec.ts` for cross-package examples.
+- `npm run test:watch` — Vitest in watch mode (`vitest`).
+- `npm run test:coverage` — `vitest run --coverage` using `@vitest/coverage-v8`. CI runs this and uploads `coverage/lcov.info` to Coveralls. Hard floors enforced in `vitest.config.ts`: 97% statements / 90% branches / 95% functions / 97% lines (set in PR #124, ~1-2pt below current real coverage).
+- `npm run lint` — ESLint (flat config, `typescript-eslint` recommended). `dist/` is ignored.
+- `npm run docs:states` — runs `scripts/build-states-md.mjs`, which imports the built `dist/` of each binary-numbers library and regenerates `packages/library-binary-numbers/states.md` and `packages/library-binary-numbers-bare/states.md`. Requires a prior `npm run build`. Doc artifact is committed; refresh manually when state graphs change.
+- Run a single test: `npx vitest run packages/machine/src/classes/State.spec.ts` (or `-t "name"`). Vitest uses esbuild for TypeScript, so `.ts` runs without prior compilation; no babel toolchain.
 
 `npm` >= 7 is required (workspaces). Node 22 is what CI uses.
 
@@ -27,7 +29,7 @@ This is an npm-workspaces + Lerna monorepo (`packages/*`, single shared version 
 
 ### Source-vs-built imports (important)
 
-Dependent packages and tests import the bare package name — `import { ... } from '@turing-machine-js/machine'`. Inside the repo, Jest's `moduleNameMapper` (in the root `jest.config.mjs` and each package's `jest.config.mjs`) intercepts the bare specifier and routes it to the TypeScript source (`<rootDir>/packages/machine/src`), so a change in `packages/machine/src` is picked up by tests in `builder` / `library-binary-numbers` / `library-binary-numbers-bare` with no rebuild step. After publishing, Node resolves the same specifier to `dist/index.{mjs,cjs}` via the package's `exports` field. When adding a new internal package: add a `moduleNameMapper` entry mapping the bare name to the package's `src/`, and add the package to `scripts/build-node-entries.mjs`'s `packages` array.
+Dependent packages and tests import the bare package name — `import { ... } from '@turing-machine-js/machine'`. Inside the repo, Vitest's `resolve.alias` (in the single root `vitest.config.ts`) intercepts the bare specifier and routes it to the TypeScript source (`<rootDir>/packages/machine/src`), so a change in `packages/machine/src` is picked up by tests in `builder` / `library-binary-numbers` / `library-binary-numbers-bare` with no rebuild step. After publishing, Node resolves the same specifier to `dist/index.{mjs,cjs}` via the package's `exports` field. When adding a new internal package: add a `resolve.alias` entry in `vitest.config.ts` mapping the bare name to the package's `src/`, and add the package to `scripts/build-node-entries.mjs`'s `packages` array.
 
 ### Runtime model (`packages/machine`)
 
