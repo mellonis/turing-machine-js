@@ -225,3 +225,12 @@ describe('parallel execution with same tape block', () => {
     }).not.toThrow();
   });
 });
+
+describe('TuringMachine constructor', () => {
+  test('throws when tapeBlock is missing', () => {
+    // The constructor's destructured tapeBlock has a default of {} — calling
+    // without arguments hits the validator's "no tapeBlock" branch.
+    expect(() => new TuringMachine()).toThrow(/invalid tapeBlock/);
+    expect(() => new TuringMachine({} as never)).toThrow(/invalid tapeBlock/);
+  });
+});
