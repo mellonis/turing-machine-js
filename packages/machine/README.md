@@ -270,7 +270,7 @@ await machine.run({
 });
 ```
 
-For `after` calls, `m` is the previous yield's snapshot — `m.state` is the state whose `after` filter fired. For `before` calls, `m` is the current iteration. `onStep` always sees the original (un-substituted) yield.
+Both `before` and `after` for the same iteration fire on the iteration's own yield, in the order **before → step → after**. `m.state` is always the iteration's own state; the `m.debugBreak` flag (`{before: true}` or `{after: true}`) tells the consumer which timing fired.
 
 If `onPause` is not provided, breaks fire-and-resume invisibly — the trajectory is identical to running without `debug` set.
 

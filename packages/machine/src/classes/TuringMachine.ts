@@ -12,13 +12,15 @@ export type MachineState = {
   movements: symbol[];
   nextState: State;
   /**
-   * Set only when this iteration boundary is a debug break.
+   * Set only when this iteration is a debug break point.
    * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
    * At least one of `before` / `after` is `true` when the field is present.
    *
-   * For consumers of the `runStepByStep` generator the `state` field reflects
-   * the current iteration regardless of timing; `run()` substitutes the prior
-   * yield's snapshot for `after` calls so consumers see the source state.
+   * Both flags refer to THIS iter — `before` means the iter's `state.debug.before`
+   * matched, `after` means the iter's `state.debug.after` matched. `run()`
+   * dispatches the two timings as separate `onPause` calls (before-call has
+   * `debugBreak: {before: true}` only; after-call has `debugBreak: {after: true}`
+   * only) so consumers can distinguish without ambiguity.
    */
   debugBreak?: {
     before?: true;
@@ -66,20 +68,23 @@ export default class TuringMachine {
      */
     onStep?: (machineState: MachineState) => void;
     /**
-     * Async hook fired only when `state.debug[when]` matches at the current
+     * Async hook fired when `state.debug[when]` matches at the current
      * iteration. The promise is awaited inline, so the consumer can suspend
      * execution by deferring its resolution. Use for pause-capable inspection
      * (debugger UIs, conditional breakpoints in tests).
      *
-     * Renamed from `onDebugBreak` in v5.0.0. The `m.debugBreak` payload field
-     * keeps its name (it describes the engine's reason for pausing).
+     * Renamed from `onDebugBreak` in v5.0.0. In v6.0.0 the dispatch order
+     * was changed so that `before` and `after` for the SAME iter fire on the
+     * same yield (per-iter lifecycle: before → step → after); previously the
+     * `after` of iter K fired on iter K+1's tick with a substituted source
+     * view. The `m.debugBreak` payload field keeps its name (it describes the
+     * engine's reason for pausing).
      */
     onPause?: (machineState: MachineState) => void | Promise<void>;
     /**
      * Master switch for `onPause` dispatch. When `false`, suppresses all
-     * pause-fires (before, after, and the post-loop after-drain) regardless
-     * of `state.debug` assignments. `onStep` is unaffected. Defaults to
-     * `true`.
+     * pause-fires (before and after) regardless of `state.debug` assignments.
+     * `onStep` is unaffected. Defaults to `true`.
      *
      * The `m.debugBreak` field is still populated on yields by the underlying
      * generator (it's a property of the iteration, not of the consumer); only
@@ -89,22 +94,11 @@ export default class TuringMachine {
     debug?: boolean;
   }): Promise<void> {
     const generator = this.runStepByStep({initialState, stepsLimit});
-    let prevYield: MachineState | null = null;
 
-    // Manual iteration so we can pick up the generator's RETURN value (the
-    // post-loop after-fire drain from #108 part 1, signalled when the
-    // halting iter armed an after).
-    let result = generator.next();
-
-    while (!result.done) {
-      const machineState = result.value;
-
-      // 'after' (from prev step) — fire FIRST, with prev yield substituted as the source view.
-      if (debug && machineState.debugBreak?.after && onPause && prevYield) {
-        await onPause({...prevYield, debugBreak: {after: true}});
-      }
-
-      // 'before' (current step) — pass current machineState with only the before flag.
+    for (const machineState of generator) {
+      // Per-iter lifecycle: before → step → after. All three operate on the
+      // same yielded MachineState, so the consumer sees a coherent ordering
+      // within each iteration without cross-tick coordination.
       if (debug && machineState.debugBreak?.before && onPause) {
         await onPause({...machineState, debugBreak: {before: true}});
       }
@@ -113,24 +107,14 @@ export default class TuringMachine {
         onStep(machineState);
       }
 
-      prevYield = machineState;
-      result = generator.next();
-    }
-
-    // #108 part 1: drain the halting iter's after-fire if it armed one.
-    // The generator returns a non-null tail when the last visited state's
-    // `state.debug.after` matched its symbol but the loop exited before a
-    // next yield could carry the metadata. We dispatch using the source
-    // (prevYield), matching the in-loop after-fire payload shape.
-    if (debug && result.value && onPause && prevYield) {
-      await onPause({...prevYield, debugBreak: {after: true}});
+      if (debug && machineState.debugBreak?.after && onPause) {
+        await onPause({...machineState, debugBreak: {after: true}});
+      }
     }
   }
 
-  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState, MachineState | null> {
+  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState> {
     const executionSymbol = Symbol('execution');
-    let lastYielded: MachineState | null = null;
-    let pendingAfterFromPrev = false;
 
     try {
       this.#tapeBlock[lockSymbol].check(executionSymbol);
@@ -158,8 +142,12 @@ export default class TuringMachine {
         let nextState = state.getNextState(symbol).ref;
 
         try {
+          // Both before and after refer to THIS iter (#119 / v6.0.0).
+          // The halting iter's after-fire just rides along on the iter's
+          // own yield — no post-loop drain needed.
           const beforeMatch = matchFilter(state.debug?.before, symbol)
             || (nextState.isHalt && nextState.debug?.before === true);
+          const afterMatch = matchFilter(state.debug?.after, symbol);
 
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
@@ -187,20 +175,14 @@ export default class TuringMachine {
             nextState: nextStateForYield,
           };
 
-          if (pendingAfterFromPrev || beforeMatch) {
+          if (beforeMatch || afterMatch) {
             const dbg: { before?: true; after?: true } = {};
-            if (pendingAfterFromPrev) dbg.after = true;
             if (beforeMatch) dbg.before = true;
+            if (afterMatch) dbg.after = true;
             yielded.debugBreak = dbg;
           }
 
           yield yielded;
-          lastYielded = yielded;
-
-          // Re-evaluate 'after' for THIS visit, to fire on the NEXT yield
-          // (or, if this turns out to be the halting iter, on the post-loop
-          // drain — see #108 part 1).
-          pendingAfterFromPrev = matchFilter(state.debug?.after, symbol);
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
 
@@ -224,16 +206,5 @@ export default class TuringMachine {
     } finally {
       this.#tapeBlock[lockSymbol].unlock(executionSymbol);
     }
-
-    // #108 part 1: signal the after-fire armed by the halting iter so run()
-    // (or any direct generator consumer) can dispatch one final after-break.
-    // Returning the synthesized MachineState (rather than yielding it) keeps
-    // `for..of` consumers — which ignore the return value — unaffected; only
-    // consumers that opt in via manual iteration see the drain.
-    if (pendingAfterFromPrev && lastYielded) {
-      return {...lastYielded, debugBreak: {after: true}};
-    }
-
-    return null;
   }
 }

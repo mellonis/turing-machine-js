@@ -122,9 +122,9 @@ describe('buildMachine — debug config (#101)', () => {
     expect(pausedSymbols).toEqual(['A', 'A']);
   });
 
-  test('debug.after symbol-list fires post-loop drain on halting iter (with #108 fix)', async () => {
-    // 'B' triggers the halting transition; after-fire on B should reach onPause
-    // via the post-loop drain landed in #108.
+  test('debug.after symbol-list fires on the halting iter\'s own yield', async () => {
+    // 'B' triggers the halting transition; the after-fire for B reaches
+    // onPause on B's own yield (post-#119 dispatch model).
     const [machine, init] = buildLoopMachine({Q0: {after: ['B']}});
     machine.tapeBlock.replaceTape(new Tape({
       alphabet: machine.tapeBlock.alphabets[0],

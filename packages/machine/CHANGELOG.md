@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0] - 2026-05-09
+
+### Changed (BREAKING)
+
+- **`onPause` dispatch order rewritten** ([#119](https://github.com/mellonis/turing-machine-js/issues/119)). `onPause(after, K)` now fires on iter K's *own* yield, alongside `onPause(before, K)` and `onStep(K)` — instead of v5's behavior of firing on iter K+1's yield with a `prevYield` substitution. The set of dispatched calls per run and per-iter semantics are unchanged; only the cross-hook *sequence* differs. Per-iter lifecycle inside `run()` is now `before → step → after`. Consumers using both `onStep` and `onPause` and asserting cross-hook ordering must update; consumers treating the hooks as independent observers see no change.
+
+  Subordinate consequences:
+  - `onPause(after)` carries the iteration's own `MachineState` directly — no `prevYield` substitution dance.
+  - `runStepByStep` no longer tracks `pendingAfterFromPrev` across yields; `debugBreak.after` on a yield refers to *that* iter's after-arm.
+  - The v5 post-loop after-fire drain (#108 part 1) collapses — the halting iter's after rides along on its own yield like any other iter.
+  - The generator's return type narrows back from `Generator<MachineState, MachineState | null>` to `Generator<MachineState>`; `for..of` consumers (the canonical pattern) are unaffected.
+
+### Closes
+
+- [#107](https://github.com/mellonis/turing-machine-js/issues/107) — "expose un-substituted `machineState` for after-break consumers" disappears as a problem: there is no substitution to expose around.
+
+### Migration
+
+No call-site change to `run()`'s API:
+
+```ts
+await machine.run({
+  initialState,
+  onStep:  (m) => { /* unchanged */ },
+  onPause: (m) => {
+    if (m.debugBreak?.before) console.log('before:', m.state.name);
+    if (m.debugBreak?.after)  console.log('after:',  m.state.name);
+  },
+});
+```
+
+Tests asserting the v5 sequence (`pause(after K-1) → pause(before K) → step(K)`) need updating to the v6 sequence (`pause(before K) → step(K) → pause(after K)`).
+
 ## [5.0.0] - 2026-05-09
 
 ### Changed (BREAKING)
