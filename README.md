@@ -74,73 +74,28 @@ machine.run({
 console.log(tape.symbols.join('').trim()); // a*c*a
 ```
 
-## Execution steps explanation
+## How it runs
 
-- `S` stands for the initial state
-- `H` stands for the `haltState`
+Just one state — call it **S** — that loops on every cell, writing `*` whenever the head reads `b` and stopping at the trailing blank:
 
-### Step 1
-
-- Current state: S
-- Current symbol: 'a'
-- Transition: 'a'/S,R
-
-```
-[       abcba   ]    [       abcba   ]
-        ^         >>          ^
+```mermaid
+flowchart LR
+    S(("**S**"))
+    H((("**halt**")))
+    S -- "b → *, R" --> S
+    S -- "_ → keep, L" --> H
+    S -- "any other → keep, R" --> S
 ```
 
-### Step 2
+*Reading the labels: `read → write, move`. `_` is the blank symbol.*
 
-- Current state: S
-- Current symbol: 'b'
-- Transition: '*'/S,R
+Trace on the input tape `abcba`:
 
-```
-[      abcba    ]    [      a*cba    ]
-        ^         >>          ^
-```
-
-### Step 3
-
-- Current state: S
-- Current symbol: 'c'
-- Transition: 'c'/S,R
-
-```
-[     a*cba     ]    [     a*cba     ]
-        ^         >>          ^
-```
-
-### Step 4
-
-- Current state: S
-- Current symbol: 'b'
-- Transition: '*'/S,R
-
-```
-[    a*cba      ]    [    a*c*a      ]
-        ^         >>          ^
-```
-
-### Step 5
-
-- Current state: S
-- Current symbol: 'a'
-- Transition: 'a'/S,R
-
-```
-[   a*c*a       ]    [   a*c*a       ]
-        ^         >>          ^
-```
-
-### Step 6
-
-- Current state: S
-- Current symbol: ' '
-- Transition: ' '/H,L
-
-```
-[  a*c*a        ]    [  a*c*a        ]
-        ^         >>        ^
-```
+| Step | State | Head reads | Write | Move | Goto | Tape after (head: `‹›`) |
+|---|---|---|---|---|---|---|
+| 1 | S | `a` | keep | R | S | `a‹b›cba` |
+| 2 | S | `b` | `*` | R | S | `a*‹c›ba` |
+| 3 | S | `c` | keep | R | S | `a*c‹b›a` |
+| 4 | S | `b` | `*` | R | S | `a*c*‹a›` |
+| 5 | S | `a` | keep | R | S | `a*c*a‹_›` |
+| 6 | S | `_` | keep | L | halt | `a*c*‹a›_` |
