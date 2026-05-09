@@ -23,6 +23,22 @@ export type States = Record<string, Record<string, {
   movement: keyof typeof movementsMap,
   state: string,
 }>>;
+
+/**
+ * Per-state breakpoint config for the declarative builder. Filter values are
+ * raw alphabet characters (matching the input-symbol notation in `states`);
+ * the builder translates each to a `tapeBlock.symbol([char])`-interned
+ * Symbol at construction time. `true` is the wildcard.
+ *
+ * Out of scope (#101): final-state entries — `finalStateList` names map to
+ * `haltState`, which is not a state in the table. Pass `before` / `after`
+ * directly on `haltState.debug` if you need to pause on halt entry.
+ */
+export type DebugConfigByState = Record<string, {
+  before?: true | string[];
+  after?: true | string[];
+}>;
+
 type StatesQq = Record<string, {
   [stateKey]?: State;
   [referenceKey]?: Reference;
@@ -33,11 +49,13 @@ export default function buildMachine({
                                        initialState,
                                        finalStateList,
                                        states: stateNameToStateDeclarationMap,
+                                       debug,
                                      }: {
   alphabetString: string;
   initialState: string;
   finalStateList: string[];
   states: States;
+  debug?: DebugConfigByState;
 }) {
   const alphabet = new Alphabet(alphabetString.split(''));
   const machine = new TuringMachine({
@@ -110,6 +128,51 @@ export default function buildMachine({
       ...result,
       [stateName]: stateOrReference[stateKey],
     }), {});
+
+  // #101: apply per-state debug config. Filter values are raw alphabet
+  // characters; translate each via tapeBlock.symbol([char]) so they match
+  // the same interned Symbol used in transitions. `true` passes through
+  // as-is (wildcard). final-state names are rejected — they alias to
+  // haltState which is out of scope per the issue spec.
+  if (debug) {
+    Object.entries(debug).forEach(([stateName, config]) => {
+      if (finalStateList.includes(stateName)) {
+        throw new Error(
+          `debug cannot be set on final state '${stateName}': finalStateList `
+          + 'entries map to haltState, which is out of scope for the builder. '
+          + 'Set haltState.debug directly on the imported singleton if needed.',
+        );
+      }
+
+      const state = resultStates[stateName];
+
+      if (!state) {
+        throw new Error(`debug references unknown state '${stateName}'`);
+      }
+
+      const translateFilter = (
+        f: true | string[] | undefined,
+      ): true | symbol[] | undefined => {
+        if (f === undefined) return undefined;
+        if (f === true) return true;
+
+        return f.map((c) => {
+          if (!alphabet.has(c)) {
+            throw new Error(
+              `debug filter symbol '${c}' for state '${stateName}' is not in the alphabet`,
+            );
+          }
+
+          return getSymbol([c]);
+        });
+      };
+
+      state.debug = {
+        before: translateFilter(config.before),
+        after: translateFilter(config.after),
+      };
+    });
+  }
 
   return [
     machine,

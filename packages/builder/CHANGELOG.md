@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - UNRELEASED
+
+> Draft. Lands as v5.0.0 once the linked issues are closed.
+
+### Added
+
+- **`debug` parameter on `buildMachine()`** ([#101](https://github.com/mellonis/turing-machine-js/issues/101)). Optional per-state breakpoint config; maps to `state.debug = { before, after }` on the matching `State` after construction. Filter values are raw alphabet characters (matching the input-symbol notation in `states`); the builder translates each to a `tapeBlock.symbol([char])`-interned `Symbol` at build time. `true` is the wildcard.
+  - Errors at build time on: unknown state name, final-state name (alias for `haltState`, out of scope per the issue spec), symbol not in alphabet.
+  - `haltState.debug` declarative support is out of scope — set it directly on the imported singleton if you need to pause on halt entry.
+
+### Changed (BREAKING)
+
+- **`peerDependencies."@turing-machine-js/machine"` widened from `^4.0.0` to `^5.0.0`** to match the v5 lockstep. Consumers pinned to `@turing-machine-js/machine@4` will see an unmet-peer warning when installing this version. Note that the `onDebugBreak` → `onPause` rename in engine v5 doesn't affect this package (the builder doesn't call `run()`).
+
 ## [4.0.0] - 2026-05-07
 
 ### Changed (BREAKING)
