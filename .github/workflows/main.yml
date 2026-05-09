@@ -2,9 +2,9 @@ name: build
 
 on:
   push:
-    branches: [ master, next ]
+    branches: [ master, next, v5 ]
   pull_request:
-    branches: [ master, next ]
+    branches: [ master, next, v5 ]
   workflow_dispatch: # allow manual trigger from the Actions tab
 
 jobs:

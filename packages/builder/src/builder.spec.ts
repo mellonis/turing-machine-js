@@ -1,4 +1,4 @@
-import {Tape} from '@turing-machine-js/machine';
+import {haltState, Tape} from '@turing-machine-js/machine';
 import buildMachine, {States} from './index';
 
 describe('buildMachine', () => {
@@ -74,5 +74,105 @@ describe('buildMachine', () => {
 
     expect(machine.tapeBlock.tapes[0].symbols)
       .toEqual('#011#011#'.split(''));
+  });
+});
+
+describe('buildMachine — debug config (#101)', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  // Compact two-symbol machine used by the debug-config tests:
+  //   Q0: on 'A' write A move R stay-in-Q0; on 'B' write B move R go halt.
+  // Configurable tape lets each test exercise a different trajectory.
+  const buildLoopMachine = (debug?: Parameters<typeof buildMachine>[0]['debug']) => {
+    const result = buildMachine({
+      alphabetString: '_AB',
+      initialState: 'Q0',
+      finalStateList: ['Qf'],
+      states: {
+        Q0: {
+          A: {symbol: 'A', movement: 'R', state: 'Q0'},
+          B: {symbol: 'B', movement: 'R', state: 'Qf'},
+        },
+      },
+      debug,
+    });
+
+    return result;
+  };
+
+  test('debug.before = true (wildcard) sets state.debug.before on the named state', () => {
+    const [, , states] = buildLoopMachine({Q0: {before: true}});
+    expect(states.Q0.debug?.before).toBe(true);
+  });
+
+  test('debug.before symbol-list fires onPause only for matching symbols', async () => {
+    const [machine, init] = buildLoopMachine({Q0: {before: ['A']}});
+    machine.tapeBlock.replaceTape(new Tape({
+      alphabet: machine.tapeBlock.alphabets[0],
+      symbols: ['A', 'A', 'B'],
+    }));
+
+    const pausedSymbols: string[] = [];
+    await machine.run({
+      initialState: init,
+      onPause: (m) => { pausedSymbols.push(m.currentSymbols[0]); },
+    });
+
+    // Trajectory: A (pause) → A (pause) → B (no pause; B not in filter) → halt.
+    expect(pausedSymbols).toEqual(['A', 'A']);
+  });
+
+  test('debug.after symbol-list fires post-loop drain on halting iter (with #108 fix)', async () => {
+    // 'B' triggers the halting transition; after-fire on B should reach onPause
+    // via the post-loop drain landed in #108.
+    const [machine, init] = buildLoopMachine({Q0: {after: ['B']}});
+    machine.tapeBlock.replaceTape(new Tape({
+      alphabet: machine.tapeBlock.alphabets[0],
+      symbols: ['B'],
+    }));
+
+    let afterCount = 0;
+    await machine.run({
+      initialState: init,
+      onPause: (m) => { if (m.debugBreak?.after) afterCount += 1; },
+    });
+
+    expect(afterCount).toBe(1);
+  });
+
+  test('debug accepts both before and after on the same state', async () => {
+    const [machine, init] = buildLoopMachine({Q0: {before: true, after: true}});
+    // Tape needs to terminate via a 'B' transition (which goes to halt) —
+    // Q0 has no blank-handling transition, so a tape that runs into blanks
+    // throws "No command for symbol".
+    machine.tapeBlock.replaceTape(new Tape({
+      alphabet: machine.tapeBlock.alphabets[0],
+      symbols: ['A', 'B'],
+    }));
+
+    let beforeCount = 0;
+    let afterCount = 0;
+    await machine.run({
+      initialState: init,
+      onPause: (m) => {
+        if (m.debugBreak?.before) beforeCount += 1;
+        if (m.debugBreak?.after) afterCount += 1;
+      },
+    });
+
+    expect(beforeCount).toBeGreaterThan(0);
+    expect(afterCount).toBeGreaterThan(0);
+  });
+
+  test('throws when debug references an unknown state name', () => {
+    expect(() => buildLoopMachine({Qx: {before: true}})).toThrow(/unknown state/);
+  });
+
+  test('throws when debug references a final-state name (out of scope per #101)', () => {
+    expect(() => buildLoopMachine({Qf: {before: true}})).toThrow(/final state/);
+  });
+
+  test('throws when a debug filter symbol is not in the alphabet', () => {
+    expect(() => buildLoopMachine({Q0: {before: ['Z']}})).toThrow(/not in the alphabet/);
   });
 });

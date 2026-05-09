@@ -115,18 +115,10 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     }
   });
 
-  test('after on a transition leading to halt is silently lost', () => {
-    const {machine, state} = buildMachine();
-    state.debug = {after: true};
-    const steps: MachineState[] = [];
-
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
-
-    // The final transition leads to halt — its after has no next yield to land on.
-    // (No assertion needed — this just confirms run() completes; pending after
-    // at halt is by-design lost. See spec §11.1.)
-    expect(steps.length).toBeGreaterThan(0);
-  });
+  // (Removed in v5 — the "by-design lost" semantics on halting after-fires
+  // was a #108 bug, not a design choice. The new behavior is verified in the
+  // dedicated `halt semantics for after-fire (#108)` describe block below,
+  // which exercises the run()-level drain.)
 
   test('before AND after on same visit produce both flags on the relevant yields', () => {
     const {machine, state} = buildMachine();
@@ -231,7 +223,7 @@ describe('TuringMachine — haltState.debug.before', () => {
   });
 });
 
-describe('TuringMachine — run() with onDebugBreak', () => {
+describe('TuringMachine — run() with onPause', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('run() returns a Promise', () => {
@@ -241,7 +233,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     return result;
   });
 
-  test('without onDebugBreak, breaks fire-and-resume invisibly', async () => {
+  test('without onPause, breaks fire-and-resume invisibly', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const steps: MachineState[] = [];
@@ -253,14 +245,14 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     // No exception, no hang.
   });
 
-  test('onDebugBreak fires for "before" with current state', async () => {
+  test('onPause fires for "before" with current state', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const seen: Array<{state: State, debugBreak?: MachineState['debugBreak']}> = [];
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         seen.push({state: m.state, debugBreak: m.debugBreak});
       },
     });
@@ -272,14 +264,14 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     }
   });
 
-  test('onDebugBreak for "after" sees the SOURCE state (substitution)', async () => {
+  test('onPause for "after" sees the SOURCE state (substitution)', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const seen: Array<{state: State, debugBreak?: MachineState['debugBreak'], step: number}> = [];
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         seen.push({state: m.state, debugBreak: m.debugBreak, step: m.step});
       },
     });
@@ -299,7 +291,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
 
     await machine.run({
       initialState: state,
-      onDebugBreak: (m) => {
+      onPause: (m) => {
         if (m.debugBreak?.after) calls.push('after');
         if (m.debugBreak?.before) calls.push('before');
       },
@@ -312,7 +304,7 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     expect(calls[0]).toBe('before'); // first visit, no prior after
   });
 
-  test('onDebugBreak can be async (run awaits it)', async () => {
+  test('onPause can be async (run awaits it)', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     let released = false;
@@ -323,13 +315,13 @@ describe('TuringMachine — run() with onDebugBreak', () => {
 
     await machine.run({
       initialState: state,
-      onDebugBreak: () => hookDone, // run() awaits this
+      onPause: () => hookDone, // run() awaits this
     });
 
     expect(released).toBe(true);
   });
 
-  test('onStep still fires on every yield, separate from onDebugBreak', async () => {
+  test('onStep still fires on every yield, separate from onPause', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const stepCount = {n: 0};
@@ -338,10 +330,143 @@ describe('TuringMachine — run() with onDebugBreak', () => {
     await machine.run({
       initialState: state,
       onStep: () => { stepCount.n += 1; },
-      onDebugBreak: () => { breakCount.n += 1; },
+      onPause: () => { breakCount.n += 1; },
     });
 
     expect(stepCount.n).toBeGreaterThan(0);
     expect(breakCount.n).toBeGreaterThan(0);
+  });
+});
+
+// These tests assert the v5 spec from #108. They are intentionally RED on the
+// v4 codebase — they turn green when the loop-drain fix and haltState rejection
+// land. The "after on a transition leading to halt is silently lost" test in
+// the second describe above (currently labelled by-design) is contradicted by
+// part-1 below and will be updated in lockstep with the fix.
+describe('TuringMachine — halt semantics for after-fire (#108)', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  test('halting iter still fires its after (#108 part 1)', async () => {
+    // Tape ['A','B','A'] traverses 4 visits in the single-state machine:
+    //   visit 1 head 'A'  → erase+right (state self-loops)
+    //   visit 2 head 'B'  → erase+right
+    //   visit 3 head 'A'  → erase+right
+    //   visit 4 head blank→ ifOtherSymbol → halt
+    // debug.after = true matches every visit. Today only 3 after-fires reach
+    // onPause (visit 4's after has no anchor yield); v5 must drain it
+    // and produce 4.
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const after: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { if (m.debugBreak?.after) after.push(m); },
+    });
+
+    expect(after.length).toBe(4);
+  });
+
+  test('haltState.debug.after = true throws on assignment (#108 part 2)', () => {
+    // Halt is terminal — no iteration-after-halt for an after-fire to anchor on.
+    // v5 rejects the assignment to surface the misuse rather than silently
+    // ignore it.
+    expect(() => {
+      haltState.debug = {after: true};
+    }).toThrow();
+  });
+
+  test('haltState.debug with both flags throws (#108 part 2)', () => {
+    // Setting before+after symmetrically is the most likely user mistake; the
+    // .after part is meaningless and v5 rejects the whole assignment. Use
+    // { before: true } alone.
+    expect(() => {
+      haltState.debug = {before: true, after: true};
+    }).toThrow();
+  });
+});
+
+describe('TuringMachine — run({debug}) flag (#106)', () => {
+  afterEach(() => { haltState.debug = null; });
+
+  test('debug: false suppresses onPause for "before" matches', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      debug: false,
+    });
+
+    expect(pauses).toHaveLength(0);
+  });
+
+  test('debug: false suppresses onPause for "after" matches AND the halting drain', async () => {
+    // With state.debug.after = true, the in-loop after-fires plus the #108
+    // post-loop drain would normally produce one onPause call per visit. The
+    // master switch must gate all of them.
+    const {machine, state} = buildMachine();
+    state.debug = {after: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      debug: false,
+    });
+
+    expect(pauses).toHaveLength(0);
+  });
+
+  test('debug: true (default) dispatches onPause as v4', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const pauses: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onPause: (m) => { pauses.push(m); },
+      // debug omitted → defaults to true
+    });
+
+    expect(pauses.length).toBeGreaterThan(0);
+  });
+
+  test('debug: false does NOT suppress onStep', async () => {
+    // The flag is specifically about pause-capable dispatch; trace/logging
+    // continues regardless.
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    let stepCount = 0;
+
+    await machine.run({
+      initialState: state,
+      onStep: () => { stepCount += 1; },
+      onPause: () => {},
+      debug: false,
+    });
+
+    expect(stepCount).toBeGreaterThan(0);
+  });
+
+  test('debug: false leaves m.debugBreak metadata on yields (gating is run-level only)', async () => {
+    // Direct runStepByStep consumers see the metadata regardless of how run()
+    // is configured. Here we observe via onStep, which receives the original
+    // yielded MachineState — its debugBreak field is unaffected.
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const yields: MachineState[] = [];
+
+    await machine.run({
+      initialState: state,
+      onStep: (m) => { yields.push(m); },
+      onPause: () => {},
+      debug: false,
+    });
+
+    // At least one yield carries the metadata even though no onPause fires.
+    expect(yields.some((y) => y.debugBreak?.before)).toBe(true);
   });
 });
