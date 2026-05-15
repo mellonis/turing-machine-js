@@ -332,6 +332,22 @@ Each yielded `step` (`MachineState`) has these fields:
 
 `stepsLimit` (default `1e5`) guards against runaway loops — exceeding it throws.
 
+#### Choosing between `run()` and `runStepByStep()`
+
+Both APIs are first-class — `run()` is built on top of `runStepByStep()` (see [TuringMachine.ts](src/classes/TuringMachine.ts)), and both stay supported. They model different consumer needs:
+
+| | `run()` | `runStepByStep()` |
+|---|---|---|
+| Shape | async, returns `Promise<void>` | synchronous generator |
+| Iteration timing | owned by the engine | owned by the consumer (`.next()` per step) |
+| Lifecycle hooks | dispatches `onStep`, `onPause` (gated by the `debug` master switch) | none — yields raw `MachineState` |
+| How `state.debug` reaches the consumer | the `onPause` callback (when `debug: true`) | the optional `debugBreak` field on each yield (always populated; consumer decides what to do) |
+| Best for | run-to-halt with optional breakpoint UI; anything wanting the v6 per-iter `before → step → after` callbacks | synchronous test harnesses, visualizers that need tight control over step timing, custom batching |
+
+**Rule of thumb.** If your consumer reads `state.debug` and expects the engine to act on it (pause, fire callbacks), use `run()`. If you want pull-based iteration with full control over timing, use `runStepByStep()` — the `debugBreak` field is still on every yield, so you can inspect breakpoint metadata yourself.
+
+**Don't split one logical flow across both APIs.** A consumer that wants stepwise UI *and* hook-driven breakpoints should use `run({ onStep, onPause, debug })` exclusively, implementing "wait between steps" by awaiting a resolvable Promise inside `onStep`. Routing some operations through `runStepByStep()` and others through `run()` means `state.debug` only flows through one of the two paths — a subtle footgun where breakpoints silently disappear on whichever code path uses the generator directly.
+
 ## Subroutine composition with `withOverrodeHaltState`
 
 `state.withOverrodeHaltState(other)` returns a copy of `state` whose would-be halt transitions fall through to `other` at run time. The original is left untouched. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
