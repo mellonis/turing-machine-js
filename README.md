@@ -4,9 +4,9 @@
 [![Coverage Status](https://coveralls.io/repos/github/mellonis/turing-machine-js/badge.svg?branch=master)](https://coveralls.io/github/mellonis/turing-machine-js?branch=master)
 [![GitHub issues](https://img.shields.io/github/issues/mellonis/turing-machine-js)](https://github.com/users/mellonis/projects/5)
 
-A convenient Turing machine
+A composable Turing-machine engine for JavaScript, plus a declarative builder and binary-arithmetic libraries.
 
-This repository contains following packages:
+This repository contains the following packages:
 
 * [@turing-machine-js/machine](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) — the core engine: `State`, `Tape`, `TapeBlock`, `TuringMachine`, plus `State.toGraph` / `State.fromGraph` and `toMermaid` / `fromMermaid` for visualization and round-trip.
 * [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers) — binary arithmetic on a 5-symbol alphabet (` ^$01`) supporting multiple numbers per tape, with `plusOne`, `minusOne`, `minusOneFast`, `invertNumber`, `normalizeNumber`, and inter-number navigation.
@@ -15,9 +15,7 @@ This repository contains following packages:
 
 # An example
 
-A tape contains `a`, `b` and `c` symbols. The issue is to replace all `b` symbols by `*` symbol.
-
-This example demonstrates an issue solving.
+A tape contains `a`, `b` and `c` symbols. The task is to replace every `b` with `*`.
 
 ```javascript
 import {
@@ -102,7 +100,7 @@ flowchart TD
   s1 -- "* → ·/R" --> s1
 ```
 
-Engine notation: `read → write/move`; `·` = keep, `*` = `ifOtherSymbol` catch-all, `-` = the blank symbol. (Pinning test in `packages/machine/src/utilities/graph.spec.ts`.)
+Engine notation: `read → write/move`; `·` = keep, `*` = `ifOtherSymbol` catch-all, `-` = the blank symbol.
 
 </details>
 
