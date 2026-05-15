@@ -3,7 +3,25 @@
 [![build](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml/badge.svg)](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml)
 ![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine)
 
-Some basic objects to build your own turing machine  
+A composable Turing-machine engine for JavaScript: multi-tape, subroutine composition via `withOverrodeHaltState`, Mermaid round-trip, and runtime breakpoints.
+
+<details>
+<summary>Table of contents</summary>
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Building from a state table](#building-from-a-state-table)
+- [Classes](#classes) — [`Alphabet`](#alphabet) · [`Tape`](#tape) · [`TapeBlock`](#tapeblock) · [`TapeCommand`](#tapecommand) · [`Command`](#command) · [`State`](#state) · [`Reference`](#reference) · [`TuringMachine`](#turingmachine)
+- [Subroutine composition with `withOverrodeHaltState`](#subroutine-composition-with-withoverrodehaltstate)
+- [Debugging breakpoints](#debugging-breakpoints)
+- [Special objects](#special-objects) — [`haltState`](#haltstate) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
+- [Introspection and testing](#introspection-and-testing)
+- [Versioning notes](#versioning-notes)
+- [Libraries](#libraries)
+- [Links](#links)
+
+</details>
+
 
 ## Install
 
@@ -82,7 +100,7 @@ Engine notation: `read → write/move`; `·` = keep, `⌫` = erase, `*` = `ifOth
 
 </details>
 
-A `State` is keyed by JS `Symbol`s returned from `tapeBlock.symbol(pattern)` — the pattern lists the expected symbol under each tape's head. `ifOtherSymbol` is the fallback key when nothing else matches; transitioning into `haltState` stops the run.
+A `State` is keyed by JS `Symbol`s returned from `tapeBlock.symbol(pattern)` — the pattern lists the expected symbol under each tape's head. Sentinels and constants used throughout: [`ifOtherSymbol`](#ifothersymbol) is the fallback key when nothing else matches; transitioning into [`haltState`](#haltstate) stops the run; [`movements`](#movements)`.{left,right,stay}` direct head moves; [`symbolCommands`](#symbolcommands)`.{keep,erase}` are write shortcuts. Full definitions in [§Special objects](#special-objects).
 
 For multi-tape machines, pass one element per tape: `tapeBlock.symbol(['0', 'a'])` matches only when tape 1 is at `'0'` and tape 2 is at `'a'`.
 
@@ -309,7 +327,7 @@ The runtime. Owns one `TapeBlock` and drives a state graph until it reaches `hal
 ```javascript
 const machine = new TuringMachine({ tapeBlock });
 
-// Run to halt — `run()` is async (v4+), it returns a Promise<void>:
+// Run to halt — `run()` returns a Promise<void>:
 await machine.run({ initialState, stepsLimit: 1e5 });
 
 // Or step-by-step (useful for visualization / debugging):
@@ -446,12 +464,12 @@ flowchart TD
 
 Wrappers nest: `inner.withOverrodeHaltState(middle).withOverrodeHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
 
-## Debugging breakpoints (v4+)
+## Debugging breakpoints
 
 Any `State` can carry a runtime-mutable `debug` config that pauses execution at chosen points.
 
 ```ts
-import { State, haltState, ifOtherSymbol, type DebugConfig } from '@turing-machine-js/machine';
+import { State, haltState, ifOtherSymbol } from '@turing-machine-js/machine';
 
 const myState = new State({...});
 
@@ -563,6 +581,16 @@ Together: use `summarize` to ask "is this machine the right shape?" (size, compo
 
 For visualization and round-tripping, see `State.toGraph` / `State.fromGraph` and `toMermaid` / `fromMermaid`.
 
+## Versioning notes
+
+API surface changes since v3, in past tense so the timing of each piece is explicit:
+
+- **v4** — `run()` became async (`Promise<void>`). Per-state runtime breakpoints landed (`state.debug.before` / `state.debug.after`); `run()` accepted an `onDebugBreak` hook. `MachineState` exposed on each yield.
+- **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on).
+- **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. The `MachineState.debugBreak` field shape is unchanged across all three versions.
+
+For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
+
 ## Libraries
 
 - [@turing-machine-js/library-binary-numbers](https://github.com/mellonis/turing-machine-js/tree/master/packages/library-binary-numbers) — binary arithmetic with `^…$` markers, multi-number-per-tape support
@@ -570,4 +598,4 @@ For visualization and round-tripping, see `State.toGraph` / `State.fromGraph` an
 
 ## Links
 
-- [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on the Wikipedia
+- [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on Wikipedia
