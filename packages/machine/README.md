@@ -473,25 +473,26 @@ import { State, haltState, ifOtherSymbol } from '@turing-machine-js/machine';
 
 const myState = new State({...});
 
-// Pause before applying any of myState's commands:
+// state.debug is always a DebugConfig instance — chained writes work
+// without prior whole-object assignment:
+myState.debug.before = true;
+myState.debug.after = [symA];
+
+// Whole-object assignment also works for one-shot setup:
 myState.debug = { before: true };
-
-// Pause only when the head shows symA:
 myState.debug = { before: [symA] };
-
-// Pause both before and after for the same symbol — two pauses per visit:
 myState.debug = { before: [symA], after: [symA] };
 
 // Pause when the engine is about to enter halt (program exit OR subroutine pop):
 haltState.debug = { before: true };
 
-// Disable later:
+// Reset filters later — next read returns a fresh empty DebugConfig:
 myState.debug = null;
 ```
 
 > ⚠️ **`haltState.debug.after` throws.** Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Assigning a truthy `.after` to `haltState.debug` (including `{ before: true, after: true }`) throws at write time. Symbol-list filters on `haltState.debug.before` are silent no-ops, since halt has no head symbol; only the wildcard `true` activates.
 
-The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. Plain-object input (`state.debug = { before: true }`) is wrapped in a `DebugConfig` instance automatically; the wrapper's per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` throws `TypeError`.
+The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input (`state.debug = { before: true }`) is wrapped in a fresh `DebugConfig` automatically. The instance itself is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property. Per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` also throws `TypeError`.
 
 `run()` is async and accepts an `onPause` hook:
 
@@ -588,6 +589,7 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v4** — `run()` became async (`Promise<void>`). Per-state runtime breakpoints landed (`state.debug.before` / `state.debug.after`); `run()` accepted an `onDebugBreak` hook. `MachineState` exposed on each yield.
 - **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on).
 - **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. The `MachineState.debugBreak` field shape is unchanged across all three versions.
+- **v6.1** — `state.debug` ergonomics: the field is now always a non-null `DebugConfig` instance (lazy-initialized on first read), so chained field writes like `state.debug.before = true` work on a fresh state without a prior whole-object assignment. The `DebugConfig` instance is `Object.seal`-ed, so typos like `state.debug.bofore = true` throw `TypeError` at write time instead of silently creating a useless property. `state.debug = null` continues to work but semantically means "reset filters" — the next read returns a fresh empty `DebugConfig` (#150).
 
 For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
 

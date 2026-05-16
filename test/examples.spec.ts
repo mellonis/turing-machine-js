@@ -159,25 +159,35 @@ describe('README.md — Debugging breakpoints', () => {
     expect(haltPauses[0].atVisit).toBe(VISIT_COUNT - 1);
   });
 
-  test('Disable later by assigning null', () => {
+  test('Reset filters by assigning null', () => {
     const {myState} = buildExampleMachine();
     myState.debug = {before: true};
 
-    expect(myState.debug).not.toBeNull();
-    expect(myState.debug?.before).toBe(true);
+    expect(myState.debug.before).toBe(true);
 
     myState.debug = null;
 
-    expect(myState.debug).toBeNull();
+    // Reading after null assignment lazy-recreates a fresh empty DebugConfig.
+    expect(myState.debug.before).toBeUndefined();
+    expect(myState.debug.after).toBeUndefined();
+  });
+
+  test('Chained field write works on a fresh state', () => {
+    const {myState, symA} = buildExampleMachine();
+    myState.debug.before = true;
+    myState.debug.after = [symA];
+
+    expect(myState.debug.before).toBe(true);
+    expect(myState.debug.after).toEqual([symA]);
   });
 
   test('Incremental update via per-property setter', () => {
     const {myState, symA} = buildExampleMachine();
     myState.debug = {before: [symA]};
 
-    myState.debug!.before = [...(myState.debug!.before as readonly symbol[]), ifOtherSymbol];
+    myState.debug.before = [...(myState.debug.before as readonly symbol[]), ifOtherSymbol];
 
-    expect(myState.debug!.before).toEqual([symA, ifOtherSymbol]);
+    expect(myState.debug.before).toEqual([symA, ifOtherSymbol]);
   });
 
   test('onStep + onPause fire independently — same count on this fixture', async () => {

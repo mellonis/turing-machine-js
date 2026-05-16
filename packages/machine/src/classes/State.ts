@@ -43,6 +43,13 @@ export class DebugConfig {
         this.after = initial.after as symbol[] | true;
       }
     }
+
+    // Seal the instance so typos like `cfg.bofore = true` throw at write
+    // time (in strict mode, which TS-emitted modules use) instead of
+    // silently creating a useless own property. The class's `before`/`after`
+    // setters still work — they resolve through the prototype chain and
+    // write to private fields, neither of which Object.seal restricts.
+    Object.seal(this);
   }
 
   get before(): readonly symbol[] | true | undefined {
@@ -160,7 +167,16 @@ export default class State {
     return this;
   }
 
-  get debug(): DebugConfig | null {
+  get debug(): DebugConfig {
+    // Lazy-init: `state.debug` is never null at read time, so chained writes
+    // like `state.debug.before = true` work on a fresh state without a prior
+    // whole-object assignment. The setter still accepts `null` to reset the
+    // filters; the next read recreates a fresh empty `DebugConfig` on demand.
+    // See #150.
+    if (this.#debugRef.current === null) {
+      this.#debugRef.current = new DebugConfig(this);
+    }
+
     return this.#debugRef.current;
   }
 
