@@ -52,6 +52,7 @@ Key shapes that take reading multiple files to grasp:
   Cross-version notes:
   - **v5**: hook renamed `onDebugBreak` → `onPause` (#110). `haltState.debug.after = true` (or `{ before, after }` together) now throws at write-time — halt is terminal, no iteration-after-halt to anchor on (#108 part 2). Halting iter's after-fire stopped being silently lost (#108 part 1). New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without editing `state.debug` assignments (#106).
   - **v6**: `onPause(after, K)` now fires on iter K's *own* yield, alongside `onPause(before, K)` and `onStep(K)` — per-iter lifecycle is `before → step → after` (#119). Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. Implication: tests asserting cross-hook ordering at the lifecycle level need v6-aware shape.
+  - **v6.1**: `state.debug` is now always a non-null `DebugConfig` (lazy-initialized on first read), so chained writes like `state.debug.before = true` work on a fresh state without a prior whole-object assignment. The instance is `Object.seal`-ed — typos throw `TypeError`. `state.debug = null` continues to work but now means "reset filters" (next read returns a fresh empty config). Type signature narrowed `DebugConfig | null` → `DebugConfig` on the getter; setter still accepts `null`. (#150)
 
 ### Visualization & round-trip
 

@@ -13,17 +13,56 @@ const makeState = (): State => {
   });
 };
 
-describe('State.debug — basics', () => {
-  test('defaults to null', () => {
+describe('DebugConfig — sealed instance (defensive against typos)', () => {
+  test('the DebugConfig instance is Object.seal-ed', () => {
     const state = makeState();
-    expect(state.debug).toBeNull();
+    expect(Object.isSealed(state.debug)).toBe(true);
+  });
+
+  test('typo on field name throws TypeError (strict mode)', () => {
+    const state = makeState();
+    expect(() => {
+      // @ts-expect-error — deliberate typo to assert it fails loudly.
+      state.debug.bofore = true;
+    }).toThrow(TypeError);
+  });
+
+  test('legitimate fields (before, after) remain writable through setters', () => {
+    const state = makeState();
+    expect(() => {
+      state.debug.before = true;
+      state.debug.after = true;
+    }).not.toThrow();
+    expect(state.debug.before).toBe(true);
+    expect(state.debug.after).toBe(true);
+  });
+});
+
+describe('State.debug — basics', () => {
+  test('returns an empty DebugConfig by default (lazy-init)', () => {
+    const state = makeState();
+    expect(state.debug).toBeInstanceOf(DebugConfig);
+    expect(state.debug.before).toBeUndefined();
+    expect(state.debug.after).toBeUndefined();
+  });
+
+  test('chained field write `state.debug.before = true` works on a fresh state', () => {
+    const state = makeState();
+    state.debug.before = true;
+    expect(state.debug.before).toBe(true);
+  });
+
+  test('chained field write `state.debug.after = true` works on a fresh state', () => {
+    const state = makeState();
+    state.debug.after = true;
+    expect(state.debug.after).toBe(true);
   });
 
   test('plain-object assignment is wrapped in a DebugConfig instance', () => {
     const state = makeState();
     state.debug = {before: true};
     expect(state.debug).toBeInstanceOf(DebugConfig);
-    expect(state.debug!.before).toBe(true);
+    expect(state.debug.before).toBe(true);
   });
 
   test('DebugConfig instance assignment is stored as-is (identity preserved)', () => {
@@ -33,11 +72,22 @@ describe('State.debug — basics', () => {
     expect(state.debug).toBe(cfg);
   });
 
-  test('setter accepts null to clear', () => {
+  test('null assignment resets filters; next read returns a fresh empty DebugConfig', () => {
     const state = makeState();
     state.debug = {before: true};
     state.debug = null;
-    expect(state.debug).toBeNull();
+    expect(state.debug).toBeInstanceOf(DebugConfig);
+    expect(state.debug.before).toBeUndefined();
+    expect(state.debug.after).toBeUndefined();
+  });
+
+  test('chained write works again after `state.debug = null`', () => {
+    const state = makeState();
+    state.debug = {before: true};
+    state.debug = null;
+    state.debug.before = true;
+    expect(state.debug.before).toBe(true);
+    expect(state.debug.after).toBeUndefined();
   });
 
   test('withOverrodeHaltState returns a new state that shares the debug ref', () => {
@@ -45,21 +95,27 @@ describe('State.debug — basics', () => {
     const wrapped = state.withOverrodeHaltState(haltState);
 
     expect(wrapped).not.toBe(state);
-    expect(wrapped.debug).toBeNull();
+    // Both lazy-init through the shared ref, so reading either returns the
+    // same DebugConfig instance.
+    expect(wrapped.debug).toBeInstanceOf(DebugConfig);
+    expect(wrapped.debug).toBe(state.debug);
 
     state.debug = {before: true};
 
     // Wrapper sees the assignment because both share the same Ref cell.
     expect(wrapped.debug).toBe(state.debug);
+    expect(wrapped.debug.before).toBe(true);
   });
 
-  test('setting null on the original propagates to wrappers', () => {
+  test('null assignment on the original propagates to wrappers (filters reset for both)', () => {
     const state = makeState();
     state.debug = {before: true};
     const wrapped = state.withOverrodeHaltState(haltState);
 
     state.debug = null;
-    expect(wrapped.debug).toBeNull();
+    expect(state.debug.before).toBeUndefined();
+    expect(wrapped.debug.before).toBeUndefined();
+    expect(wrapped.debug).toBe(state.debug);
   });
 
   test('setting on the wrapper propagates back to the original', () => {
@@ -68,7 +124,7 @@ describe('State.debug — basics', () => {
 
     wrapped.debug = {after: true};
     expect(state.debug).toBe(wrapped.debug);
-    expect(state.debug!.after).toBe(true);
+    expect(state.debug.after).toBe(true);
   });
 
   test('chained wrappers all share the SAME debug object (identity)', () => {
@@ -94,9 +150,9 @@ describe('DebugConfig — class accessors', () => {
     });
 
     state.debug = {};                    // empty config
-    state.debug!.before = [symA];        // class setter triggers
-    expect(state.debug!.before).toEqual([symA]);
-    expect(Object.isFrozen(state.debug!.before)).toBe(true);
+    state.debug.before = [symA];        // class setter triggers
+    expect(state.debug.before).toEqual([symA]);
+    expect(Object.isFrozen(state.debug.before)).toBe(true);
   });
 
   test('extending the filter via `cfg.before = [...cfg.before, sym]` works', () => {
@@ -109,16 +165,16 @@ describe('DebugConfig — class accessors', () => {
     });
 
     state.debug = {before: [symA]};
-    state.debug!.before = [...(state.debug!.before as readonly symbol[]), ifOtherSymbol];
-    expect(state.debug!.before).toEqual([symA, ifOtherSymbol]);
-    expect(Object.isFrozen(state.debug!.before)).toBe(true);
+    state.debug.before = [...(state.debug.before as readonly symbol[]), ifOtherSymbol];
+    expect(state.debug.before).toEqual([symA, ifOtherSymbol]);
+    expect(Object.isFrozen(state.debug.before)).toBe(true);
   });
 
   test('per-property setter validates new symbol list', () => {
     const state = makeState();
     state.debug = {};
     expect(() => {
-      state.debug!.before = [Symbol('random')];
+      state.debug.before = [Symbol('random')];
     }).toThrow(/not a transition key of this state/);
   });
 
@@ -126,7 +182,7 @@ describe('DebugConfig — class accessors', () => {
     const state = makeState();
     state.debug = {before: [ifOtherSymbol]};
     expect(() => {
-      (state.debug!.before as symbol[]).push(Symbol('x'));
+      (state.debug.before as symbol[]).push(Symbol('x'));
     }).toThrow(TypeError);
   });
 
@@ -134,7 +190,7 @@ describe('DebugConfig — class accessors', () => {
     const state = makeState();
     state.debug = {before: [ifOtherSymbol]};
     expect(() => {
-      (state.debug!.before as symbol[])[0] = Symbol('x');
+      (state.debug.before as symbol[])[0] = Symbol('x');
     }).toThrow(TypeError);
   });
 
@@ -154,17 +210,17 @@ describe('DebugConfig — class accessors', () => {
     expect(Object.isFrozen(userInput)).toBe(false);
     userInput.push(ifOtherSymbol);  // works fine
     // But the stored array is still its own frozen snapshot:
-    expect(state.debug!.before).toEqual([symA]);
+    expect(state.debug.before).toEqual([symA]);
   });
 
   test('true (wildcard) and undefined bypass freeze (no array to freeze)', () => {
     const state = makeState();
     state.debug = {before: true};
     // before is `true`, not an array — Object.isFrozen on a non-array is whatever JS says.
-    expect(state.debug!.before).toBe(true);
+    expect(state.debug.before).toBe(true);
 
-    state.debug!.before = undefined;
-    expect(state.debug!.before).toBeUndefined();
+    state.debug.before = undefined;
+    expect(state.debug.before).toBeUndefined();
   });
 });
 
@@ -275,13 +331,13 @@ describe('State.debug — post-assignment immutability (frozen arrays)', () => {
   test('inner before array is frozen', () => {
     const state = makeState();
     state.debug = {before: [ifOtherSymbol]};
-    expect(Object.isFrozen(state.debug!.before)).toBe(true);
+    expect(Object.isFrozen(state.debug.before)).toBe(true);
   });
 
   test('inner after array is frozen', () => {
     const state = makeState();
     state.debug = {after: [ifOtherSymbol]};
-    expect(Object.isFrozen(state.debug!.after)).toBe(true);
+    expect(Object.isFrozen(state.debug.after)).toBe(true);
   });
 
   test('push to filter array throws TypeError', () => {
@@ -289,7 +345,7 @@ describe('State.debug — post-assignment immutability (frozen arrays)', () => {
     state.debug = {before: [ifOtherSymbol]};
 
     expect(() => {
-      (state.debug!.before as symbol[]).push(Symbol('x'));
+      (state.debug.before as symbol[]).push(Symbol('x'));
     }).toThrow(TypeError);
   });
 
@@ -305,10 +361,10 @@ describe('State.debug — post-assignment immutability (frozen arrays)', () => {
     state.debug = {before: [symA]};
     expect(() => {
       state.debug = {
-        before: [...(state.debug!.before as readonly symbol[]), ifOtherSymbol],
+        before: [...(state.debug.before as readonly symbol[]), ifOtherSymbol],
       };
     }).not.toThrow();
-    expect(state.debug!.before).toEqual([symA, ifOtherSymbol]);
-    expect(Object.isFrozen(state.debug!.before)).toBe(true);
+    expect(state.debug.before).toEqual([symA, ifOtherSymbol]);
+    expect(Object.isFrozen(state.debug.before)).toBe(true);
   });
 });
