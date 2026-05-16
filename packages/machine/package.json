@@ -24,7 +24,7 @@
     "machine"
   ],
   "scripts": {
-    "build": "tsc --build --verbose ../../tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/machine",
+    "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/machine",
     "prepublishOnly": "npm run build"
   },
   "main": "dist/index.cjs",
