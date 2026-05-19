@@ -38,11 +38,11 @@ const buildMachine = () => {
 };
 
 describe('TuringMachine — debug.before filter (loop yields)', () => {
-  test('without debug, no debugBreak field on yields', () => {
+  test('without debug, no debugBreak field on yields', async () => {
     const {machine, state} = buildMachine();
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -50,12 +50,12 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     }
   });
 
-  test('debug.before = true tags every visit with debugBreak.before', () => {
+  test('debug.before = true tags every visit with debugBreak.before', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -63,13 +63,13 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     }
   });
 
-  test('debug.before with symbol list matches only listed symbols', () => {
+  test('debug.before with symbol list matches only listed symbols', async () => {
     const {machine, state, symbol} = buildMachine();
     const symA = symbol(['A']);
     state.debug = {before: [symA]};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     const aVisits = steps.filter((s) => s.currentSymbols[0] === 'A');
     const nonAVisits = steps.filter((s) => s.currentSymbols[0] !== 'A');
@@ -80,12 +80,12 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     for (const v of nonAVisits) expect(v).not.toHaveProperty('debugBreak');
   });
 
-  test('debug.before with empty list never matches', () => {
+  test('debug.before with empty list never matches', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: []};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -93,12 +93,12 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     }
   });
 
-  test('debug.before with [ifOtherSymbol] matches only the catch-all visit', () => {
+  test('debug.before with [ifOtherSymbol] matches only the catch-all visit', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: [ifOtherSymbol]};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     const blankVisits = steps.filter((s) => s.currentSymbols[0] === alphabet.blankSymbol);
     const nonBlankVisits = steps.filter((s) => s.currentSymbols[0] !== alphabet.blankSymbol);
@@ -114,12 +114,12 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
   // on the same yield. Previously `after` was on the NEXT yield with a
   // substituted source-state payload — see #109/#119 for the rationale.
 
-  test('debug.after = true tags every yield with debugBreak.after', () => {
+  test('debug.after = true tags every yield with debugBreak.after', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -127,12 +127,12 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     }
   });
 
-  test('before AND after on same visit produce both flags on every yield', () => {
+  test('before AND after on same visit produce both flags on every yield', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true, after: true};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -140,13 +140,13 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     }
   });
 
-  test('after with symbol list matches only listed symbols', () => {
+  test('after with symbol list matches only listed symbols', async () => {
     const {machine, state, symbol} = buildMachine();
     const symA = symbol(['A']);
     state.debug = {after: [symA]};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     const aHits = steps.filter((s) => s.currentSymbols[0] === 'A');
@@ -164,12 +164,12 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = null;
   });
 
-  test('haltState.debug.before = true fires on program halt (last visit only)', () => {
+  test('haltState.debug.before = true fires on program halt (last visit only)', async () => {
     const {machine, state} = buildMachine();
     haltState.debug = {before: true};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     // Only the visit that transitions to halt (the trailing blank) carries
@@ -183,7 +183,7 @@ describe('TuringMachine — haltState.debug.before', () => {
     expect(last.debugBreak).toEqual({before: true});
   });
 
-  test('haltState.debug.before fires on subroutine return (halt-pop)', () => {
+  test('haltState.debug.before fires on subroutine return (halt-pop)', async () => {
     // Custom 1-cell tape + nested-state setup. Trajectory:
     //   visit 1: head 'A', state=wrapped → erase+right, transition to inner
     //   visit 2: head blank, state=inner → ifOtherSymbol → would halt;
@@ -212,7 +212,7 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = {before: true};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: wrapped, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: wrapped, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(3);
 
@@ -231,13 +231,13 @@ describe('TuringMachine — haltState.debug.before', () => {
     expect(steps[2].debugBreak).toEqual({before: true});
   });
 
-  test('haltState.debug.before with symbol list NEVER matches (no head symbol at halt)', () => {
+  test('haltState.debug.before with symbol list NEVER matches (no head symbol at halt)', async () => {
     const {machine, state, symbol} = buildMachine();
     const symA = symbol(['A']);
     haltState.debug = {before: [symA]};
     const steps: MachineState[] = [];
 
-    machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     // Halt has no head symbol; list filter cannot match. No debug break should fire
