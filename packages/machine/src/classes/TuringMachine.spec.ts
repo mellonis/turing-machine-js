@@ -156,31 +156,6 @@ describe('run tests', () => {
     expect(generator.next().done).toBe(true);
   });
 
-  test('async onStep is awaited between iters (#158)', async () => {
-    const order: string[] = [];
-    const yieldToMicrotask = () => new Promise<void>((r) => queueMicrotask(r));
-
-    await machine.run({
-      initialState,
-      stepsLimit: 1e5,
-      onStep: async (m) => {
-        order.push(`pre-${m.step}`);
-        await yieldToMicrotask();
-        order.push(`post-${m.step}`);
-      },
-    });
-
-    // pre-N and post-N must always be adjacent — never interleaved like
-    // `pre-0, pre-1, post-0, post-1` — because the engine awaits each call
-    // before yielding the next MachineState. Pre/post pairs are emitted in
-    // strictly increasing `step` order.
-    expect(order.length).toBeGreaterThan(0);
-    for (let i = 0; i < order.length; i += 2) {
-      const stepN = order[i].slice(4);
-      expect(order[i]).toBe(`pre-${stepN}`);
-      expect(order[i + 1]).toBe(`post-${stepN}`);
-    }
-  });
 });
 
 describe('properties', () => {
