@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.3.0] - 2026-05-19
+
+Released in lockstep with `@turing-machine-js/machine` 6.3.0. No source or behavior changes in this package.
+
+## [6.2.0] - 2026-05-19 [SUPERSEDED by 6.3.0]
+
+> ⚠️ **Lockstep release with `@turing-machine-js/machine` 6.2.0**, which was itself superseded by 6.3.0. No source changes in this package. See the engine's [6.2.0 CHANGELOG entry](../machine/CHANGELOG.md) for context.
+
+## [6.1.0] - 2026-05-16
+
+Released in lockstep with `@turing-machine-js/machine` 6.1.0. No source or behavior changes in this package.
+
 ## [6.0.0] - 2026-05-09
 
 ### Changed (BREAKING)

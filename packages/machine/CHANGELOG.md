@@ -4,6 +4,65 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.3.0] - 2026-05-19
+
+Corrective minor release. **Reverts v6.2.0's `await onStep` change** and restores the original sync `onStep` contract that held since the hook was introduced. See [GitHub release](https://github.com/mellonis/turing-machine-js/releases/tag/v6.3.0) for the full post-mortem.
+
+### Changed
+
+- **`TuringMachine.run`** — `await onStep(m)` reverted to `onStep(m)`; type narrowed back from `(m: MachineState) => void | Promise<void>` to `(m: MachineState) => void`. The original "Sync, ~free hook ... must not be async" contract is restored, with the docstring augmented to point readers at the new Throttle pattern section.
+
+### Removed
+
+- The v6.2.0 test `async onStep is awaited between iters (#158)` (no longer the contract).
+
+### Added (docs)
+
+- README: new **Throttle pattern** section under *Debugging breakpoints* showing the engine-native shape for per-iter throttle / "wait between iters" UIs — arm `state.debug.after = true` on the initial state, throttle inside `onPause`, rearm `m.nextState.debug.after = true` in the callback. Replaces the v6.2.0 throttle-in-`onStep` pattern.
+
+### Kept from v6.2.0 (independent improvements)
+
+- CI `typecheck` step + dependent packages' `tsconfig` `paths`/`rootDir` fix.
+
+### Migration
+
+- From v6.2.0: drop any `await` you wrote inside `onStep`. The engine ignores the returned Promise now. If you used the throttle-in-`onStep` pattern, migrate to the Throttle pattern section in the README.
+- From v6.1.0 or earlier: no change for you.
+
+## [6.2.0] - 2026-05-19 [SUPERSEDED by 6.3.0]
+
+> ⚠️ **This release was a mistake.** It overturned the sync `onStep` contract that had held since the hook was introduced, motivated by a downstream throttle use case that didn't actually need an engine API change. Restored to sync in [6.3.0](#630---2026-05-19). The `await onStep` semantic shipped briefly on npm; consumers should upgrade to 6.3.0 and use the README's Throttle pattern instead.
+
+### Changed
+
+- **`TuringMachine.run`** — `onStep` type widened from `(m) => void` to `(m) => void | Promise<void>`; the run loop now awaits each `onStep(m)` call.
+
+### Internal
+
+- CI `typecheck` step added (mirrors the spec-including tsconfig to catch TS errors in `*.spec.ts`).
+- Dependent packages' `tsconfig` `paths` and `rootDir` corrected — they now resolve `@turing-machine-js/machine` from source in CI (previously required a pre-built `dist/`).
+
+## [6.1.0] - 2026-05-16
+
+Minor release. One additive ergonomic improvement to `state.debug`, no breaking changes.
+
+### Added
+
+- **Lazy-init `DebugConfig` + `Object.seal` on instance ([#151](https://github.com/mellonis/turing-machine-js/pull/151), closes [#150](https://github.com/mellonis/turing-machine-js/issues/150)).** `state.debug` is now always a non-null `DebugConfig` instance, lazy-initialized on first read. Chained writes like `state.debug.before = true` work on a fresh state without a prior `state.debug = {}` setup step. The `DebugConfig` instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` (in strict mode — default for TS-emitted modules) instead of silently creating a useless own property.
+
+### Changed
+
+- **`state.debug` getter type narrowed** — `DebugConfig | null` → `DebugConfig`. Setter still accepts `null`; the semantic shifts to "reset filters" (next read returns a fresh empty config rather than literal `null`).
+- **Wrapper sharing preserved** — `withOverrodeHaltState`'s `#debugRef` cell continues to share a single `DebugConfig` instance across wrapper and original; first read on either lazy-creates, both subsequent reads return the same instance.
+
+### Migration
+
+No code changes required:
+- `state.debug?.X` patterns keep working (the `?.` is now redundant but correct).
+- `state.debug = { ... }` whole-object assignment works as before.
+- `state.debug = null` works as before, with the new "reset filters" semantic.
+- Consumer code checking `if (state.debug === null)` becomes dead code but doesn't crash; the narrowed getter type may surface TS warnings on those branches, safe to delete.
+
 ## [6.0.0] - 2026-05-09
 
 ### Changed (BREAKING)
