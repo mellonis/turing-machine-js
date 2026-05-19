@@ -62,11 +62,17 @@ export default class TuringMachine {
     debug = true,
   }: RunParameter & {
     /**
-     * Sync, ~free hook fired on every iteration. Use for logging/tracing —
-     * the hot loop runs this without a microtask boundary, so it must not
-     * be async.
+     * Hook fired on every iteration. Use for logging/tracing — and for
+     * yield-style coordination: returning a Promise suspends the run loop
+     * until it resolves, so a consumer can throttle the per-iter cadence
+     * (e.g. an interactive debugger awaiting a `setTimeout`-Promise between
+     * iters) without owning the loop. A sync `void` return adds one microtask
+     * boundary per iter (the engine awaits a non-Promise to keep the dispatch
+     * shape uniform); negligible for typical loops, but noted for tight ones.
+     *
+     * Awaited inline since v6.2.0 ([#158](https://github.com/mellonis/turing-machine-js/issues/158)).
      */
-    onStep?: (machineState: MachineState) => void;
+    onStep?: (machineState: MachineState) => void | Promise<void>;
     /**
      * Async hook fired when `state.debug[when]` matches at the current
      * iteration. The promise is awaited inline, so the consumer can suspend
@@ -104,7 +110,7 @@ export default class TuringMachine {
       }
 
       if (onStep instanceof Function) {
-        onStep(machineState);
+        await onStep(machineState);
       }
 
       if (debug && machineState.debugBreak?.after && onPause) {

@@ -1,10 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": "..",
     "outDir": "dist",
     "paths": {
-      "@turing-machine-js/*": ["./packages/*"]
+      "@turing-machine-js/*": ["../*/src/index"]
     }
   }
 }
