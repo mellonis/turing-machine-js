@@ -126,7 +126,7 @@ export default class TuringMachine {
         await onPause({...machineState, debugBreak: {before: true}});
       }
 
-      if (onStep instanceof Function) {
+      if (onStep) {
         onStep(machineState);
       }
 
@@ -134,7 +134,7 @@ export default class TuringMachine {
         await onPause({...machineState, debugBreak: {after: true}});
       }
 
-      if (onIter instanceof Function) {
+      if (onIter) {
         await onIter(machineState);
       }
     }
