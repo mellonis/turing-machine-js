@@ -62,17 +62,22 @@ export default class TuringMachine {
     debug = true,
   }: RunParameter & {
     /**
-     * Hook fired on every iteration. Use for logging/tracing — and for
-     * yield-style coordination: returning a Promise suspends the run loop
-     * until it resolves, so a consumer can throttle the per-iter cadence
-     * (e.g. an interactive debugger awaiting a `setTimeout`-Promise between
-     * iters) without owning the loop. A sync `void` return adds one microtask
-     * boundary per iter (the engine awaits a non-Promise to keep the dispatch
-     * shape uniform); negligible for typical loops, but noted for tight ones.
+     * Sync, ~free hook fired on every iteration. Use for logging/tracing —
+     * the hot loop runs this without a microtask boundary, so it must not
+     * be async.
      *
-     * Awaited inline since v6.2.0 ([#158](https://github.com/mellonis/turing-machine-js/issues/158)).
+     * For per-iter throttle / coordination ("wait between iters" UIs):
+     * arm `state.debug.after = true` on each visited state and do the
+     * throttle inside `onPause` (which IS awaited). See the README's
+     * Throttle pattern section for a worked example.
+     *
+     * (v6.2.0 widened this to `void | Promise<void>` and added an inline
+     * `await`. That was a mistake — it drove the awaited contract into a
+     * hook that was deliberately documented as sync. Restored in v6.3.0;
+     * consumers needing per-iter await belong on the `onPause`-rearm
+     * pattern, not this hook.)
      */
-    onStep?: (machineState: MachineState) => void | Promise<void>;
+    onStep?: (machineState: MachineState) => void;
     /**
      * Async hook fired when `state.debug[when]` matches at the current
      * iteration. The promise is awaited inline, so the consumer can suspend
@@ -110,7 +115,7 @@ export default class TuringMachine {
       }
 
       if (onStep instanceof Function) {
-        await onStep(machineState);
+        onStep(machineState);
       }
 
       if (debug && machineState.debugBreak?.after && onPause) {

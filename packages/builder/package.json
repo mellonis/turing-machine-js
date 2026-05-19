@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/builder",
-  "version": "6.2.0",
+  "version": "6.3.0",
   "description": "A turing machine builder — declarative state-table construction. Not actively developed by the author; the same state-table pattern is also shown as an inline example in @turing-machine-js/machine's README. Contributions welcome.",
   "engines": {
     "npm": ">=7.0.0"

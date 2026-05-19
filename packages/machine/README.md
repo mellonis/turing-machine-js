@@ -364,7 +364,7 @@ Both APIs are first-class — `run()` is built on top of `runStepByStep()` (see 
 
 **Rule of thumb.** If your consumer reads `state.debug` and expects the engine to act on it (pause, fire callbacks), use `run()`. If you want pull-based iteration with full control over timing, use `runStepByStep()` — the `debugBreak` field is still on every yield, so you can inspect breakpoint metadata yourself.
 
-**Don't split one logical flow across both APIs.** A consumer that wants stepwise UI *and* hook-driven breakpoints should use `run({ onStep, onPause, debug })` exclusively, implementing "wait between steps" by awaiting a resolvable Promise inside `onStep`. Routing some operations through `runStepByStep()` and others through `run()` means `state.debug` only flows through one of the two paths — a subtle footgun where breakpoints silently disappear on whichever code path uses the generator directly.
+**Don't split one logical flow across both APIs.** A consumer that wants stepwise UI *and* hook-driven breakpoints should use `run({ onStep, onPause, debug })` exclusively. Routing some operations through `runStepByStep()` and others through `run()` means `state.debug` only flows through one of the two paths — a subtle footgun where breakpoints silently disappear on whichever code path uses the generator directly. For per-iter throttle / "wait between steps" UIs, see [Throttle pattern](#throttle-pattern).
 
 ## Subroutine composition with `withOverrodeHaltState`
 
@@ -516,6 +516,37 @@ If `onPause` is not provided, breaks fire-and-resume invisibly — the trajector
 
 **Caveat:** `haltState` is a module-level singleton. Setting `haltState.debug` affects every machine in the process; clear in `afterEach` / `finally` for test isolation.
 
+### Throttle pattern
+
+For per-iter throttle / animation / "wait between steps" UIs, do the await inside `onPause`, not `onStep` — `onPause` is the engine's awaited callback. To make it fire on every iter (no user-set breakpoints needed), arm `.after = true` on the initial state and rearm `m.nextState.debug.after = true` inside the callback. The chain is self-propagating:
+
+```ts
+initialState.debug.after = true; // first pause-point
+
+await machine.run({
+  initialState,
+  debug: true,
+  onPause: async (m) => {
+    // m.debugBreak.after is true here on every iter.
+    await new Promise((r) => setTimeout(r, intervalMs)); // throttle
+
+    // Rearm for the next iter (engine processes m.nextState next).
+    // `state.debug` is shared across `withOverrodeHaltState` wrappers — a
+    // single arm reaches all of them.
+    if (!m.nextState.isHalt) m.nextState.debug.after = true;
+  },
+});
+```
+
+A few details:
+
+- **Halting iter**: `m.nextState === haltState` on the last user iter. The example skips the rearm there. The halting iter's own `.after` already fired this callback (engine v5+ fixed [#108](https://github.com/mellonis/turing-machine-js/issues/108) part 1).
+- **`haltState.debug.after`**: throws on assignment (#108 part 2). Don't try to rearm onto haltState itself — pause for halt by checking `m.nextState.isHalt` in the callback before the rearm step.
+- **Coexists with user-authored breaks**: if a user state also has `.before = true` set by the consumer's own code, `onPause` fires twice on that iter (before + after). Tell them apart with `m.debugBreak`.
+- **Click-pause** during throttling: keep a flag set from the outside; check it inside `onPause` before the `setTimeout` and surface a "real" pause (await a resolvable Promise the UI controls) instead of the throttle one. The engine doesn't need to know — it just sees a longer awaited `onPause`.
+
+(v6.2.0 briefly widened `onStep` to async to enable a throttle-in-onStep pattern. That was a mistake — restored to sync in v6.3.0. The rearm-via-`onPause` pattern above is the engine-native shape.)
+
 ## Special objects
 
 ### haltState
@@ -590,6 +621,8 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on).
 - **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. The `MachineState.debugBreak` field shape is unchanged across all three versions.
 - **v6.1** — `state.debug` ergonomics: the field is now always a non-null `DebugConfig` instance (lazy-initialized on first read), so chained field writes like `state.debug.before = true` work on a fresh state without a prior whole-object assignment. The `DebugConfig` instance is `Object.seal`-ed, so typos like `state.debug.bofore = true` throw `TypeError` at write time instead of silently creating a useless property. `state.debug = null` continues to work but semantically means "reset filters" — the next read returns a fresh empty `DebugConfig` (#150).
+- **v6.2** *(superseded by v6.3.0)* — widened `onStep`'s signature to `(m) => void | Promise<void>` and added an inline `await onStep(...)` in the run loop, enabling throttle-in-`onStep` patterns. This overturned the docstring-stated contract that `onStep` is sync (microtask-free); the right place for per-iter throttling is `onPause` with self-rearm (see [Throttle pattern](#throttle-pattern)). Restored in v6.3.0.
+- **v6.3** — `onStep` reverted to its v6.0–v6.1 sync contract — `(m) => void`, called synchronously inside the run loop. The Throttle pattern section documents the engine-native shape for per-iter throttle / "wait between iters" UIs. No other API changes.
 
 For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
 
