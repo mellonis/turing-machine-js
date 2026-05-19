@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.4.0] - 2026-05-19
+
+Adds a new awaited hook on `TuringMachine.run`. Minor release, additive — no breaking changes. Closes [#163](https://github.com/mellonis/turing-machine-js/issues/163).
+
+### Added
+
+- **`onIter` callback** on `run()`: `onIter?: (m: MachineState) => void | Promise<void>`. Fires once per iteration at end-of-iter — *after* both `onPause(before, K)` and `onPause(after, K)` dispatches on the same yield. Awaited inline, so consumers returning a Promise suspend the run loop between iters. Unaffected by the `debug` master switch — `onIter` fires on every iter regardless of whether any `state.debug` breakpoints are armed.
+
+  Use cases the hook serves:
+  - **Per-iter throttle** (interactive debugger / animation UIs) — `await new Promise(r => setTimeout(r, intervalMs))` inside the callback gives a "wait between iters" pattern with no `state.debug` mutation.
+  - **Iter-correct bookkeeping** — for downstream libraries that maintain per-iter prev state (e.g. PostMachine's `arrivalPath` tracking), `onIter` is the natural "iter K is done" boundary, after all `onPause` hooks have read their own snapshots. Avoids the prev-advance-during-onStep ordering hazard.
+  - **Yield-to-other-work in batched runs** — a sync `await new Promise(r => queueMicrotask(r))` per iter lets long runs interleave with other event-loop work without owning the run loop.
+
+### Three-hook contract recap
+
+| Hook | Sync/Async | When | Use |
+|---|---|---|---|
+| `onStep` | Sync, not awaited | Mid-iter (between before/after) | Cheap tracer/logger, microtask-free hot loop |
+| `onPause` | Awaited | Conditional on `state.debug[when]` match | User-authored breakpoints / debugger UI |
+| `onIter` | Awaited | End of every iter | Per-iter coordination — throttle, prev-tracking, animation, yield-to-other-work |
+
+### Changed (docs)
+
+- README's **Throttle pattern** section rewritten to recommend `onIter` as the canonical hook. The v6.3.0 `onPause`-rearm workaround is superseded — that pattern still works (it's just the engine-native primitives), but `onIter` is the cleaner shape.
+
+### Compatibility
+
+- Default `onIter` is `undefined` → no behavior change for any existing consumer that doesn't opt in.
+- Sync consumers using only `onStep` pay zero microtask overhead — `onIter` is purely opt-in.
+- Peer-deps unchanged (`^6.0.0` includes 6.4.0 for the dependents).
+
 ## [6.3.0] - 2026-05-19
 
 Corrective minor release. **Reverts v6.2.0's `await onStep` change** and restores the original sync `onStep` contract that held since the hook was introduced. See [GitHub release](https://github.com/mellonis/turing-machine-js/releases/tag/v6.3.0) for the full post-mortem.

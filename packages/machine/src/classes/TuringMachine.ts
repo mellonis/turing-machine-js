@@ -59,6 +59,7 @@ export default class TuringMachine {
     stepsLimit = 1e5,
     onStep,
     onPause,
+    onIter,
     debug = true,
   }: RunParameter & {
     /**
@@ -67,15 +68,7 @@ export default class TuringMachine {
      * be async.
      *
      * For per-iter throttle / coordination ("wait between iters" UIs):
-     * arm `state.debug.after = true` on each visited state and do the
-     * throttle inside `onPause` (which IS awaited). See the README's
-     * Throttle pattern section for a worked example.
-     *
-     * (v6.2.0 widened this to `void | Promise<void>` and added an inline
-     * `await`. That was a mistake — it drove the awaited contract into a
-     * hook that was deliberately documented as sync. Restored in v6.3.0;
-     * consumers needing per-iter await belong on the `onPause`-rearm
-     * pattern, not this hook.)
+     * use `onIter` (v6.4.0+, awaited at end-of-iter).
      */
     onStep?: (machineState: MachineState) => void;
     /**
@@ -92,6 +85,25 @@ export default class TuringMachine {
      * engine's reason for pausing).
      */
     onPause?: (machineState: MachineState) => void | Promise<void>;
+    /**
+     * Awaited hook fired ONCE at the end of every iteration (v6.4.0+), AFTER
+     * any `onPause(after, K)` dispatch on the same yield. Use for per-iter
+     * coordination that needs to suspend the run loop — throttling between
+     * iters (interactive debugger UIs), prev-state bookkeeping that must
+     * observe iter K's final state once all `onPause` hooks have read their
+     * own snapshots, yield-to-other-work in batched runs.
+     *
+     * Three-hook contract recap:
+     * - `onStep`: sync, microtask-free — tracing/logging during the iter
+     * - `onPause`: awaited, conditional on `state.debug[when]` match — user
+     *   breakpoints with iter-correct payload
+     * - `onIter`: awaited, unconditional — once per iter, at end-of-iter
+     *
+     * `onIter` is unaffected by the `debug` master switch — it fires on
+     * every iter regardless. Sync consumers should prefer `onStep` to avoid
+     * the per-iter microtask boundary `onIter` carries.
+     */
+    onIter?: (machineState: MachineState) => void | Promise<void>;
     /**
      * Master switch for `onPause` dispatch. When `false`, suppresses all
      * pause-fires (before and after) regardless of `state.debug` assignments.
@@ -120,6 +132,10 @@ export default class TuringMachine {
 
       if (debug && machineState.debugBreak?.after && onPause) {
         await onPause({...machineState, debugBreak: {after: true}});
+      }
+
+      if (onIter instanceof Function) {
+        await onIter(machineState);
       }
     }
   }

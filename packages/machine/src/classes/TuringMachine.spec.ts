@@ -156,6 +156,66 @@ describe('run tests', () => {
     expect(generator.next().done).toBe(true);
   });
 
+  test('onIter fires once per iter, awaited, after both pause dispatches (#163)', async () => {
+    // Arm both before+after on the initial state so the dispatch order
+    // before(K) → step(K) → after(K) → iter(K) is observable per iter.
+    initialState.debug = {before: true, after: true};
+
+    const order: string[] = [];
+    const yieldToMicrotask = () => new Promise<void>((r) => queueMicrotask(r));
+
+    await machine.run({
+      initialState,
+      stepsLimit: 1e5,
+      onStep: (m) => { order.push(`step-${m.step}`); },
+      onPause: (m) => {
+        const when = m.debugBreak?.before ? 'before' : 'after';
+        order.push(`pause-${when}-${m.step}`);
+      },
+      onIter: async (m) => {
+        order.push(`iter-pre-${m.step}`);
+        await yieldToMicrotask();
+        order.push(`iter-post-${m.step}`);
+      },
+    });
+
+    initialState.debug = null; // reset for other tests
+
+    // For every iter K we must see:
+    //   pause-before-K, step-K, pause-after-K, iter-pre-K, iter-post-K
+    // …adjacent and in that order, never interleaved across iters
+    // (which would mean onIter wasn't awaited).
+    expect(order.length).toBeGreaterThan(0);
+    expect(order.length % 5).toBe(0);
+    for (let i = 0; i < order.length; i += 5) {
+      const k = order[i].split('-').pop();
+      expect(order[i]).toBe(`pause-before-${k}`);
+      expect(order[i + 1]).toBe(`step-${k}`);
+      expect(order[i + 2]).toBe(`pause-after-${k}`);
+      expect(order[i + 3]).toBe(`iter-pre-${k}`);
+      expect(order[i + 4]).toBe(`iter-post-${k}`);
+    }
+  });
+
+  test('onIter fires unconditionally (not gated by debug flag) (#163)', async () => {
+    // No state.debug armed AND `debug: false` master switch — onPause must
+    // never fire, but onIter still fires every iter.
+    const iters: number[] = [];
+
+    await machine.run({
+      initialState,
+      stepsLimit: 1e5,
+      debug: false,
+      onIter: (m) => { iters.push(m.step); },
+    });
+
+    expect(iters.length).toBeGreaterThan(0);
+    // Strictly increasing — one onIter per iter.
+    for (let i = 1; i < iters.length; i++) {
+      expect(iters[i]).toBeGreaterThan(iters[i - 1]);
+    }
+  });
+
 });
 
 describe('properties', () => {
