@@ -84,7 +84,7 @@ describe('run tests', () => {
   test('run', async () => {
     const steps: MachineState[] = [];
 
-    await machine.run({initialState, stepsLimit: 1e5, onStep: (step) => steps.push(step)});
+    await machine.run({initialState, stepsLimit: 1e5, onStep: (step) => { steps.push(step); }});
 
     expect(steps)
       .toEqual(expectedSteps);

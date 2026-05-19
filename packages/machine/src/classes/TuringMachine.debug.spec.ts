@@ -42,7 +42,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     const {machine, state} = buildMachine();
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -55,7 +55,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     state.debug = {before: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -69,7 +69,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     state.debug = {before: [symA]};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     const aVisits = steps.filter((s) => s.currentSymbols[0] === 'A');
     const nonAVisits = steps.filter((s) => s.currentSymbols[0] !== 'A');
@@ -85,7 +85,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     state.debug = {before: []};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -98,7 +98,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     state.debug = {before: [ifOtherSymbol]};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     const blankVisits = steps.filter((s) => s.currentSymbols[0] === alphabet.blankSymbol);
     const nonBlankVisits = steps.filter((s) => s.currentSymbols[0] !== alphabet.blankSymbol);
@@ -119,7 +119,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     state.debug = {after: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -132,7 +132,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     state.debug = {before: true, after: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
@@ -146,7 +146,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     state.debug = {after: [symA]};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     const aHits = steps.filter((s) => s.currentSymbols[0] === 'A');
@@ -169,7 +169,7 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = {before: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     // Only the visit that transitions to halt (the trailing blank) carries
@@ -212,7 +212,7 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = {before: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: wrapped, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: wrapped, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(3);
 
@@ -237,7 +237,7 @@ describe('TuringMachine — haltState.debug.before', () => {
     haltState.debug = {before: [symA]};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
     // Halt has no head symbol; list filter cannot match. No debug break should fire
@@ -263,7 +263,7 @@ describe('TuringMachine — run() with onPause', () => {
     state.debug = {before: true};
     const steps: MachineState[] = [];
 
-    await machine.run({initialState: state, onStep: (s) => steps.push(s)});
+    await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     // Trajectory unaffected — onStep sees same number of yields as without debug.
     expect(steps).toHaveLength(VISIT_COUNT);
