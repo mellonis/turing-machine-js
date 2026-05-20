@@ -4,6 +4,7 @@ import {
   decodeWriteSymbol,
   parseMovementLabel,
   parsePatternString,
+  parseWriteSymbolLabel,
   splitUnescaped,
 } from './graph';
 import {fromMermaid, toMermaid} from './graphFormats';
@@ -213,6 +214,34 @@ describe('parsePatternString', () => {
 
   test('per-cell `B` becomes the tape blank symbol', () => {
     expect(parsePatternString("B,'a'", [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
+  });
+
+  test('fallback: cell that is not marker/blank/quoted is returned as-is', () => {
+    // Defensive — the parser doesn't throw on unexpected cells; it returns
+    // them as-is, so consumer code can decide whether to reject.
+    expect(parsePatternString('Q', [[' ', '0']])).toEqual([['Q']]);
+  });
+
+  test('blank-marker fallback when alphabet for the tape is missing', () => {
+    // Defensive: if alphabets[tapeIx] is undefined, returns the marker
+    // string itself rather than throwing.
+    expect(parsePatternString('B', [])).toEqual([['B']]);
+  });
+});
+
+describe('parseWriteSymbolLabel', () => {
+  test('maps K/E to upstream symbolCommands', () => {
+    expect(parseWriteSymbolLabel('K')).toBe(symbolCommands.keep);
+    expect(parseWriteSymbolLabel('E')).toBe(symbolCommands.erase);
+  });
+
+  test('strips single quotes from a literal alphabet symbol', () => {
+    expect(parseWriteSymbolLabel("'X'")).toBe('X');
+  });
+
+  test('fallback: label that is not K/E/quoted is returned as-is', () => {
+    // Defensive — same shape as parsePatternString's fallback.
+    expect(parseWriteSymbolLabel('Z')).toBe('Z');
   });
 });
 
