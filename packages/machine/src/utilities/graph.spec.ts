@@ -292,6 +292,51 @@ describe('fromMermaid error paths', () => {
 
     expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
   });
+
+  test('throws when the read label has no bracketed list', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      '  s1 -- "X → [K]/[S]" --> s0', // no `[…]` in the read part at all
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/no bracketed read-list/);
+  });
+
+  test('throws on write/move cell-count mismatch', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K,K]/[R]\" --> s0", // 2 writes, 1 move
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/write-cells.*move-cells.*mismatch/);
+  });
+
+  test('parses backslash-escaped chars inside a bracket (e.g. literal `|` as `\\|`)', () => {
+    // `stripBrackets` walks the inner content character-by-character; when it
+    // hits `\`, it skips the next char (so `\|` is a literal pipe, not the
+    // alternation separator). Exercises the escape branch in stripBrackets.
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","|"]]',
+      '  s0(((halt)))',
+      '  s1["x"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['\\|'] → [K]/[S]\" --> s0", // pattern reads `'\|'` (literal pipe)
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).not.toThrow();
+  });
 });
 
 describe('fromMermaid ensureNode update branches', () => {
