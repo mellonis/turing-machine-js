@@ -276,9 +276,9 @@ describe('README.md — Building from a state table', () => {
   });
 });
 
-// Pin the withOverrodeHaltState subroutine-composition example from the README.
-describe('README.md — Subroutine composition with withOverrodeHaltState', () => {
-  test('scanToX.withOverrodeHaltState(eraseHere) erases the first X and lands on it', async () => {
+// Pin the withOverriddenHaltState subroutine-composition example from the README.
+describe('README.md — Subroutine composition with withOverriddenHaltState', () => {
+  test('scanToX.withOverriddenHaltState(eraseHere) erases the first X and lands on it', async () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -292,7 +292,7 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
       [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
     }, 'eraseHere');
 
-    const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+    const scanThenErase = scanToX.withOverriddenHaltState(eraseHere);
 
     const tape = new Tape({alphabet, symbols: ['a', 'b', 'X', 'b', 'a']});
     tapeBlock.replaceTape(tape);
@@ -303,7 +303,7 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
     expect(tape.position).toBe(2); // head landed where the X used to be
   });
 
-  test('the original scanToX is left unmodified by withOverrodeHaltState', async () => {
+  test('the original scanToX is left unmodified by withOverriddenHaltState', async () => {
     const alphabet = new Alphabet([' ', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -318,9 +318,9 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
     }, 'eraseHere');
 
     // Wrapping doesn't mutate the original.
-    scanToX.withOverrodeHaltState(eraseHere);
+    scanToX.withOverriddenHaltState(eraseHere);
 
-    expect(scanToX.overrodeHaltState).toBeNull();
+    expect(scanToX.overriddenHaltState).toBeNull();
 
     // Running scanToX standalone (no wrapper) just halts at the X — the
     // X is NOT erased.

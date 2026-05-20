@@ -121,19 +121,19 @@ describe('State.getSymbol — head resolution', () => {
   });
 });
 
-describe('State.withOverrodeHaltState', () => {
+describe('State.withOverriddenHaltState', () => {
   // The wrapper shares the original's symbolToDataMap and debugRef but adds
-  // an overrodeHaltState. Audit-flagged: the previous test only checked the
+  // an overriddenHaltState. Audit-flagged: the previous test only checked the
   // name pattern; these tests pin the actual wrapping contract.
 
   test('wrapper exposes the override target', () => {
     const original = new State({[ifOtherSymbol]: {nextState: haltState}});
     const override = new State({[ifOtherSymbol]: {}});
 
-    const wrapped = original.withOverrodeHaltState(override);
+    const wrapped = original.withOverriddenHaltState(override);
 
-    expect(wrapped.overrodeHaltState).toBe(override);
-    expect(original.overrodeHaltState).toBeNull(); // original unchanged
+    expect(wrapped.overriddenHaltState).toBe(override);
+    expect(original.overriddenHaltState).toBeNull(); // original unchanged
   });
 
   test('wrapper proxies getCommand / getNextState to the original transitions', () => {
@@ -143,7 +143,7 @@ describe('State.withOverrodeHaltState', () => {
         nextState: haltState,
       },
     });
-    const wrapped = original.withOverrodeHaltState(haltState);
+    const wrapped = original.withOverriddenHaltState(haltState);
 
     const sym = symbol(['0']);
     expect(wrapped.getCommand(sym)).toBe(original.getCommand(sym));
@@ -152,7 +152,7 @@ describe('State.withOverrodeHaltState', () => {
 
   test('wrapper shares debugRef with the original (assignment on either is visible from both)', () => {
     const original = new State({[ifOtherSymbol]: {}});
-    const wrapped = original.withOverrodeHaltState(haltState);
+    const wrapped = original.withOverriddenHaltState(haltState);
 
     original.debug = {before: true};
 
@@ -166,7 +166,7 @@ describe('State.withOverrodeHaltState', () => {
 
   test('wrapper has its own id (not shared with the original)', () => {
     const original = new State({[ifOtherSymbol]: {}});
-    const wrapped = original.withOverrodeHaltState(haltState);
+    const wrapped = original.withOverriddenHaltState(haltState);
 
     expect(wrapped.id).not.toBe(original.id);
   });
@@ -175,7 +175,7 @@ describe('State.withOverrodeHaltState', () => {
     const original = new State({[ifOtherSymbol]: {}}, 'inner');
     const override = new State({[ifOtherSymbol]: {}}, 'outer');
 
-    const wrapped = original.withOverrodeHaltState(override);
+    const wrapped = original.withOverriddenHaltState(override);
 
     expect(wrapped.name).toBe('inner>outer');
   });
@@ -202,7 +202,7 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
   test('throws when the override-halt graph has a cycle', () => {
     // Graphs constructed by State.toGraph always have acyclic override chains
     // (cycles throw at State construction). To exercise the defensive cycle
-    // detection in fromGraph, hand-build a Graph with overrodeHaltStateId
+    // detection in fromGraph, hand-build a Graph with overriddenHaltStateId
     // pointing in a loop.
     // Nodes need at least one transition each — State construction at pass 2
     // rejects empty stateDefinitions before pass 3's cycle check would run.
@@ -211,9 +211,9 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
-        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overrodeHaltStateId: 2},
-        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overrodeHaltStateId: 1},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 2},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 1},
       },
     };
 

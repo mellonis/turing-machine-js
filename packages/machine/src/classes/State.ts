@@ -76,11 +76,11 @@ export default class State {
 
   readonly #name: string;
 
-  #overrodeHaltState: State | null = null;
+  #overriddenHaltState: State | null = null;
 
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
 
-  // Shared mutable cell — withOverrodeHaltState wrappers reference the same
+  // Shared mutable cell — withOverriddenHaltState wrappers reference the same
   // object so that `state.debug = ...` (and nullings) propagate across them.
   // Note: toGraph / fromGraph deliberately do not serialize debug — debug is
   // a runtime concern, not part of the structural graph.
@@ -159,8 +159,8 @@ export default class State {
     return this.#id === 0;
   }
 
-  get overrodeHaltState() {
-    return this.#overrodeHaltState;
+  get overriddenHaltState() {
+    return this.#overriddenHaltState;
   }
 
   get ref() {
@@ -260,11 +260,11 @@ export default class State {
     throw new Error(`No nextState for symbol at state named ${this.#id}`);
   }
 
-  withOverrodeHaltState(overrodeHaltState: State) {
-    const state = new State(null, `${this.name}>${overrodeHaltState.name}`);
+  withOverriddenHaltState(overriddenHaltState: State) {
+    const state = new State(null, `${this.name}>${overriddenHaltState.name}`);
 
     state.#symbolToDataMap = this.#symbolToDataMap;
-    state.#overrodeHaltState = overrodeHaltState;
+    state.#overriddenHaltState = overriddenHaltState;
     state.#debugRef = this.#debugRef;
 
     return state;
@@ -279,7 +279,7 @@ export default class State {
     id: number;
     name: string;
     isHalt: boolean;
-    overrodeHaltState: { id: number; name: string } | null;
+    overriddenHaltState: { id: number; name: string } | null;
     transitions: Array<{
       rawPatternDescription: string | undefined;
       command: Array<{ symbol: string; movement: string }>;
@@ -315,8 +315,8 @@ export default class State {
       id: state.#id,
       name: state.#name,
       isHalt: state.isHalt,
-      overrodeHaltState: state.#overrodeHaltState
-        ? {id: state.#overrodeHaltState.id, name: state.#overrodeHaltState.name}
+      overriddenHaltState: state.#overriddenHaltState
+        ? {id: state.#overriddenHaltState.id, name: state.#overriddenHaltState.name}
         : null,
       transitions,
     };
@@ -339,13 +339,13 @@ export default class State {
         name: current.#name,
         isHalt: current.isHalt,
         transitions: [],
-        overrodeHaltStateId: current.#overrodeHaltState?.id ?? null,
+        overriddenHaltStateId: current.#overriddenHaltState?.id ?? null,
       };
 
       nodes[current.#id] = node;
 
-      if (current.#overrodeHaltState) {
-        queue.push(current.#overrodeHaltState);
+      if (current.#overriddenHaltState) {
+        queue.push(current.#overriddenHaltState);
       }
 
       for (const [sym, {command, nextState}] of current.#symbolToDataMap) {
@@ -468,8 +468,8 @@ export default class State {
 
       let state = bareStates[nodeId];
 
-      if (node.overrodeHaltStateId !== null) {
-        state = bareStates[nodeId].withOverrodeHaltState(getFinal(node.overrodeHaltStateId));
+      if (node.overriddenHaltStateId !== null) {
+        state = bareStates[nodeId].withOverriddenHaltState(getFinal(node.overriddenHaltStateId));
       }
 
       inProgress.delete(nodeId);

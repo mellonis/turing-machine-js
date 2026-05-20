@@ -3,7 +3,7 @@
 [![build](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml/badge.svg)](https://github.com/mellonis/turing-machine-js/actions/workflows/main.yml)
 ![npm (tag)](https://img.shields.io/npm/v/@turing-machine-js/machine)
 
-A composable Turing-machine engine for JavaScript: multi-tape, subroutine composition via `withOverrodeHaltState`, Mermaid round-trip, and runtime breakpoints.
+A composable Turing-machine engine for JavaScript: multi-tape, subroutine composition via `withOverriddenHaltState`, Mermaid round-trip, and runtime breakpoints.
 
 <details>
 <summary>Table of contents</summary>
@@ -12,7 +12,7 @@ A composable Turing-machine engine for JavaScript: multi-tape, subroutine compos
 - [Quick start](#quick-start)
 - [Building from a state table](#building-from-a-state-table)
 - [Classes](#classes) — [`Alphabet`](#alphabet) · [`Tape`](#tape) · [`TapeBlock`](#tapeblock) · [`TapeCommand`](#tapecommand) · [`Command`](#command) · [`State`](#state) · [`Reference`](#reference) · [`TuringMachine`](#turingmachine)
-- [Subroutine composition with `withOverrodeHaltState`](#subroutine-composition-with-withoverrodehaltstate)
+- [Subroutine composition with `withOverriddenHaltState`](#subroutine-composition-with-withoverriddenhaltstate)
 - [Debugging breakpoints](#debugging-breakpoints)
 - [Special objects](#special-objects) — [`haltState`](#haltstate) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
 - [Introspection and testing](#introspection-and-testing)
@@ -251,7 +251,7 @@ const s = new State({
 Notable members and statics:
 
 - **`state.id`**, **`state.name`** — identity (`isHalt` is `id === 0`).
-- **`state.withOverrodeHaltState(other)`** — returns a copy whose would-be halt transitions fall through to `other`. The subroutine-call composition mechanism (see `library-binary-numbers/src/index.ts` for examples).
+- **`state.withOverriddenHaltState(other)`** — returns a copy whose would-be halt transitions fall through to `other`. The subroutine-call composition mechanism (see `library-binary-numbers/src/index.ts` for examples).
 - **`State.toGraph(state, tapeBlock)`** — walks the reachable graph from `state` and returns a serializable `Graph` (states, transitions, alphabets).
 - **`State.fromGraph(graph)`** — inverse of `toGraph`: rebuilds `State` instances + a fresh `TapeBlock` from a `Graph`. Round-trips together with `toMermaid` / `fromMermaid`.
 
@@ -279,7 +279,7 @@ flowchart TD
 
 > 💡 **Mermaid renders at most one edge per source/target pair.** If a state has two distinct transitions back to itself (or two parallel transitions to the same target), only one shows in the diagram. The string output is correct — this is a viewer-side limitation. For graphs with multiple parallel edges, paste the `toMermaid` output into [mermaid.live](https://mermaid.live) and switch to the `stateDiagram-v2` renderer, or post-process the output to your preferred format.
 
-`fromMermaid` parses the same format back into a `Graph`. The round-trip is **behaviorally** lossless — the rebuilt graph runs to the same outputs on the same inputs (tested in `test/round-trip.spec.ts` for the binary-numbers libraries). It is *not* bytewise lossless: state IDs auto-reassign on each rebuild, and for `withOverrodeHaltState` wrappers the composite name gains a `>${override.name}` suffix on each pass (e.g., `scanToX>eraseHere` becomes `scanToX>eraseHere>eraseHere` on a second round-trip — tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138)).
+`fromMermaid` parses the same format back into a `Graph`. The round-trip is **behaviorally** lossless — the rebuilt graph runs to the same outputs on the same inputs (tested in `test/round-trip.spec.ts` for the binary-numbers libraries). It is *not* bytewise lossless: state IDs auto-reassign on each rebuild, and for `withOverriddenHaltState` wrappers the composite name gains a `>${override.name}` suffix on each pass (e.g., `scanToX>eraseHere` becomes `scanToX>eraseHere>eraseHere` on a second round-trip — tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138)).
 
 ### Reference
 
@@ -366,9 +366,9 @@ Both APIs are first-class — `run()` is built on top of `runStepByStep()` (see 
 
 **Don't split one logical flow across both APIs.** A consumer that wants stepwise UI *and* hook-driven breakpoints should use `run({ onStep, onPause, debug })` exclusively. Routing some operations through `runStepByStep()` and others through `run()` means `state.debug` only flows through one of the two paths — a subtle footgun where breakpoints silently disappear on whichever code path uses the generator directly. For per-iter throttle / "wait between steps" UIs, see [Throttle pattern](#throttle-pattern).
 
-## Subroutine composition with `withOverrodeHaltState`
+## Subroutine composition with `withOverriddenHaltState`
 
-`state.withOverrodeHaltState(other)` returns a copy of `state` whose would-be halt transitions fall through to `other` at run time. The original is left untouched. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
+`state.withOverriddenHaltState(other)` returns a copy of `state` whose would-be halt transitions fall through to `other` at run time. The original is left untouched. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
 
 ```javascript
 import { Alphabet, State, TapeBlock, TuringMachine, Tape, haltState, ifOtherSymbol, movements, symbolCommands } from '@turing-machine-js/machine';
@@ -389,7 +389,7 @@ const eraseHere = new State({
 }, 'eraseHere');
 
 // Compose: scan to X, then ERASE it. scanToX is unmodified.
-const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+const scanThenErase = scanToX.withOverriddenHaltState(eraseHere);
 
 const tape = new Tape({ alphabet, symbols: ['a', 'b', 'X', 'b', 'a'] });
 tapeBlock.replaceTape(tape);
@@ -409,7 +409,7 @@ flowchart LR
         a1 -- "X → keep, S" --> h1
         a1 -- "any other → keep, R" --> a1
     end
-    subgraph composed["scanToX.withOverrodeHaltState(eraseHere) — halt is intercepted"]
+    subgraph composed["scanToX.withOverriddenHaltState(eraseHere) — halt is intercepted"]
         direction LR
         a2(("scanToX"))
         b2(("eraseHere"))
@@ -453,16 +453,16 @@ flowchart TD
 
 **Reading guide** — the wrapped diagram is denser than the simplified hand-drawn version above. To parse it:
 
-1. **Three non-halt nodes:** the wrapper `scanToX>eraseHere` (round, the initial state); `scanToX` (square, the original subroutine — unmodified); `eraseHere` (square, the override target). The wrapper appears as a *separate* state from `scanToX`-the-original because `withOverrodeHaltState` returns a new `State` instance — even though it shares the transition map.
+1. **Three non-halt nodes:** the wrapper `scanToX>eraseHere` (round, the initial state); `scanToX` (square, the original subroutine — unmodified); `eraseHere` (square, the override target). The wrapper appears as a *separate* state from `scanToX`-the-original because `withOverriddenHaltState` returns a new `State` instance — even though it shares the transition map.
 2. **Solid edges from the wrapper duplicate `scanToX`'s edges.** That's because the wrapper inherits the same `symbolToDataMap`. Importantly, the wrapper's `* → ·/R` edge points at *`scanToX`-the-original*, not at the wrapper itself — so after the first iteration, control transfers to `scanToX` and stays there.
-3. **The dotted `onHalt` edge is attached to the wrapper** but it doesn't fire on a single edge at runtime. Instead, the runtime pushes `eraseHere` onto an internal stack at startup, and *any* halt-bound transition reachable during the run (whether on the wrapper itself or on `scanToX`) gets redirected to `eraseHere` via stack-pop. The dotted edge is the engine's static fingerprint of "this graph was wrapped by `withOverrodeHaltState`."
+3. **The dotted `onHalt` edge is attached to the wrapper** but it doesn't fire on a single edge at runtime. Instead, the runtime pushes `eraseHere` onto an internal stack at startup, and *any* halt-bound transition reachable during the run (whether on the wrapper itself or on `scanToX`) gets redirected to `eraseHere` via stack-pop. The dotted edge is the engine's static fingerprint of "this graph was wrapped by `withOverriddenHaltState`."
 4. **What actually fires at runtime, on tape `['a','b','X','b','a']`:** the wrapper runs once, transferring to `scanToX`; `scanToX` self-loops on `* → ·/R` until it sees `X`; the `X → ·/S` edge tries to go to halt; the runtime pops `eraseHere` off the stack and substitutes it; `eraseHere` erases the cell and halts. The wrapper's own `X → ·/S → halt` edge in the diagram is *never traversed* because control left the wrapper after iteration 1.
 
 > 💡 **The engine's emit could be more user-friendly here.** Tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138) — the wrapper's duplicated edges and the misleading single-edge `onHalt` placement are candidates for a cleaner `toMermaid` output.
 
 </details>
 
-Wrappers nest: `inner.withOverrodeHaltState(middle).withOverrodeHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
+Wrappers nest: `inner.withOverriddenHaltState(middle).withOverriddenHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
 
 ## Debugging breakpoints
 
@@ -492,7 +492,7 @@ myState.debug = null;
 
 > ⚠️ **`haltState.debug.after` throws.** Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Assigning a truthy `.after` to `haltState.debug` (including `{ before: true, after: true }`) throws at write time. Symbol-list filters on `haltState.debug.before` are silent no-ops, since halt has no head symbol; only the wildcard `true` activates.
 
-The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverrodeHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input (`state.debug = { before: true }`) is wrapped in a fresh `DebugConfig` automatically. The instance itself is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property. Per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` also throws `TypeError`.
+The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverriddenHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input (`state.debug = { before: true }`) is wrapped in a fresh `DebugConfig` automatically. The instance itself is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property. Per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` also throws `TypeError`.
 
 `run()` is async and accepts an `onPause` hook:
 
@@ -617,6 +617,8 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v6.2** *(superseded by v6.3.0)* — widened `onStep`'s signature to `(m) => void | Promise<void>` and added an inline `await onStep(...)` in the run loop, enabling throttle-in-`onStep` patterns. This overturned the docstring-stated contract that `onStep` is sync (microtask-free); the right place for per-iter throttling is `onPause` with self-rearm (see [Throttle pattern](#throttle-pattern)). Restored in v6.3.0.
 - **v6.3** — `onStep` reverted to its v6.0–v6.1 sync contract — `(m) => void`, called synchronously inside the run loop. The Throttle pattern section documents the engine-native shape for per-iter throttle / "wait between iters" UIs. No other API changes.
 - **v6.4** — New **`onIter`** hook on `run()`: awaited, fires once at the end of every iter (after both `onPause` dispatches on the same yield), unaffected by the `debug` master switch. Use for per-iter throttle / animation / coordination needing a suspend point; complements the existing sync `onStep` (tracing) and conditional `onPause` (user breakpoints). Three-hook contract is now `onStep` (sync, mid-iter) / `onPause` (awaited, on `state.debug` match) / `onIter` (awaited, end-of-iter). Additive — peer-deps unchanged. The v6.3.0 README's `onPause`-rearm throttle workaround is superseded.
+- **v7** *(in progress)* — Composition-representation overhaul. Breaking renames + reshapes scheduled for the v7 cut. Landing piecewise on the `v7` branch; one entry per landed change:
+  - **`withOverrodeHaltState` → `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: the past-participle `overridden` fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. The getter (`state.overrodeHaltState` → `state.overriddenHaltState`) and the serialized `Graph` data field (`node.overrodeHaltStateId` → `node.overriddenHaltStateId`) rename in lockstep. Consumer migration: global find/replace `OverrodeHaltState` → `OverriddenHaltState` and `overrodeHaltState` → `overriddenHaltState`. Persisted `State.toGraph` JSON dumps would need the same field-rename treatment, but persistence isn't a known consumer pattern.
 
 For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
 

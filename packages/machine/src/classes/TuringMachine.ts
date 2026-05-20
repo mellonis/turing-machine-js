@@ -151,8 +151,8 @@ export default class TuringMachine {
       const stack = this.#stack;
       let state = initialState;
 
-      if (state.overrodeHaltState) {
-        stack.push(state.overrodeHaltState);
+      if (state.overriddenHaltState) {
+        stack.push(state.overriddenHaltState);
       }
 
       let i = 0;
@@ -217,8 +217,8 @@ export default class TuringMachine {
             nextState = stack.pop()!;
           }
 
-          if (state !== nextState && nextState.overrodeHaltState) {
-            stack.push(nextState.overrodeHaltState);
+          if (state !== nextState && nextState.overriddenHaltState) {
+            stack.push(nextState.overriddenHaltState);
           }
 
           state = nextState;
