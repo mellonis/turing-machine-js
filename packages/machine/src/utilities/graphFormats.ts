@@ -117,8 +117,19 @@ export function toMermaid(graph: Graph): string {
       const cmd = t.command.map((c) => `${c.symbol}/${c.movement}`).join(',');
       const label = `${t.pattern} → ${cmd}`;
 
+      // Thicker `==>` arrow when the transition crosses INTO a wrapper —
+      // signals "this transition pushes that wrapper's override onto the
+      // runtime stack" (per `TuringMachine.run` line ~220's
+      // `if (state !== nextState && nextState.overriddenHaltState) push(...)`).
+      // Self-loops (state === nextState) don't push at runtime — keep the
+      // regular `-->` for those even when the target is wrapped.
+      const targetNode = graph.nodes[t.nextStateId];
+      const isEnteringWrapper = targetNode && targetNode.isWrapped && t.nextStateId !== node.id;
+      const lineSegment = isEnteringWrapper ? '==' : '--';
+      const arrowTip = isEnteringWrapper ? '==>' : '-->';
+
       lines.push(
-        `  ${mermaidIdFor(node.id)} -- "${label}" --> ${mermaidIdFor(t.nextStateId)}`,
+        `  ${mermaidIdFor(node.id)} ${lineSegment} "${label}" ${arrowTip} ${mermaidIdFor(t.nextStateId)}`,
       );
     }
 
@@ -151,6 +162,7 @@ const subgraphEndRegex = /^end$/;
 const idleNodeRegex = /^idle\(\[idle\]\)$/;
 const enterArrowRegex = /^idle\s+-\.\s+enter\s+\.->\s+(s\d+)$/;
 const transitionRegex = /^([sc]\d+)\s+--\s+"(.*)"\s+-->\s+([sc]\d+)$/;
+const thickTransitionRegex = /^([sc]\d+)\s+==\s+"(.*)"\s+==>\s+([sc]\d+)$/;
 const onHaltRegex = /^([sc]\d+)\s+-\.\s+onHalt\s+\.->\s+([sc]\d+)$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
 // the preceding \s* and a permissive (.+); see CodeQL js/polynomial-redos.
@@ -274,7 +286,9 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    const tm = line.match(transitionRegex);
+    // Thick transition (`==> `) and regular transition (`-->`) share the same
+    // semantics — only the visual differs. Parse both via the same code path.
+    const tm = line.match(transitionRegex) ?? line.match(thickTransitionRegex);
 
     if (tm) {
       const fromId = parseMermaidId(tm[1]);

@@ -17,7 +17,7 @@ import {type Graph} from './graph';
 //
 //   const a = summarize(binaryNumbers.states.minusOne, binaryNumbers.getTapeBlock());
 //   const b = summarize(binaryNumbersBare.states.minusOne, binaryNumbersBare.getTapeBlock());
-//   // a.stateCount === 17, b.stateCount === 3
+//   // a.stateCount === 15, b.stateCount === 3
 //   // a.maxCompositionDepth === 4, b.maxCompositionDepth === 0
 export type GraphSummary = {
   // Counts
@@ -39,6 +39,12 @@ export type GraphSummary = {
 
 export function summarizeGraph(graph: Graph): GraphSummary {
   const nodes = Object.values(graph.nodes);
+
+  // `isClonedHalt` nodes are visualization sentinels — one per wrapper context,
+  // all corresponding to the singleton `haltState` at runtime. They don't
+  // count as distinct runtime states; matches the per-algorithm header in
+  // `library-binary-numbers/states.md`.
+  const runtimeStateCount = nodes.filter((n) => !n.isClonedHalt).length;
 
   let transitionCount = 0;
   let compositionEdgeCount = 0;
@@ -134,7 +140,7 @@ export function summarizeGraph(graph: Graph): GraphSummary {
   }
 
   return {
-    stateCount: nodes.length,
+    stateCount: runtimeStateCount,
     transitionCount,
     compositionEdgeCount,
     maxCompositionDepth,

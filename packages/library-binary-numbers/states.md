@@ -2,7 +2,7 @@
 
 ## goToNumber
 
-*2 states (including `haltState`)*
+*2 states; 2 transitions; has cycles*
 
 ```mermaid
 flowchart TD
@@ -11,13 +11,13 @@ flowchart TD
   s1["goToNumber"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'$' → K/⇹" --> s0
-  s1 -- "∗ → K/→" --> s1
+  s1 -- "'$' → K/S" --> s0
+  s1 -- "🞰 → K/R" --> s1
 ```
 
 ## goToNextNumber
 
-*3 states (including `haltState`)*
+*3 states; 3 transitions; has cycles*
 
 ```mermaid
 flowchart TD
@@ -27,14 +27,14 @@ flowchart TD
   s2["goToNextNumber"]
   idle([idle])
   idle -. enter .-> s2
-  s1 -- "'$' → K/⇹" --> s0
-  s1 -- "∗ → K/→" --> s1
-  s2 -- "∗ → K/→" --> s1
+  s1 -- "'$' → K/S" --> s0
+  s1 -- "🞰 → K/R" --> s1
+  s2 -- "🞰 → K/R" --> s1
 ```
 
 ## goToPreviousNumber
 
-*3 states (including `haltState`)*
+*3 states; 3 transitions; has cycles*
 
 ```mermaid
 flowchart TD
@@ -44,14 +44,14 @@ flowchart TD
   s4["goToPreviousNumber"]
   idle([idle])
   idle -. enter .-> s4
-  s3 -- "'$' → K/⇹" --> s0
-  s3 -- "∗ → K/←" --> s3
-  s4 -- "∗ → K/←" --> s3
+  s3 -- "'$' → K/S" --> s0
+  s3 -- "🞰 → K/L" --> s3
+  s4 -- "🞰 → K/L" --> s3
 ```
 
 ## deleteNumber
 
-*4 states (including `haltState`)*
+*4 states; 6 transitions; 1 wrapper (max nesting depth 1); has cycles*
 
 ```mermaid
 flowchart TD
@@ -65,18 +65,18 @@ flowchart TD
     c7(((halt)))
   end
   idle -. enter .-> s8
-  s6 -- "'$' → E/⇹" --> s0
-  s6 -- "∗ → E/→" --> s6
-  s7 -- "'^' → K/⇹" --> c7
-  s7 -- "∗ → K/←" --> s7
+  s6 -- "'$' → E/S" --> s0
+  s6 -- "🞰 → E/R" --> s6
+  s7 -- "'^' → K/S" --> c7
+  s7 -- "🞰 → K/L" --> s7
   s7 -. onHalt .-> s6
-  s8 -- "'^'|'1'|'0'|'$' → K/⇹" --> s7
-  s8 -- "∗ → K/⇹" --> s0
+  s8 == "'^'|'1'|'0'|'$' → K/S" ==> s7
+  s8 -- "🞰 → K/S" --> s0
 ```
 
 ## goToNumbersStart
 
-*2 states (including `haltState`)*
+*2 states; 2 transitions; has cycles*
 
 ```mermaid
 flowchart TD
@@ -85,13 +85,13 @@ flowchart TD
   s5["goToNumberStart"]
   idle([idle])
   idle -. enter .-> s5
-  s5 -- "'^' → K/⇹" --> s0
-  s5 -- "∗ → K/←" --> s5
+  s5 -- "'^' → K/S" --> s0
+  s5 -- "🞰 → K/L" --> s5
 ```
 
 ## invertNumber
 
-*4 states (including `haltState`)*
+*4 states; 8 transitions; 1 wrapper (max nesting depth 1); has cycles*
 
 ```mermaid
 flowchart TD
@@ -105,20 +105,20 @@ flowchart TD
     c10(((halt)))
   end
   idle -. enter .-> s11
-  s9 -- "'^' → K/→" --> s9
-  s9 -- "'1' → '0'/→" --> s9
-  s9 -- "'0' → '1'/→" --> s9
-  s9 -- "'$' → K/⇹" --> s0
-  s10 -- "'^' → K/⇹" --> c10
-  s10 -- "∗ → K/←" --> s10
+  s9 -- "'^' → K/R" --> s9
+  s9 -- "'1' → '0'/R" --> s9
+  s9 -- "'0' → '1'/R" --> s9
+  s9 -- "'$' → K/S" --> s0
+  s10 -- "'^' → K/S" --> c10
+  s10 -- "🞰 → K/L" --> s10
   s10 -. onHalt .-> s9
-  s11 -- "'^'|'1'|'0'|'$' → K/⇹" --> s10
-  s11 -- "∗ → K/⇹" --> s0
+  s11 == "'^'|'1'|'0'|'$' → K/S" ==> s10
+  s11 -- "🞰 → K/S" --> s0
 ```
 
 ## normalizeNumber
 
-*6 states (including `haltState`)*
+*6 states; 9 transitions; 1 wrapper (max nesting depth 1); has cycles*
 
 ```mermaid
 flowchart TD
@@ -134,21 +134,21 @@ flowchart TD
     c14(((halt)))
   end
   idle -. enter .-> s15
-  s1 -- "'$' → K/⇹" --> s0
-  s1 -- "∗ → K/→" --> s1
-  s12 -- "- → '^'/⇹" --> s1
-  s13 -- "'^'|'0' → E/→" --> s13
-  s13 -- "'1'|'$' → K/←" --> s12
-  s14 -- "'^' → K/⇹" --> c14
-  s14 -- "∗ → K/←" --> s14
+  s1 -- "'$' → K/S" --> s0
+  s1 -- "🞰 → K/R" --> s1
+  s12 -- "B → '^'/S" --> s1
+  s13 -- "'^'|'0' → E/R" --> s13
+  s13 -- "'1'|'$' → K/L" --> s12
+  s14 -- "'^' → K/S" --> c14
+  s14 -- "🞰 → K/L" --> s14
   s14 -. onHalt .-> s13
-  s15 -- "'^'|'1'|'0'|'$' → K/⇹" --> s14
-  s15 -- "∗ → K/⇹" --> s0
+  s15 == "'^'|'1'|'0'|'$' → K/S" ==> s14
+  s15 -- "🞰 → K/S" --> s0
 ```
 
 ## plusOne
 
-*5 states (including `haltState`)*
+*5 states; 10 transitions; has cycles*
 
 ```mermaid
 flowchart TD
@@ -160,21 +160,21 @@ flowchart TD
   s19["plusOne"]
   idle([idle])
   idle -. enter .-> s19
-  s16 -- "'1' → '0'/→" --> s16
-  s16 -- "'$' → K/⇹" --> s0
-  s17 -- "- → '^'/→" --> s17
-  s17 -- "'1' → K/→" --> s16
-  s18 -- "'0' → '1'/→" --> s16
-  s18 -- "'1' → K/←" --> s18
-  s18 -- "'^' → '1'/←" --> s17
-  s19 -- "'^'|'1'|'0' → K/→" --> s19
-  s19 -- "'$' → K/←" --> s18
-  s19 -- "∗ → K/⇹" --> s0
+  s16 -- "'1' → '0'/R" --> s16
+  s16 -- "'$' → K/S" --> s0
+  s17 -- "B → '^'/R" --> s17
+  s17 -- "'1' → K/R" --> s16
+  s18 -- "'0' → '1'/R" --> s16
+  s18 -- "'1' → K/L" --> s18
+  s18 -- "'^' → '1'/L" --> s17
+  s19 -- "'^'|'1'|'0' → K/R" --> s19
+  s19 -- "'$' → K/L" --> s18
+  s19 -- "🞰 → K/S" --> s0
 ```
 
 ## minusOne
 
-*15 states (including `haltState`)*
+*15 states; 32 transitions; 5 wrappers (max nesting depth 3); has cycles*
 
 ```mermaid
 flowchart TD
@@ -211,48 +211,48 @@ flowchart TD
     c22(((halt)))
   end
   idle -. enter .-> s23
-  s1 -- "'$' → K/⇹" --> s0
-  s1 -- "∗ → K/→" --> s1
-  s9 -- "'^' → K/→" --> s9
-  s9 -- "'1' → '0'/→" --> s9
-  s9 -- "'0' → '1'/→" --> s9
-  s9 -- "'$' → K/⇹" --> s0
-  s10 -- "'^' → K/⇹" --> c10
-  s10 -- "∗ → K/←" --> s10
+  s1 -- "'$' → K/S" --> s0
+  s1 -- "🞰 → K/R" --> s1
+  s9 -- "'^' → K/R" --> s9
+  s9 -- "'1' → '0'/R" --> s9
+  s9 -- "'0' → '1'/R" --> s9
+  s9 -- "'$' → K/S" --> s0
+  s10 -- "'^' → K/S" --> c10
+  s10 -- "🞰 → K/L" --> s10
   s10 -. onHalt .-> s9
-  s12 -- "- → '^'/⇹" --> s1
-  s13 -- "'^'|'0' → E/→" --> s13
-  s13 -- "'1'|'$' → K/←" --> s12
-  s14 -- "'^' → K/⇹" --> c14
-  s14 -- "∗ → K/←" --> s14
+  s12 -- "B → '^'/S" --> s1
+  s13 -- "'^'|'0' → E/R" --> s13
+  s13 -- "'1'|'$' → K/L" --> s12
+  s14 -- "'^' → K/S" --> c14
+  s14 -- "🞰 → K/L" --> s14
   s14 -. onHalt .-> s13
-  s15 -- "'^'|'1'|'0'|'$' → K/⇹" --> s14
-  s15 -- "∗ → K/⇹" --> s0
-  s16 -- "'1' → '0'/→" --> s16
-  s16 -- "'$' → K/⇹" --> s0
-  s17 -- "- → '^'/→" --> s17
-  s17 -- "'1' → K/→" --> s16
-  s18 -- "'0' → '1'/→" --> s16
-  s18 -- "'1' → K/←" --> s18
-  s18 -- "'^' → '1'/←" --> s17
-  s20 -- "'^'|'1'|'0'|'$' → K/⇹" --> s10
-  s20 -- "∗ → K/⇹" --> c20
+  s15 == "'^'|'1'|'0'|'$' → K/S" ==> s14
+  s15 -- "🞰 → K/S" --> s0
+  s16 -- "'1' → '0'/R" --> s16
+  s16 -- "'$' → K/S" --> s0
+  s17 -- "B → '^'/R" --> s17
+  s17 -- "'1' → K/R" --> s16
+  s18 -- "'0' → '1'/R" --> s16
+  s18 -- "'1' → K/L" --> s18
+  s18 -- "'^' → '1'/L" --> s17
+  s20 == "'^'|'1'|'0'|'$' → K/S" ==> s10
+  s20 -- "🞰 → K/S" --> c20
   s20 -. onHalt .-> s15
-  s21 -- "'^'|'1'|'0' → K/→" --> s21
-  s21 -- "'$' → K/←" --> s18
-  s21 -- "∗ → K/⇹" --> c21
+  s21 -- "'^'|'1'|'0' → K/R" --> s21
+  s21 -- "'$' → K/L" --> s18
+  s21 -- "🞰 → K/S" --> c21
   s21 -. onHalt .-> s20
-  s22 -- "'^'|'1'|'0'|'$' → K/⇹" --> s10
-  s22 -- "∗ → K/⇹" --> c22
+  s22 == "'^'|'1'|'0'|'$' → K/S" ==> s10
+  s22 -- "🞰 → K/S" --> c22
   s22 -. onHalt .-> s21
-  s23 -- "'^'|'1'|'0' → K/→" --> s23
-  s23 -- "'$' → K/⇹" --> s22
-  s23 -- "∗ → K/⇹" --> s0
+  s23 -- "'^'|'1'|'0' → K/R" --> s23
+  s23 == "'$' → K/S" ==> s22
+  s23 -- "🞰 → K/S" --> s0
 ```
 
 ## minusOneFast
 
-*8 states (including `haltState`)*
+*8 states; 15 transitions; 2 wrappers (max nesting depth 1); has cycles*
 
 ```mermaid
 flowchart TD
@@ -273,21 +273,21 @@ flowchart TD
     c25(((halt)))
   end
   idle -. enter .-> s26
-  s1 -- "'$' → K/⇹" --> s0
-  s1 -- "∗ → K/→" --> s1
-  s12 -- "- → '^'/⇹" --> s1
-  s13 -- "'^'|'0' → E/→" --> s13
-  s13 -- "'1'|'$' → K/←" --> s12
-  s14 -- "'^' → K/⇹" --> c14
-  s14 -- "∗ → K/←" --> s14
+  s1 -- "'$' → K/S" --> s0
+  s1 -- "🞰 → K/R" --> s1
+  s12 -- "B → '^'/S" --> s1
+  s13 -- "'^'|'0' → E/R" --> s13
+  s13 -- "'1'|'$' → K/L" --> s12
+  s14 -- "'^' → K/S" --> c14
+  s14 -- "🞰 → K/L" --> s14
   s14 -. onHalt .-> s13
-  s15 -- "'^'|'1'|'0'|'$' → K/⇹" --> s14
-  s15 -- "∗ → K/⇹" --> s0
-  s25 -- "'1' → '0'/⇹" --> c25
-  s25 -- "'0' → '1'/←" --> s25
-  s25 -- "'^' → K/⇹" --> c25
+  s15 == "'^'|'1'|'0'|'$' → K/S" ==> s14
+  s15 -- "🞰 → K/S" --> s0
+  s25 -- "'1' → '0'/S" --> c25
+  s25 -- "'0' → '1'/L" --> s25
+  s25 -- "'^' → K/S" --> c25
   s25 -. onHalt .-> s15
-  s26 -- "'^'|'1'|'0' → K/→" --> s26
-  s26 -- "'$' → K/←" --> s25
-  s26 -- "∗ → K/⇹" --> s0
+  s26 -- "'^'|'1'|'0' → K/R" --> s26
+  s26 == "'$' → K/L" ==> s25
+  s26 -- "🞰 → K/S" --> s0
 ```

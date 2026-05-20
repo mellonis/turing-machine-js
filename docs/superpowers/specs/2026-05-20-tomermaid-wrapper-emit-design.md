@@ -269,7 +269,7 @@ After iteration, the locked shape evolves Variant X (collapse the wrapper into t
   - the source of the dotted `onHalt` redirect (since the wrapper-node *is* the catcher).
 - **Cloned `(((halt)))` inside the subgraph** = the halt entry point within this wrapper's scope. Halt-bound transitions from the bare terminate here, not at the real halt.
 - **Solid arrows from `[[bare]]` to cloned halt** = the bare's structural halt-bound transitions. All stay inside the subgraph rectangle.
-- **Dotted `onHalt` arrow from `[[bare]]` out of the subgraph to the override target** = the wrapper's catch-and-redirect. Exactly one per wrapper; the only arrow that crosses the rectangle border.
+- **Dotted `onHalt` arrow from `[[bare]]` out of the subgraph to the override target** = the wrapper's catch-and-redirect. Exactly one per wrapper. Solid arrows from `[[bare]]` to non-halt targets can ALSO cross the rectangle border (when the bare's transitions reach external states — common in compositions like `library-binary-numbers`'s `minusOne`); those are just regular runtime transitions, not wrapper machinery. Only the dotted `onHalt` carries wrapper-machinery meaning.
 - **Real `(((halt)))` outside any subgraph** = the actual run terminus. Reached only by states that are *not* inside a wrapper's halt-frame (the unwrapped tail of the chain).
 
 ### Single wrapper

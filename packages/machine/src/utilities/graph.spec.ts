@@ -19,20 +19,20 @@ describe('decodePatternDescription', () => {
     expect(decodePatternDescription(undefined, alphabets)).toBe('?');
   });
 
-  test('"other symbol" → "∗" (whole-state ifOtherSymbol)', () => {
-    expect(decodePatternDescription('other symbol', alphabets)).toBe('∗');
+  test('"other symbol" → "🞰" (whole-state ifOtherSymbol)', () => {
+    expect(decodePatternDescription('other symbol', alphabets)).toBe('🞰');
   });
 
   test('literal cell wraps in single quotes', () => {
     expect(decodePatternDescription('[["0"]]', alphabets)).toBe("'0'");
   });
 
-  test('per-cell null → "∗"', () => {
-    expect(decodePatternDescription('[[null]]', alphabets)).toBe('∗');
+  test('per-cell null → "🞰"', () => {
+    expect(decodePatternDescription('[[null]]', alphabets)).toBe('🞰');
   });
 
-  test('cell equal to tape blank → "-"', () => {
-    expect(decodePatternDescription('[[" "]]', alphabets)).toBe('-');
+  test('cell equal to tape blank → "B"', () => {
+    expect(decodePatternDescription('[[" "]]', alphabets)).toBe('B');
   });
 
   test('multi-tape pattern joins quoted cells with ","', () => {
@@ -77,9 +77,9 @@ describe('decodeMovement', () => {
   });
 
   test.each([
-    [(movements.left as symbol).description, '←'],
-    [(movements.right as symbol).description, '→'],
-    [(movements.stay as symbol).description, '⇹'],
+    [(movements.left as symbol).description, 'L'],
+    [(movements.right as symbol).description, 'R'],
+    [(movements.stay as symbol).description, 'S'],
   ])('%s → %s', (description, expected) => {
     expect(decodeMovement(description)).toBe(expected);
   });
@@ -121,8 +121,8 @@ describe('toMermaid', () => {
         1: {
           id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [
-            {pattern: '0', command: [{symbol: 'K', movement: '→'}], nextStateId: 1, id: "test-edge"},
-            {pattern: '1', command: [{symbol: 'K', movement: '⇹'}], nextStateId: 0, id: "test-edge"},
+            {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: '1', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -134,8 +134,8 @@ describe('toMermaid', () => {
     expect(out).toContain('s1["entry"]');
     expect(out).toContain('idle([idle])');
     expect(out).toContain('idle -. enter .-> s1');
-    expect(out).toContain('s1 -- "0 → K/→" --> s1');
-    expect(out).toContain('s1 -- "1 → K/⇹" --> s0');
+    expect(out).toContain('s1 -- "0 → K/R" --> s1');
+    expect(out).toContain('s1 -- "1 → K/S" --> s0');
   });
 
   test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
@@ -175,7 +175,7 @@ describe('toMermaid', () => {
           id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [{
             pattern: '0,a',
-            command: [{symbol: '0', movement: '→'}, {symbol: 'a', movement: '←'}],
+            command: [{symbol: '0', movement: 'R'}, {symbol: 'a', movement: 'L'}],
             nextStateId: 0,
             id: 'test-edge',
           }],
@@ -183,7 +183,7 @@ describe('toMermaid', () => {
       },
     });
 
-    expect(out).toContain('"0,a → 0/→,a/←"');
+    expect(out).toContain('"0,a → 0/R,a/L"');
   });
 });
 
@@ -203,24 +203,24 @@ describe('splitUnescaped', () => {
 
 describe('parsePatternString', () => {
   test('returns null for the global ifOtherSymbol marker', () => {
-    expect(parsePatternString('∗', [[' ', '0']])).toBeNull();
+    expect(parsePatternString('🞰', [[' ', '0']])).toBeNull();
   });
 
-  test('per-cell `∗` becomes null', () => {
+  test('per-cell `🞰` becomes null', () => {
     // Multi-tape pattern where one cell is per-cell ifOtherSymbol.
-    expect(parsePatternString("'0',∗", [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
+    expect(parsePatternString("'0',🞰", [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
   });
 
-  test('per-cell `-` becomes the tape blank symbol', () => {
-    expect(parsePatternString("-,'a'", [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
+  test('per-cell `B` becomes the tape blank symbol', () => {
+    expect(parsePatternString("B,'a'", [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
   });
 });
 
 describe('parseMovementLabel', () => {
-  test('maps ←/→/⇹ to upstream movement symbols', () => {
-    expect(parseMovementLabel('←')).toBe(movements.left);
-    expect(parseMovementLabel('→')).toBe(movements.right);
-    expect(parseMovementLabel('⇹')).toBe(movements.stay);
+  test('maps ←/R/S to upstream movement symbols', () => {
+    expect(parseMovementLabel('L')).toBe(movements.left);
+    expect(parseMovementLabel('R')).toBe(movements.right);
+    expect(parseMovementLabel('S')).toBe(movements.stay);
   });
 
   test('throws on unknown label', () => {
@@ -322,8 +322,8 @@ describe('README example: toMermaid output is stable', () => {
       '  s1["name"]',
       '  idle([idle])',
       '  idle -. enter .-> s1',
-      "  s1 -- \"'1' → '0'/→\" --> s1",
-      "  s1 -- \"'$' → K/←\" --> s0",
+      "  s1 -- \"'1' → '0'/R\" --> s1",
+      "  s1 -- \"'$' → K/L\" --> s0",
     ].join('\n');
 
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
@@ -334,7 +334,7 @@ describe('README example: toMermaid output is stable', () => {
 // READMEs. Each test asserts the expected lines are present; we don't pin
 // state IDs as exact values because they auto-increment globally and depend
 // on test ordering. The test catches engine emit-format changes (e.g. if
-// "b → */→" notation drifts) without being fragile to ID assignment.
+// "b → */R" notation drifts) without being fragile to ID assignment.
 import Reference from '../classes/Reference';
 import {ifOtherSymbol} from '../classes/State';
 
@@ -363,9 +363,9 @@ describe('README diagrams: engine-generated outputs', () => {
       '["replaceB"]', // initial — square (no longer round in v7; idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      "\"'b' → '*'/→\"",
-      '"- → K/←"',
-      '"∗ → K/→"',
+      "\"'b' → '*'/R\"",
+      '"B → K/L"',
+      '"🞰 → K/R"',
     ]);
   });
 
@@ -387,8 +387,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["b"]', // b is reachable from a → square
       'idle([idle])',
       'idle -. enter .->',
-      "\"'x' → K/⇹\"",
-      "\"'y' → K/⇹\"",
+      "\"'x' → K/S\"",
+      "\"'y' → K/S\"",
     ]);
   });
 
@@ -410,8 +410,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["scanToX"]', // initial — square (idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      "\"'X' → K/⇹\"",
-      '"∗ → K/→"',
+      "\"'X' → K/S\"",
+      '"🞰 → K/R"',
     ]);
   });
 
@@ -440,7 +440,7 @@ describe('README diagrams: engine-generated outputs', () => {
       '"halt frame"', // subgraph label
       'idle([idle])', // pre-execution sentinel — always emitted
       'idle -. enter .->', // labeled dotted enter arrow points at the initial state
-      '"∗ → E/⇹"', // eraseHere's erase command
+      '"🞰 → E/S"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });

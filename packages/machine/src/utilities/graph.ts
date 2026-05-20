@@ -35,16 +35,10 @@ export type Graph = {
   nodes: Record<number, GraphNode>;
 };
 
-// Head-movement labels use directional Unicode arrows for visual clarity in
-// rendered Mermaid output: `←` (U+2190) left, `→` (U+2192) right, `⇹` (U+21F9
-// LEFT RIGHT OPEN-HEADED ARROW) stay. The right-arrow `→` is the same glyph
-// used by the read-to-write separator in edge labels; `fromMermaid` parses
-// labels via `indexOf(' → ')` (note the surrounding spaces) so the unspaced
-// `→` in a movement position doesn't collide.
 const movementDescriptionToLabel: Record<string, string> = {
-  'move caret left command': '←',
-  'move caret right command': '→',
-  'do not move carer': '⇹',
+  'move caret left command': 'L',
+  'move caret right command': 'R',
+  'do not move carer': 'S',
 };
 
 const symbolCommandDescriptionToLabel: Record<string, string> = {
@@ -53,21 +47,24 @@ const symbolCommandDescriptionToLabel: Record<string, string> = {
 };
 
 // Reserved characters in the encoded pattern string:
-//   '∗'  (U+2217 ASTERISK OPERATOR) per-cell ifOtherSymbol — matches any
-//        symbol on that tape. Distinct from the regular ASCII '*' (U+002A) so
-//        an alphabet that contains literal '*' (rendered as the quoted `'*'`)
-//        is unambiguously different from the catch-all marker.
-//   '-'  the tape's blank symbol
+//   '🞰'  (U+1F7B0 HEAVY EIGHT BALLOON-SPOKED ASTERISK) per-cell ifOtherSymbol —
+//        matches any symbol on that tape. Distinct from the regular ASCII '*'
+//        (U+002A) so an alphabet that contains literal '*' (rendered as the
+//        quoted `'*'`) is unambiguously different from the catch-all marker.
+//   'B'  the tape's blank symbol shorthand (in read patterns). A literal `B`
+//        in the alphabet is unambiguous from the marker because it's quoted
+//        (`'B'`).
 //   ','  separates per-tape cells inside one pattern
 //   '|'  separates alternative patterns
 //   "'"  surrounds a literal alphabet symbol — e.g. `'0'` for literal `0`,
 //        `'X'` for literal `X`. The quoting is what visually separates literal
-//        symbols from the convention markers `∗` / `-` and from the write
+//        symbols from the convention markers `🞰` / `B` and from the write
 //        commands `K` / `E`.
-//   '\\' escape prefix — to represent any of '∗', '-', ',', '|', "'", or '\\'
+//   '\\' escape prefix — to represent any of '🞰', 'B', ',', '|', "'", or '\\'
 //        as a *literal* alphabet symbol *inside* the quotes (e.g. `'\''` for
 //        a literal apostrophe).
-const IF_OTHER_MARKER = '∗';
+const IF_OTHER_MARKER = '🞰';
+const BLANK_MARKER = 'B';
 
 function escapeAlphabetSymbol(s: string): string {
   return s
@@ -98,7 +95,7 @@ export function decodePatternDescription(
           }
 
           if (s === alphabets[tapeIx]?.[0]) {
-            return '-';
+            return BLANK_MARKER;
           }
 
           return `'${escapeAlphabetSymbol(s)}'`;
@@ -162,7 +159,7 @@ export function parsePatternString(s: string, alphabets: string[][]): ParsedPatt
         return null;
       }
 
-      if (cell === '-') {
+      if (cell === BLANK_MARKER) {
         return alphabets[tapeIx]?.[0] ?? cell;
       }
 
@@ -178,9 +175,9 @@ export function parsePatternString(s: string, alphabets: string[][]): ParsedPatt
 }
 
 const movementLabelToSymbol: Record<string, symbol> = {
-  '←': movements.left,
-  '→': movements.right,
-  '⇹': movements.stay,
+  L: movements.left,
+  R: movements.right,
+  S: movements.stay,
 };
 
 export function parseMovementLabel(label: string): symbol {

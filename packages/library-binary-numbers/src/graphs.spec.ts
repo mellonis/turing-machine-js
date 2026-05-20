@@ -1,25 +1,22 @@
-import {State, fromMermaid, toMermaid} from '@turing-machine-js/machine';
+import {State, fromMermaid, summarizeGraph, toMermaid} from '@turing-machine-js/machine';
 import binaryNumbers from './index';
 
-// Per-state node counts pinned from the source comments above each declaration
-// in `index.ts`. Each count includes haltState plus any v7 cloned-halt nodes
-// synthesized by `toGraph` (one per `withOverriddenHaltState` wrapper context).
-// For single-wrapper algorithms the count is unchanged from v6 — the wrapper
-// node disappears (collapsed into its bare) but a cloned halt appears, netting
-// to zero. For shared-bare cases like `minusOne` (where the same bare appears
-// in multiple wrapper contexts via per-context duplication), the count grows
-// by `wrapperCount - 1` relative to v6.
+// Per-state counts pinned from the source comments above each declaration in
+// `index.ts`. These are runtime state counts (per `summarize().stateCount`),
+// which exclude the `isClonedHalt` visualization sentinels v7 synthesizes
+// inside each `halt frame` subgraph. The states.md per-algorithm header uses
+// the same definition, so all three sources agree by construction.
 const expectedNodeCount: Record<keyof typeof binaryNumbers['states'], number> = {
   goToNumber: 2,
   goToNextNumber: 3,
   goToPreviousNumber: 3,
   goToNumbersStart: 2,
-  deleteNumber: 5,
-  invertNumber: 5,
-  normalizeNumber: 7,
+  deleteNumber: 4,
+  invertNumber: 4,
+  normalizeNumber: 6,
   plusOne: 5,
-  minusOne: 20,
-  minusOneFast: 10,
+  minusOne: 15,
+  minusOneFast: 8,
 };
 
 const stateNames = Object.keys(expectedNodeCount) as Array<keyof typeof expectedNodeCount>;
@@ -31,7 +28,7 @@ describe('library-binary-numbers state graphs', () => {
       const tapeBlock = binaryNumbers.getTapeBlock();
       const graph = State.toGraph(binaryNumbers.states[name], tapeBlock);
 
-      expect(Object.keys(graph.nodes)).toHaveLength(expectedNodeCount[name]);
+      expect(summarizeGraph(graph).stateCount).toBe(expectedNodeCount[name]);
     },
   );
 

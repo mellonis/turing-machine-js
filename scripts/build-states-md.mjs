@@ -57,7 +57,7 @@ if (libName === null) {
     process.exit(1);
   }
 
-  const {State, toMermaid} = await import('../packages/machine/dist/index.mjs');
+  const {State, summarizeGraph, toMermaid} = await import('../packages/machine/dist/index.mjs');
   const library = (await import(entry.importPath)).default;
 
   const sections = [`# ${entry.name} — state graphs`, ''];
@@ -66,14 +66,22 @@ if (libName === null) {
     const tapeBlock = library.getTapeBlock();
     const graph = State.toGraph(state, tapeBlock);
     const mermaid = toMermaid(graph);
-    // Exclude `isClonedHalt: true` nodes from the count — they are
-    // visualization-only sentinels (one per wrapper context, all mapped to the
-    // singleton `haltState` at runtime), not distinct runtime states.
-    const nodeCount = Object.values(graph.nodes).filter((n) => !n.isClonedHalt).length;
+    // Engine-owned introspection — dogfoods the same summary the public API
+    // exposes. `stateCount` already filters out `isClonedHalt` sentinels.
+    const summary = summarizeGraph(graph);
 
     sections.push(`## ${stateName}`);
     sections.push('');
-    sections.push(`*${nodeCount} state${nodeCount === 1 ? '' : 's'} (including \`haltState\`)*`);
+    sections.push(
+      `*${summary.stateCount} state${summary.stateCount === 1 ? '' : 's'}; `
+      + `${summary.transitionCount} transitions`
+      + (summary.compositionEdgeCount > 0
+        ? `; ${summary.compositionEdgeCount} wrapper${summary.compositionEdgeCount === 1 ? '' : 's'} `
+          + `(max nesting depth ${summary.maxCompositionDepth})`
+        : '')
+      + (summary.hasCycles ? '; has cycles' : '')
+      + '*',
+    );
     sections.push('');
     sections.push('```mermaid');
     sections.push(mermaid);

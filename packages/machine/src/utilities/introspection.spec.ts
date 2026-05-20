@@ -11,8 +11,8 @@ describe('summarizeGraph', () => {
         1: {
           id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [
-            {pattern: '0', command: [{symbol: 'K', movement: '→'}], nextStateId: 1, id: "test-edge"},
-            {pattern: '1', command: [{symbol: 'K', movement: '⇹'}], nextStateId: 0, id: "test-edge"},
+            {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: '1', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -35,7 +35,7 @@ describe('summarizeGraph', () => {
         1: {
           id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [
-            {pattern: '0', command: [{symbol: 'K', movement: '→'}], nextStateId: 1, id: "test-edge"},
+            {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
           ],
         },
       },
@@ -55,7 +55,7 @@ describe('summarizeGraph', () => {
         0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
         1: {
           id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
-          transitions: [{pattern: '0', command: [{symbol: 'K', movement: '⇹'}], nextStateId: 0, id: "test-edge"}],
+          transitions: [{pattern: '0', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"}],
         },
       },
     };
@@ -122,7 +122,7 @@ describe('State.inspect', () => {
 
     const haltTransition = info.transitions.find((t) => t.nextState?.name === haltState.name);
     expect(haltTransition).toBeTruthy();
-    expect(haltTransition!.command[0].movement).toBe('→');
+    expect(haltTransition!.command[0].movement).toBe('R');
     expect(haltTransition!.command[0].symbol).toBe("'1'");
   });
 
