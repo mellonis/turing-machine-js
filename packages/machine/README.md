@@ -93,12 +93,12 @@ flowchart TD
   s1["replaceB"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'b' → '*'/R" --> s1
-  s1 -- "- → K/L" --> s0
-  s1 -- "* → K/R" --> s1
+  s1 -- "'b' → '*'/→" --> s1
+  s1 -- "- → K/←" --> s0
+  s1 -- "∗ → K/→" --> s1
 ```
 
-Engine notation: `read → write/move`. Write commands: `K` = keep, `E` = erase (write the blank). Literal alphabet symbols are wrapped in single quotes: `'b'`, `'*'`, `'X'`. Unquoted markers: `*` = `ifOtherSymbol` catch-all, `-` = the blank symbol. `(((double-paren)))` = halt; `["square"]` = a regular state. The `idle([idle])` sentinel + labeled-dotted `-. enter .->` arrow marks where execution begins. Wrapped states (subroutine-shaped `[[double-walled]]`) sit inside a `subgraph w_N["halt frame"]` block — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) below.
+Engine notation: `read → write/move`. Write commands: `K` = keep, `E` = erase (write the blank). Movements: `→` = right, `←` = left, `⇹` = stay. Literal alphabet symbols are wrapped in single quotes: `'b'`, `'*'`, `'X'`. Unquoted markers: `∗` (U+2217 asterisk-operator) = `ifOtherSymbol` catch-all, `-` = the blank symbol. `(((double-paren)))` = halt; `["square"]` = a regular state. The `idle([idle])` sentinel + labeled-dotted `-. enter .->` arrow marks where execution begins. Wrapped states (subroutine-shaped `[[double-walled]]`) sit inside a `subgraph w_N["halt frame"]` block — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) below.
 
 </details>
 
@@ -275,11 +275,11 @@ flowchart TD
   s1["name"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'1' → '0'/R" --> s1
-  s1 -- "'$' → K/L" --> s0
+  s1 -- "'1' → '0'/→" --> s1
+  s1 -- "'$' → K/←" --> s0
 ```
 
-*Edge labels are `read → write/move`. Write commands: `K` = keep (no write), `E` = erase (write the blank). Literal alphabet symbols are quoted (`'1'`, `'$'`). Movements: `L` / `R` / `S`.*
+*Edge labels are `read → write/move`. Write commands: `K` = keep (no write), `E` = erase (write the blank). Literal alphabet symbols are quoted (`'1'`, `'$'`). Movements: `←` (left), `→` (right), `⇹` (stay).*
 
 > 💡 **Mermaid renders at most one edge per source/target pair.** If a state has two distinct transitions back to itself (or two parallel transitions to the same target), only one shows in the diagram. The string output is correct — this is a viewer-side limitation. For graphs with multiple parallel edges, paste the `toMermaid` output into [mermaid.live](https://mermaid.live) and switch to the `stateDiagram-v2` renderer, or post-process the output to your preferred format.
 
@@ -316,8 +316,8 @@ flowchart TD
   s2["b"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'x' → K/S" --> s2
-  s2 -- "'y' → K/S" --> s1
+  s1 -- "'x' → K/⇹" --> s2
+  s2 -- "'y' → K/⇹" --> s1
 ```
 
 `a` is round (the initial state passed to `toGraph`); `b` is square (reachable from `a`).
@@ -438,8 +438,8 @@ flowchart TD
   s1["scanToX"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'X' → K/S" --> s0
-  s1 -- "* → K/R" --> s1
+  s1 -- "'X' → K/⇹" --> s0
+  s1 -- "∗ → K/→" --> s1
 ```
 
 `toMermaid(toGraph(scanThenErase, tapeBlock))` — the wrapped composition:
@@ -455,9 +455,9 @@ flowchart TD
     c3(((halt)))
   end
   idle -. enter .-> s3
-  s2 -- "* → E/S" --> s0
-  s3 -- "'X' → K/S" --> c3
-  s3 -- "* → K/R" --> s3
+  s2 -- "∗ → E/⇹" --> s0
+  s3 -- "'X' → K/⇹" --> c3
+  s3 -- "∗ → K/→" --> s3
   s3 -. onHalt .-> s2
 ```
 
@@ -469,7 +469,7 @@ flowchart TD
 4. **The dotted `onHalt` arrow from `[[scanToX]]` to `eraseHere`** is the wrapper's catch-and-redirect. The single arrow that crosses the subgraph border. Originates from the wrapper-node since the wrapper *is* the catcher.
 5. **Real `(((halt)))` outside any subgraph** (`s0`) is the actual run terminus. Reached only by states that are *not* inside a wrapper's halt-frame — here, by `eraseHere` after it erases the cell.
 
-**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter the `halt frame` at `[[scanToX]]` (with `eraseHere` on the stack); `* → K/R` self-loops until the head sees `X`; the `'X' → K/S` solid edge would normally halt — it lands on the cloned halt `c3`, the wrapper's catch-and-redirect kicks in, pop the stack → `eraseHere`; `eraseHere` runs `* → E/S` and halts at real `s0`. Run terminates.
+**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter the `halt frame` at `[[scanToX]]` (with `eraseHere` on the stack); `∗ → K/→` self-loops until the head sees `X`; the `'X' → K/⇹` solid edge would normally halt — it lands on the cloned halt `c3`, the wrapper's catch-and-redirect kicks in, pop the stack → `eraseHere`; `eraseHere` runs `∗ → E/⇹` and halts at real `s0`. Run terminates.
 
 > 💡 **Round-trip caveat.** `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers like this one ([#139](https://github.com/mellonis/turing-machine-js/issues/139) regression). For shared-bare cases (same `State` instance used as the bare in multiple wrappers — e.g., `library-binary-numbers`'s `minusOne`), per-context duplication produces wrapper-id-dependent ordering that doesn't byte-match across rebuilds — equivalent runtime behavior, different emit-line order.
 
