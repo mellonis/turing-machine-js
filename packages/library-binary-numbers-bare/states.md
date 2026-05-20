@@ -8,13 +8,13 @@
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s1["plusOneCarry"]
-  s2(("plusOne"))
-  s1 -- "1 → 0/L" --> s1
-  s1 -- "0 → 1/S" --> s0
-  s1 -- "- → 1/S" --> s0
-  s2 -- "0|1 → ·/R" --> s2
-  s2 -- "- → ·/L" --> s1
+  s27["plusOneCarry"]
+  s28(("plusOne"))
+  s27 -- "1 → 0/L" --> s27
+  s27 -- "0 → 1/S" --> s0
+  s27 -- "- → 1/S" --> s0
+  s28 -- "0|1 → ·/R" --> s28
+  s28 -- "- → ·/L" --> s27
 ```
 
 ## minusOne
@@ -25,13 +25,13 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s3["minusOneBorrow"]
-  s4(("minusOne"))
-  s3 -- "0 → 1/L" --> s3
-  s3 -- "1 → 0/S" --> s0
-  s3 -- "- → ·/S" --> s0
-  s4 -- "0|1 → ·/R" --> s4
-  s4 -- "- → ·/L" --> s3
+  s29["minusOneBorrow"]
+  s30(("minusOne"))
+  s29 -- "0 → 1/L" --> s29
+  s29 -- "1 → 0/S" --> s0
+  s29 -- "- → ·/S" --> s0
+  s30 -- "0|1 → ·/R" --> s30
+  s30 -- "- → ·/L" --> s29
 ```
 
 ## invertNumber
@@ -42,10 +42,10 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s5(("invertNumber"))
-  s5 -- "0 → 1/R" --> s5
-  s5 -- "1 → 0/R" --> s5
-  s5 -- "- → ·/S" --> s0
+  s31(("invertNumber"))
+  s31 -- "0 → 1/R" --> s31
+  s31 -- "1 → 0/R" --> s31
+  s31 -- "- → ·/S" --> s0
 ```
 
 ## normalizeNumber
@@ -56,8 +56,8 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s6(("normalizeNumber"))
-  s6 -- "0 → ⌫/R" --> s6
-  s6 -- "1 → ·/S" --> s0
-  s6 -- "- → 0/S" --> s0
+  s32(("normalizeNumber"))
+  s32 -- "0 → ⌫/R" --> s32
+  s32 -- "1 → ·/S" --> s0
+  s32 -- "- → 0/S" --> s0
 ```

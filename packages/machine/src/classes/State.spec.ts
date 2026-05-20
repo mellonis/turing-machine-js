@@ -93,6 +93,14 @@ describe('State constructor — invalid inputs', () => {
       [symbol(['0'])]: {command: [] as never, nextState: haltState},
     })).toThrow('invalid command');
   });
+
+  test('throws when user-provided name contains `(`', () => {
+    expect(() => new State(null, 'foo(bar')).toThrow(/invalid state name/);
+  });
+
+  test('throws when user-provided name contains `)`', () => {
+    expect(() => new State(null, 'foo)bar')).toThrow(/invalid state name/);
+  });
 });
 
 describe('State.getCommand / .getNextState — error paths', () => {
@@ -171,13 +179,31 @@ describe('State.withOverriddenHaltState', () => {
     expect(wrapped.id).not.toBe(original.id);
   });
 
-  test('wrapper name encodes the override target', () => {
+  test('wrapper name encodes the override target as `bare(override)`', () => {
     const original = new State({[ifOtherSymbol]: {}}, 'inner');
     const override = new State({[ifOtherSymbol]: {}}, 'outer');
 
     const wrapped = original.withOverriddenHaltState(override);
 
-    expect(wrapped.name).toBe('inner>outer');
+    expect(wrapped.name).toBe('inner(outer)');
+  });
+
+  test('paren-naming distinguishes nestings that flat `>` notation would collide', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const B = new State({[ifOtherSymbol]: {}}, 'B');
+
+    // Construction 1: bare=A, override=(B with override A)
+    const inner1 = B.withOverriddenHaltState(A);
+    const outer1 = A.withOverriddenHaltState(inner1);
+
+    // Construction 2: bare=(A with override B), override=A
+    const inner2 = A.withOverriddenHaltState(B);
+    const outer2 = inner2.withOverriddenHaltState(A);
+
+    // Old `>` notation would collide both at "A>B>A". Paren notation keeps them distinct.
+    expect(outer1.name).toBe('A(B(A))');
+    expect(outer2.name).toBe('A(B)(A)');
+    expect(outer1.name).not.toBe(outer2.name);
   });
 });
 

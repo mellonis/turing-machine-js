@@ -74,7 +74,10 @@ export class DebugConfig {
 export default class State {
   readonly #id: number = id(this);
 
-  readonly #name: string;
+  // Not `readonly` because `withOverriddenHaltState` and `fromGraph` set the
+  // composed name on a no-arg `new State()` to bypass the constructor's
+  // user-facing name validation (composite names contain `(` and `)`).
+  #name: string;
 
   #overriddenHaltState: State | null = null;
 
@@ -142,6 +145,10 @@ export default class State {
           nextState: nextStateLocal,
         });
       });
+    }
+
+    if (name !== undefined && /[()]/.test(name)) {
+      throw new Error(`invalid state name "${name}": must not contain '(' or ')' (reserved as wrapper-composition delimiters in withOverriddenHaltState)`);
     }
 
     this.#name = name ?? `id:${this.#id}`;
@@ -261,8 +268,13 @@ export default class State {
   }
 
   withOverriddenHaltState(overriddenHaltState: State) {
-    const state = new State(null, `${this.name}>${overriddenHaltState.name}`);
+    // Construct with no name, then overwrite #name directly — the composed
+    // name contains `(` and `)` by design, which the constructor's user-facing
+    // validation would reject. Internal composition bypasses validation via
+    // private-field access (legal within the same class).
+    const state = new State();
 
+    state.#name = `${this.name}(${overriddenHaltState.name})`;
     state.#symbolToDataMap = this.#symbolToDataMap;
     state.#overriddenHaltState = overriddenHaltState;
     state.#debugRef = this.#debugRef;
@@ -440,7 +452,13 @@ export default class State {
         };
       }
 
-      bareStates[nodeId] = new State(stateDefinition, node.name);
+      // Graph-sourced names may contain `(` and `)` (composite wrapper names
+      // emitted by toGraph). Bypass the constructor's user-facing name
+      // validation by constructing without a name and assigning #name directly.
+      const bare = new State(stateDefinition);
+
+      bare.#name = node.name;
+      bareStates[nodeId] = bare;
     }
 
     // Pass 3: apply overrideHaltStates transitively.
