@@ -113,12 +113,12 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [
-            {pattern: '0', command: [{symbol: '·', movement: 'R'}], nextStateId: 1},
-            {pattern: '1', command: [{symbol: '·', movement: 'S'}], nextStateId: 0},
+            {pattern: '0', command: [{symbol: '·', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: '1', command: [{symbol: '·', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -137,8 +137,8 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isClonedHalt: false},
       },
     });
 
@@ -150,9 +150,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
       },
     });
 
@@ -164,13 +164,14 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [{
             pattern: '0,a',
             command: [{symbol: '0', movement: 'R'}, {symbol: 'a', movement: 'L'}],
             nextStateId: 0,
+            id: 'test-edge',
           }],
         },
       },
@@ -392,7 +393,7 @@ describe('README diagrams: engine-generated outputs', () => {
     ]);
   });
 
-  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the onHalt dotted edge', () => {
+  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the v7 halt-frame subgraph', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -410,12 +411,13 @@ describe('README diagrams: engine-generated outputs', () => {
     expectAllLines(output, [
       'flowchart TD',
       '%% alphabets: [[" ","a","b","X"]]',
-      '(((halt)))',
-      '["scanToX"]', // original scanToX is reachable from the wrapper → square
-      '["eraseHere"]', // eraseHere is reachable via onHalt → square
-      '(("scanToX(eraseHere)"))', // wrapper is the initial state → round
+      '(((halt)))', // real halt outside any subgraph
+      '["eraseHere"]', // override is a regular [name] node
+      '[["scanToX"]]', // wrapper-collapsed bare uses subroutine shape inside the subgraph
+      'subgraph w_', // halt-frame subgraph wraps the bare + its cloned halt
+      '"halt frame"', // subgraph label
       '"* → ⌫/S"', // eraseHere's erase command
-      '-. onHalt .->', // the dotted override-halt edge — engine's static fingerprint of the override
+      '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });
 });

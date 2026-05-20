@@ -6,6 +6,11 @@ export type GraphTransition = {
   pattern: string;
   command: GraphCommand[];
   nextStateId: number;
+  // Stable, deterministic per-edge identifier. Format: `${fromNodeId}-${patternIx}`
+  // where `patternIx` is the transition's position in the source state's symbol
+  // map. Let's downstream rendering (machines-demo #10) target a specific edge in
+  // the rendered Mermaid SVG to highlight "the edge that will fire next."
+  id: string;
 };
 
 export type GraphNode = {
@@ -14,6 +19,14 @@ export type GraphNode = {
   isHalt: boolean;
   transitions: GraphTransition[];
   overriddenHaltStateId: number | null;
+  // `true` when this node represents the bare of a `withOverriddenHaltState`-
+  // wrapped state. Carries the `[[…]]` (subroutine) shape signal for `toMermaid`
+  // and tells `fromGraph` to reconstruct via `bare.withOverriddenHaltState(target)`.
+  isWrapped: boolean;
+  // `true` for a synthesized halt-clone graph node — one per wrapper context.
+  // Real halt has `isHalt: true, isClonedHalt: false`; cloned halts have both
+  // `true`. `fromGraph` maps cloned-halt nodes back to the singleton `haltState`.
+  isClonedHalt: boolean;
 };
 
 export type Graph = {

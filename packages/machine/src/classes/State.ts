@@ -81,6 +81,12 @@ export default class State {
 
   #overriddenHaltState: State | null = null;
 
+  // For wrapper states (produced by `withOverriddenHaltState`), points at the
+  // State whose transition map was wrapped. `null` on bare/atomic states.
+  // Used by `toGraph` to collapse the wrapper-and-its-bare pair into a single
+  // "wrapped bare" graph node — see the v7 emit redesign for #138.
+  #bareState: State | null = null;
+
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
 
   // Shared mutable cell — withOverriddenHaltState wrappers reference the same
@@ -278,6 +284,7 @@ export default class State {
     state.#symbolToDataMap = this.#symbolToDataMap;
     state.#overriddenHaltState = overriddenHaltState;
     state.#debugRef = this.#debugRef;
+    state.#bareState = this;
 
     return state;
   }
@@ -334,39 +341,209 @@ export default class State {
     };
   }
 
+  // Walks the State graph and emits a `Graph` data structure. v7 emit shape:
+  // wrapper-States (those with `#overriddenHaltState !== null`) are collapsed
+  // onto their bare's representation in the graph, with the wrapper's own `#id`
+  // used as the graph node id, `isWrapped: true`, and `overriddenHaltStateId`
+  // set to the override's collapsed id. A per-wrapper "cloned halt" graph node
+  // (id = negative-of-the-wrapper-id, `isHalt: true, isClonedHalt: true`) is
+  // synthesized; the bare's halt-bound transitions are rewritten to target the
+  // cloned halt instead of the real one.
+  //
+  // Cloned-halt node ids use the negation of the wrapper's id so they sit in a
+  // disjoint integer range from real ids (which are always non-negative). Real
+  // halt is always id 0.
   static toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
     const nodes: Record<number, GraphNode> = {};
-    const queue: State[] = [initialState];
     const alphabets = tapeBlock.alphabets.map((alphabet) => alphabet.symbols);
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    // Map from a wrapper-State to the "collapsed" graph node id used to refer
+    // to it in transitions. Same as the wrapper's `#id`, recorded for clarity
+    // when rewriting transition targets.
+    const wrapperGraphId = (s: State): number => s.#id;
+    const clonedHaltIdFor = (wrapper: State): number => -wrapper.#id;
 
-      if (current.#id in nodes) {
+    // The `initialId` is the user-passed start. If it's a wrapper, the
+    // collapsed graph node uses its `#id`; otherwise its own `#id`.
+    const initialId = initialState.#id;
+
+    type QueueItem = {
+      // The State instance to process at this slot.
+      state: State;
+      // When non-null, the State is being processed AS the bare of this wrapper.
+      // The collapsed graph node uses `wrapperGraphId(wrapperContext)`,
+      // halt-bound transitions retarget to `clonedHaltIdFor(wrapperContext)`,
+      // self-loop transitions to the bare retarget to the wrapper-id.
+      wrapperContext: State | null;
+    };
+
+    const queue: QueueItem[] = [];
+
+    // Decide how to enqueue the start: if it's a wrapper, enqueue its bare with
+    // the wrapper as context; otherwise enqueue the state itself.
+    if (initialState.#overriddenHaltState && initialState.#bareState) {
+      queue.push({state: initialState.#bareState, wrapperContext: initialState});
+    } else {
+      queue.push({state: initialState, wrapperContext: null});
+    }
+
+    while (queue.length > 0) {
+      const {state, wrapperContext} = queue.shift()!;
+
+      if (state.isHalt) {
+        // Real halt — always id 0, single node.
+        if (!(0 in nodes)) {
+          nodes[0] = {
+            id: 0,
+            name: state.#name,
+            isHalt: true,
+            isClonedHalt: false,
+            isWrapped: false,
+            transitions: [],
+            overriddenHaltStateId: null,
+          };
+        }
+
+        continue;
+      }
+
+      if (wrapperContext !== null) {
+        // Process `state` (the bare) collapsed under `wrapperContext` (the
+        // wrapper). Graph node id = wrapper's id.
+        const collapsedId = wrapperGraphId(wrapperContext);
+
+        if (collapsedId in nodes) {
+          continue;
+        }
+
+        const clonedHaltId = clonedHaltIdFor(wrapperContext);
+        const overrideTarget = wrapperContext.#overriddenHaltState!;
+
+        // The override target's collapsed id: if the override is itself a
+        // wrapper, its graph node id is `overrideTarget.#id` (its own wrapper
+        // id); otherwise its own bare id.
+        const overrideGraphId = overrideTarget.#overriddenHaltState
+          ? wrapperGraphId(overrideTarget)
+          : overrideTarget.#id;
+
+        // Emit the cloned-halt node if not already present (one per wrapper).
+        if (!(clonedHaltId in nodes)) {
+          nodes[clonedHaltId] = {
+            id: clonedHaltId,
+            name: 'halt',
+            isHalt: true,
+            isClonedHalt: true,
+            isWrapped: false,
+            transitions: [],
+            overriddenHaltStateId: null,
+          };
+        }
+
+        // Build the collapsed node.
+        const collapsedNode: GraphNode = {
+          id: collapsedId,
+          name: state.#name,
+          isHalt: false,
+          isClonedHalt: false,
+          isWrapped: true,
+          transitions: [],
+          overriddenHaltStateId: overrideGraphId,
+        };
+
+        nodes[collapsedId] = collapsedNode;
+
+        let patternIx = 0;
+
+        for (const [sym, {command, nextState}] of state.#symbolToDataMap) {
+          let target: State;
+
+          try {
+            target = nextState instanceof State ? nextState : nextState.ref;
+          } catch {
+            patternIx += 1;
+            continue;
+          }
+
+          // Retarget transitions per Variant X conventions:
+          // - target == haltState → cloned halt (stays inside the subgraph)
+          // - target == bare (self-loop) → the collapsed wrapper id
+          // - target is itself a wrapper → that wrapper's collapsed id
+          // - else → target's own id
+          let nextStateId: number;
+
+          if (target.isHalt) {
+            nextStateId = clonedHaltId;
+          } else if (target === state) {
+            nextStateId = collapsedId;
+          } else if (target.#overriddenHaltState && target.#bareState) {
+            nextStateId = wrapperGraphId(target);
+            queue.push({state: target.#bareState, wrapperContext: target});
+          } else {
+            nextStateId = target.#id;
+            queue.push({state: target, wrapperContext: null});
+          }
+
+          collapsedNode.transitions.push({
+            pattern: decodePatternDescription(sym.description, alphabets),
+            command: command.tapesCommands.map((tc) => ({
+              symbol: decodeWriteSymbol(tc.symbol),
+              movement: decodeMovement((tc.movement as symbol).description),
+            })),
+            nextStateId,
+            id: `${collapsedId}-${patternIx}`,
+          });
+
+          patternIx += 1;
+        }
+
+        // Enqueue the override target so its own node is emitted.
+        if (overrideTarget.#overriddenHaltState && overrideTarget.#bareState) {
+          queue.push({state: overrideTarget.#bareState, wrapperContext: overrideTarget});
+        } else {
+          queue.push({state: overrideTarget, wrapperContext: null});
+        }
+
+        continue;
+      }
+
+      // Non-wrapper context: emit `state` as a regular node.
+      if (state.#id in nodes) {
         continue;
       }
 
       const node: GraphNode = {
-        id: current.#id,
-        name: current.#name,
-        isHalt: current.isHalt,
+        id: state.#id,
+        name: state.#name,
+        isHalt: false,
+        isClonedHalt: false,
+        isWrapped: false,
         transitions: [],
-        overriddenHaltStateId: current.#overriddenHaltState?.id ?? null,
+        overriddenHaltStateId: null,
       };
 
-      nodes[current.#id] = node;
+      nodes[state.#id] = node;
 
-      if (current.#overriddenHaltState) {
-        queue.push(current.#overriddenHaltState);
-      }
+      let patternIx = 0;
 
-      for (const [sym, {command, nextState}] of current.#symbolToDataMap) {
+      for (const [sym, {command, nextState}] of state.#symbolToDataMap) {
         let target: State;
 
         try {
           target = nextState instanceof State ? nextState : nextState.ref;
         } catch {
+          patternIx += 1;
           continue;
+        }
+
+        let nextStateId: number;
+
+        if (target.#overriddenHaltState && target.#bareState) {
+          // Transition into a wrapper — use its collapsed id.
+          nextStateId = wrapperGraphId(target);
+          queue.push({state: target.#bareState, wrapperContext: target});
+        } else {
+          nextStateId = target.#id;
+          queue.push({state: target, wrapperContext: null});
         }
 
         node.transitions.push({
@@ -375,14 +552,15 @@ export default class State {
             symbol: decodeWriteSymbol(tc.symbol),
             movement: decodeMovement((tc.movement as symbol).description),
           })),
-          nextStateId: target.id,
+          nextStateId,
+          id: `${state.#id}-${patternIx}`,
         });
 
-        queue.push(target);
+        patternIx += 1;
       }
     }
 
-    return {initialId: initialState.#id, alphabets, nodes};
+    return {initialId, alphabets, nodes};
   }
 
   // Inverse of toGraph: rebuilds a State graph (and a fresh TapeBlock with the
