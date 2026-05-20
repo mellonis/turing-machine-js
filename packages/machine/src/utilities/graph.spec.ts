@@ -23,8 +23,8 @@ describe('decodePatternDescription', () => {
     expect(decodePatternDescription('other symbol', alphabets)).toBe('*');
   });
 
-  test('literal cell', () => {
-    expect(decodePatternDescription('[["0"]]', alphabets)).toBe('0');
+  test('literal cell wraps in single quotes', () => {
+    expect(decodePatternDescription('[["0"]]', alphabets)).toBe("'0'");
   });
 
   test('per-cell null → "*"', () => {
@@ -35,31 +35,35 @@ describe('decodePatternDescription', () => {
     expect(decodePatternDescription('[[" "]]', alphabets)).toBe('-');
   });
 
-  test('multi-tape pattern joins cells with ","', () => {
+  test('multi-tape pattern joins quoted cells with ","', () => {
     expect(decodePatternDescription(
       '[["0","a"]]',
       [[' ', '0', '1'], [' ', 'a', 'b']],
-    )).toBe('0,a');
+    )).toBe("'0','a'");
   });
 
   test('alternative patterns join with "|"', () => {
-    expect(decodePatternDescription('[["0"],["1"]]', alphabets)).toBe('0|1');
+    expect(decodePatternDescription('[["0"],["1"]]', alphabets)).toBe("'0'|'1'");
   });
 
-  test('reserved char "*" is escaped as "\\*"', () => {
-    expect(decodePatternDescription('[["*"]]', [[' ', '*', 'x']])).toBe('\\*');
+  test('literal "*" is quoted (distinguishes from per-cell ifOtherSymbol marker)', () => {
+    expect(decodePatternDescription('[["*"]]', [[' ', '*', 'x']])).toBe("'*'");
   });
 
-  test('reserved char "," is escaped as "\\,"', () => {
-    expect(decodePatternDescription('[[","]]', [[' ', ',', 'x']])).toBe('\\,');
+  test('literal "," is quoted (distinguishes from cell separator)', () => {
+    expect(decodePatternDescription('[[","]]', [[' ', ',', 'x']])).toBe("','");
   });
 
-  test('reserved char "|" is escaped as "\\|"', () => {
-    expect(decodePatternDescription('[["|"]]', [[' ', '|', 'x']])).toBe('\\|');
+  test('literal "|" is quoted (distinguishes from alternative separator)', () => {
+    expect(decodePatternDescription('[["|"]]', [[' ', '|', 'x']])).toBe("'|'");
   });
 
-  test('backslash is escaped as "\\\\"', () => {
-    expect(decodePatternDescription('[["\\\\"]]', [[' ', '\\', 'x']])).toBe('\\\\');
+  test('backslash inside quotes is escaped as "\\\\"', () => {
+    expect(decodePatternDescription('[["\\\\"]]', [[' ', '\\', 'x']])).toBe("'\\\\'");
+  });
+
+  test('literal apostrophe is escaped inside quotes as \\\'', () => {
+    expect(decodePatternDescription('[["\'"]]', [[' ', "'", 'x']])).toBe("'\\\''");
   });
 
   test('malformed JSON → returned as-is', () => {
@@ -86,16 +90,16 @@ describe('decodeMovement', () => {
 });
 
 describe('decodeWriteSymbol', () => {
-  test('symbolCommands.keep → "·"', () => {
-    expect(decodeWriteSymbol(symbolCommands.keep)).toBe('·');
+  test('symbolCommands.keep → "K"', () => {
+    expect(decodeWriteSymbol(symbolCommands.keep)).toBe('K');
   });
 
-  test('symbolCommands.erase → "⌫"', () => {
-    expect(decodeWriteSymbol(symbolCommands.erase)).toBe('⌫');
+  test('symbolCommands.erase → "E"', () => {
+    expect(decodeWriteSymbol(symbolCommands.erase)).toBe('E');
   });
 
-  test('literal string is returned as-is', () => {
-    expect(decodeWriteSymbol('0')).toBe('0');
+  test('literal string is wrapped in single quotes', () => {
+    expect(decodeWriteSymbol('0')).toBe("'0'");
   });
 
   test('symbol with no description → "?"', () => {
@@ -117,8 +121,8 @@ describe('toMermaid', () => {
         1: {
           id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
           transitions: [
-            {pattern: '0', command: [{symbol: '·', movement: 'R'}], nextStateId: 1, id: "test-edge"},
-            {pattern: '1', command: [{symbol: '·', movement: 'S'}], nextStateId: 0, id: "test-edge"},
+            {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: '1', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -130,8 +134,8 @@ describe('toMermaid', () => {
     expect(out).toContain('s1["entry"]');
     expect(out).toContain('idle([idle])');
     expect(out).toContain('idle -. enter .-> s1');
-    expect(out).toContain('s1 -- "0 → ·/R" --> s1');
-    expect(out).toContain('s1 -- "1 → ·/S" --> s0');
+    expect(out).toContain('s1 -- "0 → K/R" --> s1');
+    expect(out).toContain('s1 -- "1 → K/S" --> s0');
   });
 
   test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
@@ -318,8 +322,8 @@ describe('README example: toMermaid output is stable', () => {
       '  s1["name"]',
       '  idle([idle])',
       '  idle -. enter .-> s1',
-      '  s1 -- "1 → 0/R" --> s1',
-      '  s1 -- "$ → ·/L" --> s0',
+      "  s1 -- \"'1' → '0'/R\" --> s1",
+      "  s1 -- \"'$' → K/L\" --> s0",
     ].join('\n');
 
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
@@ -359,9 +363,9 @@ describe('README diagrams: engine-generated outputs', () => {
       '["replaceB"]', // initial — square (no longer round in v7; idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      '"b → */R"',
-      '"- → ·/L"',
-      '"* → ·/R"',
+      "\"'b' → '*'/R\"",
+      '"- → K/L"',
+      '"* → K/R"',
     ]);
   });
 
@@ -383,8 +387,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["b"]', // b is reachable from a → square
       'idle([idle])',
       'idle -. enter .->',
-      '"x → ·/S"',
-      '"y → ·/S"',
+      "\"'x' → K/S\"",
+      "\"'y' → K/S\"",
     ]);
   });
 
@@ -406,8 +410,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["scanToX"]', // initial — square (idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      '"X → ·/S"',
-      '"* → ·/R"',
+      "\"'X' → K/S\"",
+      '"* → K/R"',
     ]);
   });
 
@@ -436,7 +440,7 @@ describe('README diagrams: engine-generated outputs', () => {
       '"halt frame"', // subgraph label
       'idle([idle])', // pre-execution sentinel — always emitted
       'idle -. enter .->', // labeled dotted enter arrow points at the initial state
-      '"* → ⌫/S"', // eraseHere's erase command
+      '"* → E/S"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });

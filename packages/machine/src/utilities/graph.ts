@@ -42,8 +42,8 @@ const movementDescriptionToLabel: Record<string, string> = {
 };
 
 const symbolCommandDescriptionToLabel: Record<string, string> = {
-  'keep symbol command': '·',
-  'erase symbol command': '⌫',
+  'keep symbol command': 'K',
+  'erase symbol command': 'E',
 };
 
 // Reserved characters in the encoded pattern string:
@@ -51,15 +51,17 @@ const symbolCommandDescriptionToLabel: Record<string, string> = {
 //   '-'  the tape's blank symbol
 //   ','  separates per-tape cells inside one pattern
 //   '|'  separates alternative patterns
-//   '\\' escape prefix — to represent any of '*', '-', ',', '|', or '\\' as a
-//        *literal* alphabet symbol, prefix it with '\\' (e.g. '\\*' for literal '*').
+//   "'"  surrounds a literal alphabet symbol — e.g. `'0'` for literal `0`,
+//        `'X'` for literal `X`. The quoting is what visually separates literal
+//        symbols from the convention markers `*` / `-` and from the write
+//        commands `K` / `E`.
+//   '\\' escape prefix — to represent any of '*', '-', ',', '|', "'", or '\\'
+//        as a *literal* alphabet symbol *inside* the quotes (e.g. `'\''` for
+//        a literal apostrophe).
 function escapeAlphabetSymbol(s: string): string {
   return s
     .replace(/\\/g, '\\\\')
-    .replace(/\*/g, '\\*')
-    .replace(/-/g, '\\-')
-    .replace(/,/g, '\\,')
-    .replace(/\|/g, '\\|');
+    .replace(/'/g, "\\'");
 }
 
 export function decodePatternDescription(
@@ -88,7 +90,7 @@ export function decodePatternDescription(
             return '-';
           }
 
-          return escapeAlphabetSymbol(s);
+          return `'${escapeAlphabetSymbol(s)}'`;
         })
         .join(','))
       .join('|');
@@ -153,6 +155,12 @@ export function parsePatternString(s: string, alphabets: string[][]): ParsedPatt
         return alphabets[tapeIx]?.[0] ?? cell;
       }
 
+      // Literal alphabet symbols are wrapped in single quotes by
+      // `decodePatternDescription` — strip them on the way back.
+      if (cell.length >= 2 && cell.startsWith("'") && cell.endsWith("'")) {
+        return cell.slice(1, -1);
+      }
+
       return cell;
     });
   });
@@ -175,12 +183,18 @@ export function parseMovementLabel(label: string): symbol {
 }
 
 export function parseWriteSymbolLabel(label: string): string | symbol {
-  if (label === '·') {
+  if (label === 'K') {
     return symbolCommands.keep;
   }
 
-  if (label === '⌫') {
+  if (label === 'E') {
     return symbolCommands.erase;
+  }
+
+  // Literal alphabet symbols are wrapped in single quotes by
+  // `decodeWriteSymbol` — strip them on the way back.
+  if (label.length >= 2 && label.startsWith("'") && label.endsWith("'")) {
+    return label.slice(1, -1);
   }
 
   return label;
@@ -193,7 +207,7 @@ export function decodeWriteSymbol(symbol: string | symbol): string {
     return symbolCommandDescriptionToLabel[description] ?? description;
   }
 
-  return symbol;
+  return `'${symbol}'`;
 }
 
 // Format converters (toMermaid / fromMermaid) live in ./graphFormats.
