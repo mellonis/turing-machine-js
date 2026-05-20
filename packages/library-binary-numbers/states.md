@@ -51,7 +51,7 @@ flowchart TD
 
 ## deleteNumber
 
-*5 states (including `haltState`)*
+*4 states (including `haltState`)*
 
 ```mermaid
 flowchart TD
@@ -91,7 +91,7 @@ flowchart TD
 
 ## invertNumber
 
-*5 states (including `haltState`)*
+*4 states (including `haltState`)*
 
 ```mermaid
 flowchart TD
@@ -118,7 +118,7 @@ flowchart TD
 
 ## normalizeNumber
 
-*7 states (including `haltState`)*
+*6 states (including `haltState`)*
 
 ```mermaid
 flowchart TD
@@ -174,7 +174,7 @@ flowchart TD
 
 ## minusOne
 
-*20 states (including `haltState`)*
+*15 states (including `haltState`)*
 
 ```mermaid
 flowchart TD
@@ -252,7 +252,7 @@ flowchart TD
 
 ## minusOneFast
 
-*10 states (including `haltState`)*
+*8 states (including `haltState`)*
 
 ```mermaid
 flowchart TD

@@ -66,7 +66,10 @@ if (libName === null) {
     const tapeBlock = library.getTapeBlock();
     const graph = State.toGraph(state, tapeBlock);
     const mermaid = toMermaid(graph);
-    const nodeCount = Object.keys(graph.nodes).length;
+    // Exclude `isClonedHalt: true` nodes from the count — they are
+    // visualization-only sentinels (one per wrapper context, all mapped to the
+    // singleton `haltState` at runtime), not distinct runtime states.
+    const nodeCount = Object.values(graph.nodes).filter((n) => !n.isClonedHalt).length;
 
     sections.push(`## ${stateName}`);
     sections.push('');
