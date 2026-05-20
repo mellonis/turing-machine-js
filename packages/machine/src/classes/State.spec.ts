@@ -208,7 +208,7 @@ describe('State.withOverriddenHaltState', () => {
 });
 
 describe('State.toGraph — unbound Reference', () => {
-  test('skips a transition whose nextState is an unbound Reference', () => {
+  test('skips a transition whose nextState is an unbound Reference (non-wrapper context)', () => {
     // An unbound Reference throws when its `.ref` getter is read. State.toGraph
     // catches that and skips the transition rather than failing the whole walk.
     const unboundRef = new Reference();
@@ -221,6 +221,30 @@ describe('State.toGraph — unbound Reference', () => {
 
     // Only the haltState-bound transition survives; the unbound one is dropped.
     expect(graph.nodes[state.id].transitions).toHaveLength(1);
+  });
+
+  test('skips a transition whose nextState is an unbound Reference (wrapper context)', () => {
+    // toGraph has a separate try/catch in its wrapper-context branch — when the
+    // bare being walked is inside a `withOverriddenHaltState` wrapper. Same
+    // skip-and-continue semantic.
+    const unboundRef = new Reference();
+    const bare = new State({
+      [symbol(['0'])]: {nextState: unboundRef},
+      [symbol(['1'])]: {nextState: haltState},
+    }, 'bare');
+    const override = new State({
+      [symbol(['0'])]: {nextState: haltState},
+      [symbol(['1'])]: {nextState: haltState},
+    }, 'override');
+    const wrapped = bare.withOverriddenHaltState(override);
+
+    const graph = State.toGraph(wrapped, tapeBlock);
+
+    // The collapsed wrapper node retains only the haltState-bound transition;
+    // the unbound-Ref one is dropped.
+    const collapsedNode = graph.nodes[wrapped.id];
+
+    expect(collapsedNode.transitions).toHaveLength(1);
   });
 });
 
