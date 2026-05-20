@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.1] - 2026-05-21
+
+First v7 pre-release. Consolidates the composition-representation overhaul landed across [#149](https://github.com/mellonis/turing-machine-js/issues/149), [#148](https://github.com/mellonis/turing-machine-js/issues/148), [#138](https://github.com/mellonis/turing-machine-js/issues/138), and [#139](https://github.com/mellonis/turing-machine-js/issues/139). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.1`. Migration walkthrough at the bottom.
+
+### Changed
+
+- **`State.prototype.withOverrodeHaltState` renamed to `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: `overridden` (past participle) fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. Renames in lockstep:
+  - public method `State.prototype.withOverrodeHaltState` → `withOverriddenHaltState`
+  - getter `state.overrodeHaltState` → `state.overriddenHaltState`
+  - private field `#overrodeHaltState` → `#overriddenHaltState`
+  - serialized `Graph` data field `node.overrodeHaltStateId` → `node.overriddenHaltStateId`
+
+- **Wrapped-state composite name format flipped from `bare>override` to `bare(override)`** ([#148](https://github.com/mellonis/turing-machine-js/issues/148)). The old `>`-flat notation collided structurally-distinct wrap-trees into the same string: `A.with(B.with(A))` and `A.with(B).with(A)` both rendered as `A>B>A` despite being different runtime shapes. Paren-nested keeps them distinct: `A(B(A))` vs `A(B)(A)`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` constructor now throws on names with these characters. `>` is no longer reserved and is valid in user-provided names again.
+
+- **`toMermaid` wrapped-state emit overhaul** ([#138](https://github.com/mellonis/turing-machine-js/issues/138), [#139](https://github.com/mellonis/turing-machine-js/issues/139)). Each `withOverriddenHaltState` wrapper collapses onto its bare's representation — `GraphNode.isWrapped: true`, no separate wrapper node in graph data. `toMermaid` wraps each `[[bare]]` (Mermaid subroutine shape) + a synthesized `(((halt)))` halt-marker (`GraphNode.isHaltMarker: true`) inside a `subgraph w_${bareId}["halt frame"] … end` block. Dotted `onHalt` from `[[bare]]` crosses the subgraph border to the override target. An always-emitted `idle([idle])` stadium sentinel + `idle -. enter .-> sN` arrow marks the initial state (replaces the v6 `((round))` shape convention).
+
+- **Edge-label vocabulary rewritten** for readability — `[reads] → [writes]/[moves]` with each role wrapped in `[…]` (the tape-block indicator; always present, even single-tape). Read cells: `'X'` literal-quoted, `*` (ASCII; ifOtherSymbol catch-all — literal `*` in the alphabet renders as `'*'`), `B` (tape's blank shorthand). Write cells: literal-quoted, `K` (keep), `E` (erase = write blank). Move cells: `L` / `R` / `S`. Alternation per-pattern bracket: `['^']|['1']` for single-tape, `['0','a']|['1','b']` for multi-tape. Compact in-bracket `['^'|'1']` form is rejected by `fromMermaid` (would read as cross-product semantics in multi-tape).
+
+- **Thick `==>` arrows for stack-pushing transitions.** When a transition's target is a wrapped state AND ≠ source (i.e. would push the wrapper's override onto the runtime stack per `TuringMachine.run`'s line ~220 transition-time push), the engine emits a thick `==>` arrow — visual signal for "this transition fires a stack push."
+
+- **`GraphTransition.id`** — stable, deterministic per-edge identifier (`${fromNodeId}-${patternIx}`). Supports downstream tooling for edge-targeting in rendered Mermaid SVG (e.g. highlight-the-next-transition in interactive viewers).
+
+- **`summarize().stateCount` filters `isHaltMarker` nodes** — halt markers are visualization sentinels (all map back to singleton `haltState` at runtime), not distinct runtime states. Matches the per-algorithm header count in `library-binary-numbers/states.md`.
+
+### Added
+
+- **#139 regression test** — `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers. The wrapper's composite name (e.g. `scanToX(eraseHere)`) no longer appears as any graph-node label, so `fromGraph` reconstructs and recomputes the composite fresh on each pass — no round-trip name accumulation.
+
+- **Multi-tape example** in the engine README illustrating the bracketed format with two tapes.
+
+- **§Diagram conventions section** in the engine README — full reference: node shapes, edge styles, groupings, edge label format + cell vocabulary, alternation rule, multi-tape example.
+
+- **Cross-package introspection consistency** — `library-binary-numbers/states.md` per-algorithm header line now uses `summarizeGraph(graph)` for its `N states; N transitions; N wrappers (max nesting depth N); has cycles` summary, dogfooding the same API any consumer would use.
+
+### Removed
+
+- Hand-drawn pedagogical Mermaid blocks in engine + root READMEs. The v7 `toMermaid` output is now the primary illustration — no more vocabulary mismatch between hand-drawn and engine-rendered diagrams.
+
+### Migration
+
+For consumers updating from v6.x:
+
+**1. Identifier rename** (mechanical):
+
+```sh
+git grep -l 'OverrodeHaltState\|overrodeHaltState' | xargs sed -i '' \
+  -e 's/OverrodeHaltState/OverriddenHaltState/g' \
+  -e 's/overrodeHaltState/overriddenHaltState/g'
+```
+
+Persisted `State.toGraph` JSON dumps need the same `overrodeHaltStateId` → `overriddenHaltStateId` field rename.
+
+**2. Wrapper composite name format** — code that pattern-matches `state.name` for wrapper composites needs to switch from `>`-split to paren-parse: `'A>B'` is now `'A(B)'`.
+
+**3. State name validation** — any code that constructs `new State(null, 'foo(bar)')` now throws. Real-world identifier-style state names (`scanToX`, `goHome`, `incT1`) are unaffected.
+
+**4. `toMermaid` output format** — if you render `toMermaid` output programmatically, the edge-label vocabulary changed completely (bracketed-tape-block format with `K`/`E`/`B`/`*`/`L`/`R`/`S`). See the engine README's §Diagram conventions for the full vocabulary.
+
+**5. `Graph` data shape** — `GraphNode` gained `isWrapped: boolean` + `isHaltMarker: boolean`; `GraphTransition` gained `id: string`. Most consumers don't need to change. If you call `summarize().stateCount`, the value now excludes halt markers (typically matches what you actually wanted — runtime state count, not visualization-node count).
+
+### Out of v7-alpha.1 (still pending for stable v7.0.0)
+
+- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.2` or stable `v7.0.0`.
+
+### Compatibility
+
+- Peer dep `@turing-machine-js/machine` widened `^6.0.0` → `^7.0.0-alpha.1` on `@turing-machine-js/builder`, `@turing-machine-js/library-binary-numbers`, `@turing-machine-js/library-binary-numbers-bare`.
+
 ## [6.4.0] - 2026-05-19
 
 Adds a new awaited hook on `TuringMachine.run`. Minor release, additive — no breaking changes. Closes [#163](https://github.com/mellonis/turing-machine-js/issues/163).
