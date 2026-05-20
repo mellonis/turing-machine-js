@@ -6,6 +6,11 @@ export type GraphTransition = {
   pattern: string;
   command: GraphCommand[];
   nextStateId: number;
+  // Stable, deterministic per-edge identifier. Format: `${fromNodeId}-${patternIx}`
+  // where `patternIx` is the transition's position in the source state's symbol
+  // map. Let's downstream rendering (machines-demo #10) target a specific edge in
+  // the rendered Mermaid SVG to highlight "the edge that will fire next."
+  id: string;
 };
 
 export type GraphNode = {
@@ -14,6 +19,14 @@ export type GraphNode = {
   isHalt: boolean;
   transitions: GraphTransition[];
   overriddenHaltStateId: number | null;
+  // `true` when this node represents the bare of a `withOverriddenHaltState`-
+  // wrapped state. Carries the `[[…]]` (subroutine) shape signal for `toMermaid`
+  // and tells `fromGraph` to reconstruct via `bare.withOverriddenHaltState(target)`.
+  isWrapped: boolean;
+  // `true` for a synthesized halt marker graph node — one per wrapper context.
+  // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have both
+  // `true`. `fromGraph` maps halt-marker nodes back to the singleton `haltState`.
+  isHaltMarker: boolean;
 };
 
 export type Graph = {
@@ -29,24 +42,35 @@ const movementDescriptionToLabel: Record<string, string> = {
 };
 
 const symbolCommandDescriptionToLabel: Record<string, string> = {
-  'keep symbol command': '·',
-  'erase symbol command': '⌫',
+  'keep symbol command': 'K',
+  'erase symbol command': 'E',
 };
 
 // Reserved characters in the encoded pattern string:
-//   '*'  per-cell ifOtherSymbol (matches any symbol on that tape)
-//   '-'  the tape's blank symbol
+//   '*'  ASCII asterisk (U+002A) — per-cell ifOtherSymbol, matches any symbol
+//        on that tape. ASCII (not a fancier glyph like U+1F7B0) so it renders
+//        in every Mermaid environment and every monospace font. A literal `*`
+//        in the alphabet is unambiguous from the marker because it's quoted
+//        (`'*'`).
+//   'B'  the tape's blank symbol shorthand (in read patterns). A literal `B`
+//        in the alphabet is unambiguous from the marker because it's quoted
+//        (`'B'`).
 //   ','  separates per-tape cells inside one pattern
 //   '|'  separates alternative patterns
-//   '\\' escape prefix — to represent any of '*', '-', ',', '|', or '\\' as a
-//        *literal* alphabet symbol, prefix it with '\\' (e.g. '\\*' for literal '*').
+//   "'"  surrounds a literal alphabet symbol — e.g. `'0'` for literal `0`,
+//        `'X'` for literal `X`. The quoting is what visually separates literal
+//        symbols from the convention markers `*` / `B` and from the write
+//        commands `K` / `E`.
+//   '\\' escape prefix — to represent any of '*', 'B', ',', '|', "'", or '\\'
+//        as a *literal* alphabet symbol *inside* the quotes (e.g. `'\''` for
+//        a literal apostrophe).
+const IF_OTHER_MARKER = '*';
+const BLANK_MARKER = 'B';
+
 function escapeAlphabetSymbol(s: string): string {
   return s
     .replace(/\\/g, '\\\\')
-    .replace(/\*/g, '\\*')
-    .replace(/-/g, '\\-')
-    .replace(/,/g, '\\,')
-    .replace(/\|/g, '\\|');
+    .replace(/'/g, "\\'");
 }
 
 export function decodePatternDescription(
@@ -58,7 +82,7 @@ export function decodePatternDescription(
   }
 
   if (description === 'other symbol') {
-    return '*';
+    return IF_OTHER_MARKER;
   }
 
   try {
@@ -68,14 +92,14 @@ export function decodePatternDescription(
       .map((pattern) => pattern
         .map((s, tapeIx) => {
           if (s === null) {
-            return '*';
+            return IF_OTHER_MARKER;
           }
 
           if (s === alphabets[tapeIx]?.[0]) {
-            return '-';
+            return BLANK_MARKER;
           }
 
-          return escapeAlphabetSymbol(s);
+          return `'${escapeAlphabetSymbol(s)}'`;
         })
         .join(','))
       .join('|');
@@ -122,7 +146,7 @@ export function splitUnescaped(s: string, sep: string): string[] {
 }
 
 export function parsePatternString(s: string, alphabets: string[][]): ParsedPattern {
-  if (s === '*') {
+  if (s === IF_OTHER_MARKER) {
     return null;
   }
 
@@ -132,12 +156,18 @@ export function parsePatternString(s: string, alphabets: string[][]): ParsedPatt
     const cells = splitUnescaped(alt, ',');
 
     return cells.map((cell, tapeIx) => {
-      if (cell === '*') {
+      if (cell === IF_OTHER_MARKER) {
         return null;
       }
 
-      if (cell === '-') {
+      if (cell === BLANK_MARKER) {
         return alphabets[tapeIx]?.[0] ?? cell;
+      }
+
+      // Literal alphabet symbols are wrapped in single quotes by
+      // `decodePatternDescription` — strip them on the way back.
+      if (cell.length >= 2 && cell.startsWith("'") && cell.endsWith("'")) {
+        return cell.slice(1, -1);
       }
 
       return cell;
@@ -162,12 +192,18 @@ export function parseMovementLabel(label: string): symbol {
 }
 
 export function parseWriteSymbolLabel(label: string): string | symbol {
-  if (label === '·') {
+  if (label === 'K') {
     return symbolCommands.keep;
   }
 
-  if (label === '⌫') {
+  if (label === 'E') {
     return symbolCommands.erase;
+  }
+
+  // Literal alphabet symbols are wrapped in single quotes by
+  // `decodeWriteSymbol` — strip them on the way back.
+  if (label.length >= 2 && label.startsWith("'") && label.endsWith("'")) {
+    return label.slice(1, -1);
   }
 
   return label;
@@ -180,7 +216,7 @@ export function decodeWriteSymbol(symbol: string | symbol): string {
     return symbolCommandDescriptionToLabel[description] ?? description;
   }
 
-  return symbol;
+  return `'${symbol}'`;
 }
 
 // Format converters (toMermaid / fromMermaid) live in ./graphFormats.

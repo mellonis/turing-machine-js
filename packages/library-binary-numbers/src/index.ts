@@ -85,7 +85,7 @@ const goToNumbersStart = new State({
   },
 }, 'goToNumberStart');
 
-// deleteNumber — 5 nodes
+// deleteNumber — 4 nodes
 //
 // Composition: go to the number's '^', then sweep right erasing every cell
 // (digits, '^', '$') until the number is gone. Implemented as
@@ -115,7 +115,7 @@ const deleteNumber = new State({
   },
 }, 'deleteNumber');
 
-// invertNumber — 5 nodes
+// invertNumber — 4 nodes
 //
 // Composition: go to '^', then sweep right flipping each bit until '$'.
 // Same shape as deleteNumber (goToNumbersStart.withOverriddenHaltState(...)) but
@@ -152,7 +152,7 @@ const invertNumber = new State({
   },
 }, 'invertNumber');
 
-// normalizeNumber — 7 nodes
+// normalizeNumber — 6 nodes
 //
 // Strips leading zeros by erasing them and re-planting '^' just before the first
 // '1' (or before '$' if the entire number was zero — preserving "0" as "^$").
@@ -268,16 +268,18 @@ const plusOne = new State({
   },
 }, 'plusOne');
 
-// minusOne — 17 nodes (the largest in this library)
+// minusOne — 15 nodes (the largest in this library, per `summarize().stateCount`)
 //
 // Computes x − 1 via the two's-complement identity:  x − 1 == ~(~x + 1)
 // (every step is a state we already have), composed with three nested
 // withOverriddenHaltState calls to chain invert → plusOne → invert → normalize.
+// The chain has 4 state names but 3 wrapper hops — `normalizeNumber` at the
+// inner end is the terminal override target, not another wrapper level.
 //
 // This is *deliberately* the heavy version. It exists side-by-side with
-// minusOneFast (10 nodes, direct borrow) to make the cost of "compose existing
+// minusOneFast (8 nodes, direct borrow) to make the cost of "compose existing
 // pieces" vs "write a dedicated algorithm" visible. See ../states.md for the
-// dotted onHalt edges that show the four-deep subroutine chain.
+// dotted onHalt edges that show the three-deep wrapper chain.
 const minusOne = new State({
   [symbol('^10')]: {
     command: {
@@ -299,7 +301,7 @@ const minusOne = new State({
   },
 }, 'minusOne');
 
-// minusOneFast — 10 nodes (direct borrow propagation)
+// minusOneFast — 8 nodes (direct borrow propagation)
 //
 // Walks left from the LSB: 0→1 keeps borrowing; 1→0 stops; ^ is underflow.
 // Falls through to normalizeNumber to strip the leading zero introduced when the

@@ -23,43 +23,47 @@ describe('decodePatternDescription', () => {
     expect(decodePatternDescription('other symbol', alphabets)).toBe('*');
   });
 
-  test('literal cell', () => {
-    expect(decodePatternDescription('[["0"]]', alphabets)).toBe('0');
+  test('literal cell wraps in single quotes', () => {
+    expect(decodePatternDescription('[["0"]]', alphabets)).toBe("'0'");
   });
 
   test('per-cell null → "*"', () => {
     expect(decodePatternDescription('[[null]]', alphabets)).toBe('*');
   });
 
-  test('cell equal to tape blank → "-"', () => {
-    expect(decodePatternDescription('[[" "]]', alphabets)).toBe('-');
+  test('cell equal to tape blank → "B"', () => {
+    expect(decodePatternDescription('[[" "]]', alphabets)).toBe('B');
   });
 
-  test('multi-tape pattern joins cells with ","', () => {
+  test('multi-tape pattern joins quoted cells with ","', () => {
     expect(decodePatternDescription(
       '[["0","a"]]',
       [[' ', '0', '1'], [' ', 'a', 'b']],
-    )).toBe('0,a');
+    )).toBe("'0','a'");
   });
 
   test('alternative patterns join with "|"', () => {
-    expect(decodePatternDescription('[["0"],["1"]]', alphabets)).toBe('0|1');
+    expect(decodePatternDescription('[["0"],["1"]]', alphabets)).toBe("'0'|'1'");
   });
 
-  test('reserved char "*" is escaped as "\\*"', () => {
-    expect(decodePatternDescription('[["*"]]', [[' ', '*', 'x']])).toBe('\\*');
+  test('literal "*" is quoted (distinguishes from per-cell ifOtherSymbol marker)', () => {
+    expect(decodePatternDescription('[["*"]]', [[' ', '*', 'x']])).toBe("'*'");
   });
 
-  test('reserved char "," is escaped as "\\,"', () => {
-    expect(decodePatternDescription('[[","]]', [[' ', ',', 'x']])).toBe('\\,');
+  test('literal "," is quoted (distinguishes from cell separator)', () => {
+    expect(decodePatternDescription('[[","]]', [[' ', ',', 'x']])).toBe("','");
   });
 
-  test('reserved char "|" is escaped as "\\|"', () => {
-    expect(decodePatternDescription('[["|"]]', [[' ', '|', 'x']])).toBe('\\|');
+  test('literal "|" is quoted (distinguishes from alternative separator)', () => {
+    expect(decodePatternDescription('[["|"]]', [[' ', '|', 'x']])).toBe("'|'");
   });
 
-  test('backslash is escaped as "\\\\"', () => {
-    expect(decodePatternDescription('[["\\\\"]]', [[' ', '\\', 'x']])).toBe('\\\\');
+  test('backslash inside quotes is escaped as "\\\\"', () => {
+    expect(decodePatternDescription('[["\\\\"]]', [[' ', '\\', 'x']])).toBe("'\\\\'");
+  });
+
+  test('literal apostrophe is escaped inside quotes as \\\'', () => {
+    expect(decodePatternDescription('[["\'"]]', [[' ', "'", 'x']])).toBe("'\\\''");
   });
 
   test('malformed JSON → returned as-is', () => {
@@ -86,16 +90,16 @@ describe('decodeMovement', () => {
 });
 
 describe('decodeWriteSymbol', () => {
-  test('symbolCommands.keep → "·"', () => {
-    expect(decodeWriteSymbol(symbolCommands.keep)).toBe('·');
+  test('symbolCommands.keep → "K"', () => {
+    expect(decodeWriteSymbol(symbolCommands.keep)).toBe('K');
   });
 
-  test('symbolCommands.erase → "⌫"', () => {
-    expect(decodeWriteSymbol(symbolCommands.erase)).toBe('⌫');
+  test('symbolCommands.erase → "E"', () => {
+    expect(decodeWriteSymbol(symbolCommands.erase)).toBe('E');
   });
 
-  test('literal string is returned as-is', () => {
-    expect(decodeWriteSymbol('0')).toBe('0');
+  test('literal string is wrapped in single quotes', () => {
+    expect(decodeWriteSymbol('0')).toBe("'0'");
   });
 
   test('symbol with no description → "?"', () => {
@@ -113,12 +117,12 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
           transitions: [
-            {pattern: '0', command: [{symbol: '·', movement: 'R'}], nextStateId: 1},
-            {pattern: '1', command: [{symbol: '·', movement: 'S'}], nextStateId: 0},
+            {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -127,9 +131,11 @@ describe('toMermaid', () => {
     expect(out.startsWith('flowchart TD')).toBe(true);
     expect(out).toContain('%% alphabets: [[" ","0","1"]]');
     expect(out).toContain('s0(((halt)))');
-    expect(out).toContain('s1(("entry"))');
-    expect(out).toContain('s1 -- "0 → ·/R" --> s1');
-    expect(out).toContain('s1 -- "1 → ·/S" --> s0');
+    expect(out).toContain('s1["entry"]');
+    expect(out).toContain('idle([idle])');
+    expect(out).toContain('idle -. enter .-> s1');
+    expect(out).toContain("s1 -- \"['0'] → [K]/[R]\" --> s1");
+    expect(out).toContain("s1 -- \"['1'] → [K]/[S]\" --> s0");
   });
 
   test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
@@ -137,8 +143,8 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isHaltMarker: false},
       },
     });
 
@@ -150,9 +156,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
       },
     });
 
@@ -164,19 +170,20 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
           transitions: [{
-            pattern: '0,a',
-            command: [{symbol: '0', movement: 'R'}, {symbol: 'a', movement: 'L'}],
+            pattern: "'0','a'",
+            command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],
             nextStateId: 0,
+            id: 'test-edge',
           }],
         },
       },
     });
 
-    expect(out).toContain('"0,a → 0/R,a/L"');
+    expect(out).toContain("\"['0','a'] → ['0','a']/[R,L]\"");
   });
 });
 
@@ -201,16 +208,16 @@ describe('parsePatternString', () => {
 
   test('per-cell `*` becomes null', () => {
     // Multi-tape pattern where one cell is per-cell ifOtherSymbol.
-    expect(parsePatternString('0,*', [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
+    expect(parsePatternString("'0',*", [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
   });
 
-  test('per-cell `-` becomes the tape blank symbol', () => {
-    expect(parsePatternString('-,a', [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
+  test('per-cell `B` becomes the tape blank symbol', () => {
+    expect(parsePatternString("B,'a'", [[' ', '0'], [' ', 'a']])).toEqual([[' ', 'a']]);
   });
 });
 
 describe('parseMovementLabel', () => {
-  test('maps L/R/S to upstream movement symbols', () => {
+  test('maps ←/R/S to upstream movement symbols', () => {
     expect(parseMovementLabel('L')).toBe(movements.left);
     expect(parseMovementLabel('R')).toBe(movements.right);
     expect(parseMovementLabel('S')).toBe(movements.stay);
@@ -222,21 +229,23 @@ describe('parseMovementLabel', () => {
 });
 
 describe('fromMermaid error paths', () => {
-  test('throws when no initial state (double-paren node) is present', () => {
+  test('throws when no `idle -. enter .-> sN` arrow is present', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
     ].join('\n');
 
-    expect(() => fromMermaid(mermaid)).toThrow('fromMermaid: no initial state');
+    expect(() => fromMermaid(mermaid)).toThrow('fromMermaid: no `idle -. enter .-> sN` arrow');
   });
 
   test('throws on a malformed edge label (missing arrow)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1(("entry"))',
+      '  s1["entry"]',
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
       '  s1 -- "no-arrow-label" --> s0',
     ].join('\n');
 
@@ -246,12 +255,42 @@ describe('fromMermaid error paths', () => {
   test('throws on a malformed command part (missing slash)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1(("entry"))',
+      '  s1["entry"]',
       '  s0(((halt)))',
-      '  s1 -- "* → noslash" --> s0',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      '  s1 -- "[*] → noslash" --> s0',
     ].join('\n');
 
-    expect(() => fromMermaid(mermaid)).toThrow('malformed command part');
+    expect(() => fromMermaid(mermaid)).toThrow('malformed command label');
+  });
+
+  test('rejects compact in-bracket alternation (must use per-pattern brackets)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'|'1'] → [K]/[R]\" --> s0", // compact alternation — should fail
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
+  });
+
+  test('rejects `|` inside a write/move bracket too (commands have no alternation)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K|E]/[R]\" --> s0", // `|` in writes — should fail
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
   });
 });
 
@@ -259,13 +298,15 @@ describe('fromMermaid ensureNode update branches', () => {
   // The defensive update branches inside ensureNode (when a node id is
   // declared more than once) only fire if the same id appears in multiple
   // node-declaration lines. Synthetic but valid input.
-  test('a later regular-node declaration updates the name of an already-created initial node', () => {
+  test('a later regular-node declaration updates the name of an already-created node', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1(("entry"))',  // initial — creates s1 with name="entry"
-      '  s1["renamed"]',   // regular — fires the name-update branch
+      '  s1["entry"]',     // creates s1 with name="entry"
+      '  s1["renamed"]',   // fires the name-update branch
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -277,9 +318,11 @@ describe('fromMermaid ensureNode update branches', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1(("entry"))',     // initial — creates s1 with isHalt=false
-      '  s1(((halt)))',       // halt — fires the isHalt-update branch
+      '  s1["entry"]',     // creates s1 with isHalt=false
+      '  s1(((halt)))',    // halt — fires the isHalt-update branch
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -304,9 +347,11 @@ describe('README example: toMermaid output is stable', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1","$"]]',
       '  s0(((halt)))',
-      '  s1(("name"))',
-      '  s1 -- "1 → 0/R" --> s1',
-      '  s1 -- "$ → ·/L" --> s0',
+      '  s1["name"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['1'] → ['0']/[R]\" --> s1",
+      "  s1 -- \"['$'] → [K]/[L]\" --> s0",
     ].join('\n');
 
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
@@ -343,10 +388,12 @@ describe('README diagrams: engine-generated outputs', () => {
       'flowchart TD',
       '%% alphabets: [[" ","a","b","c","*"]]',
       '(((halt)))',
-      '(("replaceB"))',
-      '"b → */R"',
-      '"- → ·/L"',
-      '"* → ·/R"',
+      '["replaceB"]', // initial — square (no longer round in v7; idle arrow signals entry)
+      'idle([idle])',
+      'idle -. enter .->',
+      "\"['b'] → ['*']/[R]\"",
+      '"[B] → [K]/[L]"',
+      '"[*] → [K]/[R]"',
     ]);
   });
 
@@ -364,10 +411,12 @@ describe('README diagrams: engine-generated outputs', () => {
     expectAllLines(output, [
       'flowchart TD',
       '%% alphabets: [[" ","x","y"]]',
-      '(("a"))', // a is the initial state passed to toGraph → round
+      '["a"]', // a is the initial state — square (idle arrow signals entry)
       '["b"]', // b is reachable from a → square
-      '"x → ·/S"',
-      '"y → ·/S"',
+      'idle([idle])',
+      'idle -. enter .->',
+      "\"['x'] → [K]/[S]\"",
+      "\"['y'] → [K]/[S]\"",
     ]);
   });
 
@@ -386,13 +435,15 @@ describe('README diagrams: engine-generated outputs', () => {
       'flowchart TD',
       '%% alphabets: [[" ","a","b","X"]]',
       '(((halt)))',
-      '(("scanToX"))',
-      '"X → ·/S"',
-      '"* → ·/R"',
+      '["scanToX"]', // initial — square (idle arrow signals entry)
+      'idle([idle])',
+      'idle -. enter .->',
+      "\"['X'] → [K]/[S]\"",
+      '"[*] → [K]/[R]"',
     ]);
   });
 
-  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the onHalt dotted edge', () => {
+  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the v7 halt-frame subgraph', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -410,12 +461,15 @@ describe('README diagrams: engine-generated outputs', () => {
     expectAllLines(output, [
       'flowchart TD',
       '%% alphabets: [[" ","a","b","X"]]',
-      '(((halt)))',
-      '["scanToX"]', // original scanToX is reachable from the wrapper → square
-      '["eraseHere"]', // eraseHere is reachable via onHalt → square
-      '(("scanToX(eraseHere)"))', // wrapper is the initial state → round
-      '"* → ⌫/S"', // eraseHere's erase command
-      '-. onHalt .->', // the dotted override-halt edge — engine's static fingerprint of the override
+      '(((halt)))', // real halt outside any subgraph
+      '["eraseHere"]', // override is a regular [name] node
+      '[["scanToX"]]', // wrapper-collapsed bare uses subroutine shape inside the subgraph
+      'subgraph w_', // halt-frame subgraph wraps the bare + its halt marker
+      '"halt frame"', // subgraph label
+      'idle([idle])', // pre-execution sentinel — always emitted
+      'idle -. enter .->', // labeled dotted enter arrow points at the initial state
+      '"[*] → [E]/[S]"', // eraseHere's erase command
+      '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });
 });

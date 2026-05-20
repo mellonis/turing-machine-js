@@ -1,22 +1,22 @@
-import {State, fromMermaid, toMermaid} from '@turing-machine-js/machine';
+import {State, fromMermaid, summarizeGraph, toMermaid} from '@turing-machine-js/machine';
 import binaryNumbers from './index';
 
-// Per-state node counts pinned from the source comments above each declaration
-// in `index.ts`. Each count includes haltState (`State.toGraph` walks the full
-// reachable graph, and every algorithm transitions to halt). Regressions caught:
-// a refactor that accidentally grows or shrinks an algorithm's state graph
-// fails this table.
+// Per-state counts pinned from the source comments above each declaration in
+// `index.ts`. These are runtime state counts (per `summarize().stateCount`),
+// which exclude the `isHaltMarker` visualization sentinels v7 synthesizes
+// inside each `halt frame` subgraph. The states.md per-algorithm header uses
+// the same definition, so all three sources agree by construction.
 const expectedNodeCount: Record<keyof typeof binaryNumbers['states'], number> = {
   goToNumber: 2,
   goToNextNumber: 3,
   goToPreviousNumber: 3,
   goToNumbersStart: 2,
-  deleteNumber: 5,
-  invertNumber: 5,
-  normalizeNumber: 7,
+  deleteNumber: 4,
+  invertNumber: 4,
+  normalizeNumber: 6,
   plusOne: 5,
-  minusOne: 17,
-  minusOneFast: 10,
+  minusOne: 15,
+  minusOneFast: 8,
 };
 
 const stateNames = Object.keys(expectedNodeCount) as Array<keyof typeof expectedNodeCount>;
@@ -28,7 +28,7 @@ describe('library-binary-numbers state graphs', () => {
       const tapeBlock = binaryNumbers.getTapeBlock();
       const graph = State.toGraph(binaryNumbers.states[name], tapeBlock);
 
-      expect(Object.keys(graph.nodes)).toHaveLength(expectedNodeCount[name]);
+      expect(summarizeGraph(graph).stateCount).toBe(expectedNodeCount[name]);
     },
   );
 
@@ -38,11 +38,14 @@ describe('library-binary-numbers state graphs', () => {
       const tapeBlock = binaryNumbers.getTapeBlock();
       const graph = State.toGraph(binaryNumbers.states[name], tapeBlock);
 
-      const haltNodes = Object.values(graph.nodes).filter((node) => node.isHalt);
+      // Every algorithm has exactly one REAL halt node (the singleton's id is
+      // shared across all states' graphs). v7's wrapper-emit synthesizes one
+      // `isHaltMarker: true` node per wrapper context as a visualization aid —
+      // those are filtered out here.
+      const realHaltNodes = Object.values(graph.nodes)
+        .filter((node) => node.isHalt && !node.isHaltMarker);
 
-      // Every algorithm has exactly one halt node (the singleton's id is shared
-      // across all states' graphs).
-      expect(haltNodes).toHaveLength(1);
+      expect(realHaltNodes).toHaveLength(1);
     },
   );
 
