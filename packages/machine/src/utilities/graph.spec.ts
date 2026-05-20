@@ -127,7 +127,9 @@ describe('toMermaid', () => {
     expect(out.startsWith('flowchart TD')).toBe(true);
     expect(out).toContain('%% alphabets: [[" ","0","1"]]');
     expect(out).toContain('s0(((halt)))');
-    expect(out).toContain('s1(("entry"))');
+    expect(out).toContain('s1["entry"]');
+    expect(out).toContain('idle([idle])');
+    expect(out).toContain('idle -. enter .-> s1');
     expect(out).toContain('s1 -- "0 → ·/R" --> s1');
     expect(out).toContain('s1 -- "1 → ·/S" --> s0');
   });
@@ -223,21 +225,23 @@ describe('parseMovementLabel', () => {
 });
 
 describe('fromMermaid error paths', () => {
-  test('throws when no initial state (double-paren node) is present', () => {
+  test('throws when no `idle -. enter .-> sN` arrow is present', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
     ].join('\n');
 
-    expect(() => fromMermaid(mermaid)).toThrow('fromMermaid: no initial state');
+    expect(() => fromMermaid(mermaid)).toThrow('fromMermaid: no `idle -. enter .-> sN` arrow');
   });
 
   test('throws on a malformed edge label (missing arrow)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1(("entry"))',
+      '  s1["entry"]',
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
       '  s1 -- "no-arrow-label" --> s0',
     ].join('\n');
 
@@ -247,8 +251,10 @@ describe('fromMermaid error paths', () => {
   test('throws on a malformed command part (missing slash)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1(("entry"))',
+      '  s1["entry"]',
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
       '  s1 -- "* → noslash" --> s0',
     ].join('\n');
 
@@ -260,13 +266,15 @@ describe('fromMermaid ensureNode update branches', () => {
   // The defensive update branches inside ensureNode (when a node id is
   // declared more than once) only fire if the same id appears in multiple
   // node-declaration lines. Synthetic but valid input.
-  test('a later regular-node declaration updates the name of an already-created initial node', () => {
+  test('a later regular-node declaration updates the name of an already-created node', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1(("entry"))',  // initial — creates s1 with name="entry"
-      '  s1["renamed"]',   // regular — fires the name-update branch
+      '  s1["entry"]',     // creates s1 with name="entry"
+      '  s1["renamed"]',   // fires the name-update branch
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -278,9 +286,11 @@ describe('fromMermaid ensureNode update branches', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1(("entry"))',     // initial — creates s1 with isHalt=false
-      '  s1(((halt)))',       // halt — fires the isHalt-update branch
+      '  s1["entry"]',     // creates s1 with isHalt=false
+      '  s1(((halt)))',    // halt — fires the isHalt-update branch
       '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -305,7 +315,9 @@ describe('README example: toMermaid output is stable', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1","$"]]',
       '  s0(((halt)))',
-      '  s1(("name"))',
+      '  s1["name"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
       '  s1 -- "1 → 0/R" --> s1',
       '  s1 -- "$ → ·/L" --> s0',
     ].join('\n');
@@ -344,7 +356,9 @@ describe('README diagrams: engine-generated outputs', () => {
       'flowchart TD',
       '%% alphabets: [[" ","a","b","c","*"]]',
       '(((halt)))',
-      '(("replaceB"))',
+      '["replaceB"]', // initial — square (no longer round in v7; idle arrow signals entry)
+      'idle([idle])',
+      'idle -. enter .->',
       '"b → */R"',
       '"- → ·/L"',
       '"* → ·/R"',
@@ -365,8 +379,10 @@ describe('README diagrams: engine-generated outputs', () => {
     expectAllLines(output, [
       'flowchart TD',
       '%% alphabets: [[" ","x","y"]]',
-      '(("a"))', // a is the initial state passed to toGraph → round
+      '["a"]', // a is the initial state — square (idle arrow signals entry)
       '["b"]', // b is reachable from a → square
+      'idle([idle])',
+      'idle -. enter .->',
       '"x → ·/S"',
       '"y → ·/S"',
     ]);
@@ -387,7 +403,9 @@ describe('README diagrams: engine-generated outputs', () => {
       'flowchart TD',
       '%% alphabets: [[" ","a","b","X"]]',
       '(((halt)))',
-      '(("scanToX"))',
+      '["scanToX"]', // initial — square (idle arrow signals entry)
+      'idle([idle])',
+      'idle -. enter .->',
       '"X → ·/S"',
       '"* → ·/R"',
     ]);
@@ -416,6 +434,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '[["scanToX"]]', // wrapper-collapsed bare uses subroutine shape inside the subgraph
       'subgraph w_', // halt-frame subgraph wraps the bare + its cloned halt
       '"halt frame"', // subgraph label
+      'idle([idle])', // pre-execution sentinel — always emitted
+      'idle -. enter .->', // labeled dotted enter arrow points at the initial state
       '"* → ⌫/S"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);

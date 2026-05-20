@@ -90,13 +90,15 @@ flowchart LR
 flowchart TD
 %% alphabets: [[" ","a","b","c","*"]]
   s0(((halt)))
-  s1(("replaceB"))
+  s1["replaceB"]
+  idle([idle])
+  idle -. enter .-> s1
   s1 -- "b → */R" --> s1
   s1 -- "- → ·/L" --> s0
   s1 -- "* → ·/R" --> s1
 ```
 
-Engine notation: `read → write/move`; `·` = keep, `⌫` = erase, `*` = `ifOtherSymbol` catch-all, `-` = the blank symbol. `(((double-paren)))` = halt; `(("round"))` = the initial state passed to `toGraph`; `["square"]` = a state reachable from the initial state.
+Engine notation: `read → write/move`; `·` = keep, `⌫` = erase, `*` = `ifOtherSymbol` catch-all, `-` = the blank symbol. `(((double-paren)))` = halt; `["square"]` = a regular state. The `idle([idle])` sentinel + labeled-dotted `-. enter .->` arrow marks where execution begins. Wrapped states (subroutine-shaped `[[double-walled]]`) sit inside a `subgraph w_N["halt frame"]` block — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) below.
 
 </details>
 
@@ -270,7 +272,9 @@ The string `toMermaid` produces is a real Mermaid flowchart that renders in-plac
 flowchart TD
 %% alphabets: [[" ","0","1","$"]]
   s0(((halt)))
-  s1(("name"))
+  s1["name"]
+  idle([idle])
+  idle -. enter .-> s1
   s1 -- "1 → 0/R" --> s1
   s1 -- "$ → ·/L" --> s0
 ```
@@ -308,8 +312,10 @@ flowchart LR
 ```mermaid
 flowchart TD
 %% alphabets: [[" ","x","y"]]
-  s1(("a"))
+  s1["a"]
   s2["b"]
+  idle([idle])
+  idle -. enter .-> s1
   s1 -- "x → ·/S" --> s2
   s2 -- "y → ·/S" --> s1
 ```
@@ -429,7 +435,9 @@ flowchart LR
 flowchart TD
 %% alphabets: [[" ","a","b","X"]]
   s0(((halt)))
-  s1(("scanToX"))
+  s1["scanToX"]
+  idle([idle])
+  idle -. enter .-> s1
   s1 -- "X → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
 ```
@@ -441,10 +449,12 @@ flowchart TD
 %% alphabets: [[" ","a","b","X"]]
   s0(((halt)))
   s2["eraseHere"]
+  idle([idle])
   subgraph w_3["halt frame"]
     s3[["scanToX"]]
     c3(((halt)))
   end
+  idle -. enter .-> s3
   s2 -- "* → ⌫/S" --> s0
   s3 -- "X → ·/S" --> c3
   s3 -- "* → ·/R" --> s3

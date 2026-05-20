@@ -63,6 +63,8 @@ export function toMermaid(graph: Graph): string {
   }
 
   // Emit non-subgraph nodes first: real halt + regular non-wrapped nodes.
+  // No special round-shape `((…))` for the initial — the `idle -. enter .->`
+  // arrow emitted below is the sole "start here" signal.
   for (const node of nodes) {
     if (node.isWrapped || clonedHaltIds.has(node.id)) {
       continue;
@@ -72,12 +74,16 @@ export function toMermaid(graph: Graph): string {
 
     if (node.isHalt) {
       lines.push(`  ${id}(((halt)))`);
-    } else if (node.id === graph.initialId) {
-      lines.push(`  ${id}(("${node.name}"))`);
     } else {
       lines.push(`  ${id}["${node.name}"]`);
     }
   }
+
+  // `idle` sentinel = pre-execution marker for the machine. Always emitted,
+  // with a labeled dotted arrow `idle -. enter .-> sN` to the initial state.
+  // Symmetric with the `onHalt` dotted convention used by wrapper redirects.
+  // Visual-only — `idle` is not a graph node.
+  lines.push('  idle([idle])');
 
   // Emit one subgraph per wrapper, in sorted wrapped-id order.
   for (const wrapped of wrappedNodes) {
@@ -94,6 +100,10 @@ export function toMermaid(graph: Graph): string {
 
     lines.push('  end');
   }
+
+  // Enter arrow: emitted after subgraphs so it visually points at the initial
+  // node (whether plain `[…]` or wrapped `[[…]]` inside a subgraph).
+  lines.push(`  idle -. enter .-> ${mermaidIdFor(graph.initialId)}`);
 
   // Emit transitions per-node in sorted node-id order. Within a node,
   // transitions emit in their stored array order (which mirrors the source
@@ -134,11 +144,12 @@ export function toMermaid(graph: Graph): string {
 //   as literal symbols, the parser cannot disambiguate. Stick to alphabets
 //   without those characters when round-tripping through Mermaid.
 const haltNodeRegex = /^([sc]\d+)\(\(\(halt\)\)\)$/;
-const initialNodeRegex = /^(s\d+)\(\("([^"]*)"\)\)$/;
 const regularNodeRegex = /^(s\d+)\["([^"]*)"\]$/;
 const wrappedNodeRegex = /^(s\d+)\[\["([^"]*)"\]\]$/;
 const subgraphStartRegex = /^subgraph\s+w_\d+\["([^"]*)"\]$/;
 const subgraphEndRegex = /^end$/;
+const idleNodeRegex = /^idle\(\[idle\]\)$/;
+const enterArrowRegex = /^idle\s+-\.\s+enter\s+\.->\s+(s\d+)$/;
 const transitionRegex = /^([sc]\d+)\s+--\s+"(.*)"\s+-->\s+([sc]\d+)$/;
 const onHaltRegex = /^([sc]\d+)\s+-\.\s+onHalt\s+\.->\s+([sc]\d+)$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
@@ -209,6 +220,13 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
+    // `idle([idle])` sentinel: a visual pre-execution marker. Not a graph
+    // node — skip declaration, parse the `idle -. enter .-> sN` arrow in the
+    // edge pass to set initialId.
+    if (idleNodeRegex.test(line)) {
+      continue;
+    }
+
     const hm = line.match(haltNodeRegex);
 
     if (hm) {
@@ -227,23 +245,7 @@ export function fromMermaid(text: string): Graph {
     const wm = line.match(wrappedNodeRegex);
 
     if (wm) {
-      const id = parseMermaidId(wm[1]);
-
-      if (initialId === null) {
-        initialId = id;
-      }
-
-      ensureNode(id, {name: wm[2], isWrapped: true});
-      continue;
-    }
-
-    const im = line.match(initialNodeRegex);
-
-    if (im) {
-      const id = parseMermaidId(im[1]);
-
-      initialId = id;
-      ensureNode(id, {name: im[2]});
+      ensureNode(parseMermaidId(wm[1]), {name: wm[2], isWrapped: true});
       continue;
     }
 
@@ -257,6 +259,14 @@ export function fromMermaid(text: string): Graph {
 
   // Second pass: edges.
   for (const line of lines) {
+    // `idle -. enter .-> sN`: the sole source of initialId.
+    const em = line.match(enterArrowRegex);
+
+    if (em) {
+      initialId = parseMermaidId(em[1]);
+      continue;
+    }
+
     const om = line.match(onHaltRegex);
 
     if (om) {
@@ -305,7 +315,7 @@ export function fromMermaid(text: string): Graph {
   }
 
   if (initialId === null) {
-    throw new Error('fromMermaid: no initial state (round-or-wrapped node) found');
+    throw new Error('fromMermaid: no `idle -. enter .-> sN` arrow found');
   }
 
   return {initialId, alphabets, nodes};

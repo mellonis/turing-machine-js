@@ -8,7 +8,9 @@
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1(("goToNumber"))
+  s1["goToNumber"]
+  idle([idle])
+  idle -. enter .-> s1
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
 ```
@@ -22,7 +24,9 @@ flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
   s1["goToNumber"]
-  s2(("goToNextNumber"))
+  s2["goToNextNumber"]
+  idle([idle])
+  idle -. enter .-> s2
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
   s2 -- "* → ·/R" --> s1
@@ -37,7 +41,9 @@ flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
   s3["goToPreviousNumberInternal"]
-  s4(("goToPreviousNumber"))
+  s4["goToPreviousNumber"]
+  idle([idle])
+  idle -. enter .-> s4
   s3 -- "$ → ·/S" --> s0
   s3 -- "* → ·/L" --> s3
   s4 -- "* → ·/L" --> s3
@@ -52,11 +58,13 @@ flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
   s6["deleteNumberInternal"]
-  s8(("deleteNumber"))
+  s8["deleteNumber"]
+  idle([idle])
   subgraph w_7["halt frame"]
     s7[["goToNumberStart"]]
     c7(((halt)))
   end
+  idle -. enter .-> s8
   s6 -- "$ → ⌫/S" --> s0
   s6 -- "* → ⌫/R" --> s6
   s7 -- "^ → ·/S" --> c7
@@ -74,7 +82,9 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s5(("goToNumberStart"))
+  s5["goToNumberStart"]
+  idle([idle])
+  idle -. enter .-> s5
   s5 -- "^ → ·/S" --> s0
   s5 -- "* → ·/L" --> s5
 ```
@@ -88,11 +98,13 @@ flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
   s9["invertNumberGoToNumberWithInversion"]
-  s11(("invertNumber"))
+  s11["invertNumber"]
+  idle([idle])
   subgraph w_10["halt frame"]
     s10[["goToNumberStart"]]
     c10(((halt)))
   end
+  idle -. enter .-> s11
   s9 -- "^ → ·/R" --> s9
   s9 -- "1 → 0/R" --> s9
   s9 -- "0 → 1/R" --> s9
@@ -115,11 +127,13 @@ flowchart TD
   s1["goToNumber"]
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
-  s15(("normalizeNumber"))
+  s15["normalizeNumber"]
+  idle([idle])
   subgraph w_14["halt frame"]
     s14[["goToNumberStart"]]
     c14(((halt)))
   end
+  idle -. enter .-> s15
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
   s12 -- "- → ^/S" --> s1
@@ -143,7 +157,9 @@ flowchart TD
   s16["plusOneFillZeros"]
   s17["plusOneAddNumberStart"]
   s18["plusOneCaryOne"]
-  s19(("plusOne"))
+  s19["plusOne"]
+  idle([idle])
+  idle -. enter .-> s19
   s16 -- "1 → 0/R" --> s16
   s16 -- "$ → ·/S" --> s0
   s17 -- "- → ^/R" --> s17
@@ -172,7 +188,8 @@ flowchart TD
   s16["plusOneFillZeros"]
   s17["plusOneAddNumberStart"]
   s18["plusOneCaryOne"]
-  s23(("minusOne"))
+  s23["minusOne"]
+  idle([idle])
   subgraph w_10["halt frame"]
     s10[["goToNumberStart"]]
     c10(((halt)))
@@ -193,6 +210,7 @@ flowchart TD
     s22[["invertNumber"]]
     c22(((halt)))
   end
+  idle -. enter .-> s23
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
   s9 -- "^ → ·/R" --> s9
@@ -244,7 +262,8 @@ flowchart TD
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
   s15["normalizeNumber"]
-  s26(("minusOneFast"))
+  s26["minusOneFast"]
+  idle([idle])
   subgraph w_14["halt frame"]
     s14[["goToNumberStart"]]
     c14(((halt)))
@@ -253,6 +272,7 @@ flowchart TD
     s25[["minusOneFastBorrow"]]
     c25(((halt)))
   end
+  idle -. enter .-> s26
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
   s12 -- "- → ^/S" --> s1
