@@ -40,11 +40,11 @@ export type GraphSummary = {
 export function summarizeGraph(graph: Graph): GraphSummary {
   const nodes = Object.values(graph.nodes);
 
-  // `isClonedHalt` nodes are visualization sentinels — one per wrapper context,
+  // `isHaltMarker` nodes are visualization sentinels — one per wrapper context,
   // all corresponding to the singleton `haltState` at runtime. They don't
   // count as distinct runtime states; matches the per-algorithm header in
   // `library-binary-numbers/states.md`.
-  const runtimeStateCount = nodes.filter((n) => !n.isClonedHalt).length;
+  const runtimeStateCount = nodes.filter((n) => !n.isHaltMarker).length;
 
   let transitionCount = 0;
   let compositionEdgeCount = 0;

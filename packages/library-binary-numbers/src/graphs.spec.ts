@@ -3,7 +3,7 @@ import binaryNumbers from './index';
 
 // Per-state counts pinned from the source comments above each declaration in
 // `index.ts`. These are runtime state counts (per `summarize().stateCount`),
-// which exclude the `isClonedHalt` visualization sentinels v7 synthesizes
+// which exclude the `isHaltMarker` visualization sentinels v7 synthesizes
 // inside each `halt frame` subgraph. The states.md per-algorithm header uses
 // the same definition, so all three sources agree by construction.
 const expectedNodeCount: Record<keyof typeof binaryNumbers['states'], number> = {
@@ -40,10 +40,10 @@ describe('library-binary-numbers state graphs', () => {
 
       // Every algorithm has exactly one REAL halt node (the singleton's id is
       // shared across all states' graphs). v7's wrapper-emit synthesizes one
-      // `isClonedHalt: true` node per wrapper context as a visualization aid —
+      // `isHaltMarker: true` node per wrapper context as a visualization aid —
       // those are filtered out here.
       const realHaltNodes = Object.values(graph.nodes)
-        .filter((node) => node.isHalt && !node.isClonedHalt);
+        .filter((node) => node.isHalt && !node.isHaltMarker);
 
       expect(realHaltNodes).toHaveLength(1);
     },

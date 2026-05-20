@@ -23,10 +23,10 @@ export type GraphNode = {
   // wrapped state. Carries the `[[…]]` (subroutine) shape signal for `toMermaid`
   // and tells `fromGraph` to reconstruct via `bare.withOverriddenHaltState(target)`.
   isWrapped: boolean;
-  // `true` for a synthesized halt-clone graph node — one per wrapper context.
-  // Real halt has `isHalt: true, isClonedHalt: false`; cloned halts have both
-  // `true`. `fromGraph` maps cloned-halt nodes back to the singleton `haltState`.
-  isClonedHalt: boolean;
+  // `true` for a synthesized halt marker graph node — one per wrapper context.
+  // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have both
+  // `true`. `fromGraph` maps halt-marker nodes back to the singleton `haltState`.
+  isHaltMarker: boolean;
 };
 
 export type Graph = {

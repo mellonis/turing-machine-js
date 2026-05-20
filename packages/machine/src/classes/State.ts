@@ -345,12 +345,12 @@ export default class State {
   // wrapper-States (those with `#overriddenHaltState !== null`) are collapsed
   // onto their bare's representation in the graph, with the wrapper's own `#id`
   // used as the graph node id, `isWrapped: true`, and `overriddenHaltStateId`
-  // set to the override's collapsed id. A per-wrapper "cloned halt" graph node
-  // (id = negative-of-the-wrapper-id, `isHalt: true, isClonedHalt: true`) is
+  // set to the override's collapsed id. A per-wrapper "halt marker" graph node
+  // (id = negative-of-the-wrapper-id, `isHalt: true, isHaltMarker: true`) is
   // synthesized; the bare's halt-bound transitions are rewritten to target the
-  // cloned halt instead of the real one.
+  // halt marker instead of the real one.
   //
-  // Cloned-halt node ids use the negation of the wrapper's id so they sit in a
+  // Halt-marker node ids use the negation of the wrapper's id so they sit in a
   // disjoint integer range from real ids (which are always non-negative). Real
   // halt is always id 0.
   static toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
@@ -397,7 +397,7 @@ export default class State {
             id: 0,
             name: state.#name,
             isHalt: true,
-            isClonedHalt: false,
+            isHaltMarker: false,
             isWrapped: false,
             transitions: [],
             overriddenHaltStateId: null,
@@ -426,13 +426,13 @@ export default class State {
           ? wrapperGraphId(overrideTarget)
           : overrideTarget.#id;
 
-        // Emit the cloned-halt node if not already present (one per wrapper).
+        // Emit the halt-marker node if not already present (one per wrapper).
         if (!(clonedHaltId in nodes)) {
           nodes[clonedHaltId] = {
             id: clonedHaltId,
             name: 'halt',
             isHalt: true,
-            isClonedHalt: true,
+            isHaltMarker: true,
             isWrapped: false,
             transitions: [],
             overriddenHaltStateId: null,
@@ -444,7 +444,7 @@ export default class State {
           id: collapsedId,
           name: state.#name,
           isHalt: false,
-          isClonedHalt: false,
+          isHaltMarker: false,
           isWrapped: true,
           transitions: [],
           overriddenHaltStateId: overrideGraphId,
@@ -465,7 +465,7 @@ export default class State {
           }
 
           // Retarget transitions per Variant X conventions:
-          // - target == haltState → cloned halt (stays inside the subgraph)
+          // - target == haltState → halt marker (stays inside the subgraph)
           // - target == bare (self-loop) → the collapsed wrapper id
           // - target is itself a wrapper → that wrapper's collapsed id
           // - else → target's own id
@@ -515,7 +515,7 @@ export default class State {
         id: state.#id,
         name: state.#name,
         isHalt: false,
-        isClonedHalt: false,
+        isHaltMarker: false,
         isWrapped: false,
         transitions: [],
         overriddenHaltStateId: null,

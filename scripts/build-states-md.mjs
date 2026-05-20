@@ -67,7 +67,7 @@ if (libName === null) {
     const graph = State.toGraph(state, tapeBlock);
     const mermaid = toMermaid(graph);
     // Engine-owned introspection — dogfoods the same summary the public API
-    // exposes. `stateCount` already filters out `isClonedHalt` sentinels.
+    // exposes. `stateCount` already filters out `isHaltMarker` sentinels.
     const summary = summarizeGraph(graph);
 
     sections.push(`## ${stateName}`);

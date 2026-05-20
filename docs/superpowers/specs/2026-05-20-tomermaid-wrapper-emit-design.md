@@ -1,6 +1,6 @@
 # `toMermaid` wrapped-state emit — design comparison
 
-**Status:** decided — **Variant X with `subgraph` overlay + `idle` entry sentinel + readable command/symbol vocabulary**. See [Final locked design](#final-locked-design-variant-x-with-subgraph-overlay) at the bottom for the exact diagrams and reader's contract. Each wrapper gets a `subgraph` rectangle labeled `"halt frame"` containing the `[[bare]]` (double-walled wrapper-node) and a cloned `(((halt)))`. The dotted `onHalt` edge originates from the `[[bare]]` and crosses the subgraph border to the override target. A stadium-shaped `idle([idle])` sentinel + labeled dotted arrow `idle -. enter .-> sN` is always emitted to mark the initial state. Edge-label vocabulary: write commands `K` = keep, `E` = erase (write blank); literal alphabet symbols wrapped in single quotes (`'X'`, `'0'`); unquoted markers `*` = any (ifOtherSymbol), `-` = blank shorthand. Decision rationale posted on [#138](https://github.com/mellonis/turing-machine-js/issues/138#issuecomment-4499377933). Implementation in PR [#169](https://github.com/mellonis/turing-machine-js/pull/169).
+**Status:** decided — **Variant X with `subgraph` overlay + `idle` entry sentinel + bracketed-tape-block edge labels**. See [Final locked design](#final-locked-design-variant-x-with-subgraph-overlay) at the bottom for the exact diagrams and reader's contract. Each wrapper gets a `subgraph` rectangle labeled `"halt frame"` containing the `[[bare]]` (double-walled wrapper-node) and a cloned `(((halt)))`. The dotted `onHalt` edge originates from the `[[bare]]` and crosses the subgraph border to the override target. A stadium-shaped `idle([idle])` sentinel + labeled dotted arrow `idle -. enter .-> sN` is always emitted to mark the initial state. Edge labels: `[reads] → [writes]/[moves]` with each role wrapped in `[…]` (tape-block indicator, always present even single-tape); read cells use `'X'` literal-quoted, `🞰` (U+1F7B0) for ifOtherSymbol, `B` for the tape's blank; write cells use `K`/`E` plus literal-quoted; movements `L`/`R`/`S`. Alternation is per-pattern-bracket (`['^']|['1']`); compact `['^'|'1']` form is rejected by `fromMermaid` (would read as cross-product in multi-tape). Stack-pushing transitions emit thick `==>` arrows. Decision rationale posted on [#138](https://github.com/mellonis/turing-machine-js/issues/138#issuecomment-4499377933). Implementation in PR [#169](https://github.com/mellonis/turing-machine-js/pull/169).
 
 **Context.** [#138](https://github.com/mellonis/turing-machine-js/issues/138) — clean up the visually-confusing Mermaid output for `withOverriddenHaltState`-wrapped states. [#139](https://github.com/mellonis/turing-machine-js/issues/139) — bytewise round-trip regression for the wrapper name accumulation, naturally fixed by whichever design we pick.
 
@@ -259,7 +259,7 @@ Y₁ is the most faithful but the cost of per-context state duplication in `from
 After iteration, the locked shape evolves Variant X (collapse the wrapper into the bare's representation, no extra "wrapper node" in the graph data) with two visualization-only enhancements that make the wrapper's runtime semantics tangible without mutating the graph structure:
 
 1. A Mermaid **`subgraph` rectangle labeled `"halt frame"`** around each wrapper — the visual scope for "the wrapper's stack frame for halt handling."
-2. A **cloned `(((halt)))` node inside that subgraph** — visualization of "halt-bound transitions land here, *inside* the wrapper's scope." `haltState` is a runtime singleton; the cloned visual is a teaching aid (one halt-clone per wrapper context on the diagram, all corresponding to the single runtime instance).
+2. A **cloned `(((halt)))` node inside that subgraph** — visualization of "halt-bound transitions land here, *inside* the wrapper's scope." `haltState` is a runtime singleton; the cloned visual is a teaching aid (one halt marker per wrapper context on the diagram, all corresponding to the single runtime instance).
 
 ### Visual contract (what a reader sees)
 
@@ -268,7 +268,7 @@ After iteration, the locked shape evolves Variant X (collapse the wrapper into t
   - the wrapper's runtime entry point (execution starts here on entering the wrapper), and
   - the source of the dotted `onHalt` redirect (since the wrapper-node *is* the catcher).
 - **Cloned `(((halt)))` inside the subgraph** = the halt entry point within this wrapper's scope. Halt-bound transitions from the bare terminate here, not at the real halt.
-- **Solid arrows from `[[bare]]` to cloned halt** = the bare's structural halt-bound transitions. All stay inside the subgraph rectangle.
+- **Solid arrows from `[[bare]]` to halt marker** = the bare's structural halt-bound transitions. All stay inside the subgraph rectangle.
 - **Dotted `onHalt` arrow from `[[bare]]` out of the subgraph to the override target** = the wrapper's catch-and-redirect. Exactly one per wrapper. Solid arrows from `[[bare]]` to non-halt targets can ALSO cross the rectangle border (when the bare's transitions reach external states — common in compositions like `library-binary-numbers`'s `minusOne`); those are just regular runtime transitions, not wrapper machinery. Only the dotted `onHalt` carries wrapper-machinery meaning.
 - **Real `(((halt)))` outside any subgraph** = the actual run terminus. Reached only by states that are *not* inside a wrapper's halt-frame (the unwrapped tail of the chain).
 
@@ -319,7 +319,7 @@ The wrapper's composite name (e.g. `scanToX(eraseHere)`) does **not** appear as 
 
 ### Shared-bare handling
 
-`library-binary-numbers`'s `minusOne` = `invertNumber.with(plusOne.with(invertNumber.with(normalizeNumber)))` — same `invertNumber` instance is the bare of two distinct wrappers (outermost and innermost). Each wrapper context implies its own `subgraph` membership + its own cloned halt + its own dotted `onHalt` edge.
+`library-binary-numbers`'s `minusOne` = `invertNumber.with(plusOne.with(invertNumber.with(normalizeNumber)))` — same `invertNumber` instance is the bare of two distinct wrappers (outermost and innermost). Each wrapper context implies its own `subgraph` membership + its own halt marker + its own dotted `onHalt` edge.
 
 Plan: emit the bare as a separate graph node per wrapper context (per-context duplication in `toGraph`). The shared State instance is preserved at runtime; the graph and Mermaid emit are per-context. `fromGraph` reconstructs equivalent State instances (not necessarily the same runtime `#id` as the original — just behaviorally equivalent).
 
@@ -330,12 +330,12 @@ Plan: emit the bare as a separate graph node per wrapper context (per-context du
 3. `State.toGraph`:
    - Detect wrapper-States (those with `#overriddenHaltState !== null`).
    - Substitute with the bare; mark the bare's graph node `isWrapped: true`.
-   - Synthesize a per-wrapper cloned-halt graph node (a node with `isHalt: true` whose role is "halt-clone for this wrapper").
-   - Rewrite the bare's halt-bound transitions to target the cloned halt rather than the real one.
+   - Synthesize a per-wrapper halt-marker graph node (a node with `isHalt: true` whose role is "halt marker for this wrapper").
+   - Rewrite the bare's halt-bound transitions to target the halt marker rather than the real one.
 4. `toMermaid`:
    - `isWrapped: true` node → `s${id}[["${name}"]]` (subroutine shape).
-   - Cloned-halt node → `s${id}(((halt)))` (triple-paren, identical to real halt).
-   - Wrap each `[[bare]]` + its cloned halt in `subgraph wN["halt frame"] … end`.
+   - Halt-marker node → `s${id}(((halt)))` (triple-paren, identical to real halt).
+   - Wrap each `[[bare]]` + its halt marker in `subgraph wN["halt frame"] … end`.
    - Dotted onHalt edge `s${bareId} -. onHalt .-> s${overrideId}` (from `[[bare]]`, crossing the subgraph border).
 5. `fromMermaid`:
    - Parse Mermaid `subgraph wN["..."] … end` blocks.
@@ -343,7 +343,7 @@ Plan: emit the bare as a separate graph node per wrapper context (per-context du
    - Track subgraph membership for the round-trip.
 6. `State.fromGraph`:
    - For `isWrapped: true` nodes, reconstruct via `bareStates[id].withOverriddenHaltState(getFinal(overriddenHaltStateId))`.
-   - Cloned-halt graph nodes don't get separate State instances — they all map back to the singleton `haltState`.
+   - Halt-marker graph nodes don't get separate State instances — they all map back to the singleton `haltState`.
 7. `#139`'s round-trip test added; should pass after this design.
 8. `states.md` regenerates with the new shape (both binary libraries).
 9. README "Subroutine composition" section rewritten to use the new visual + reader's contract above.
@@ -354,15 +354,15 @@ Five design choices in #138's implementation that keep the demo's render + highl
 
 1. **Stable per-node ids in `Graph`.** Every node has a deterministic id:
    - Bare nodes: `node.id = bareState.id` (the engine's `State.#id`).
-   - Cloned-halt nodes: synthesized but deterministic from `(bareNodeId, wrapper-depth)`.
+   - Halt-marker nodes: synthesized but deterministic from `(bareNodeId, wrapper-depth)`.
    - Per-context bare duplicates: synthesized similarly.
 
    Mermaid emits `s${id}` for each; downstream can find the SVG node for any engine `state.id` directly.
 
-2. **Cloned-halt marker on `GraphNode`.** `isClonedHalt: boolean` (additional to `isHalt: true`). Real halt has `isHalt: true, isClonedHalt: false`; cloned halts have both `true`. Downstream uses this to:
-   - **#9** — emit cloned-halts with a different CSS class (`.cloned-halt` vs `.halt`) for styling.
-   - **#10** — skip cloned-halts when computing "current state highlight" (they're visualization aids, not runtime states).
-   - **#37** — skip cloned-halts when wiring click-to-toggle breakpoint handlers.
+2. **Halt-marker marker on `GraphNode`.** `isHaltMarker: boolean` (additional to `isHalt: true`). Real halt has `isHalt: true, isHaltMarker: false`; halt markers have both `true`. Downstream uses this to:
+   - **#9** — emit halt-markers with a different CSS class (`.halt-marker` vs `.halt`) for styling.
+   - **#10** — skip halt-markers when computing "current state highlight" (they're visualization aids, not runtime states).
+   - **#37** — skip halt-markers when wiring click-to-toggle breakpoint handlers.
 
 3. **Edge identity on `GraphTransition`.** Add `id: string` field, deterministic from `(fromNodeId, patternIndex)` where `patternIndex` is the index of that transition in the bare's symbol map. Mermaid emit injects the id via a CSS-class directive that downstream can target. This is what #10 needs to highlight "the edge that will fire next" precisely.
 

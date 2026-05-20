@@ -129,7 +129,7 @@ describe('toGraph / toMermaid / fromMermaid / fromGraph round trip', () => {
     const reEmittedMermaid = toMermaid(State.toGraph(rebuilt, rebuiltTapeBlock));
 
     // State IDs auto-reassign on each rebuild, so normalize them before
-    // comparing. v7's emit also uses `cN` for cloned-halt ids and `w_N` for
+    // comparing. v7's emit also uses `cN` for halt-marker ids and `w_N` for
     // subgraph names — normalize all three.
     const normalize = (mermaid: string): string => mermaid
       .replace(/\bs\d+\b/g, 'sX')

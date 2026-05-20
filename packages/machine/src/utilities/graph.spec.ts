@@ -117,12 +117,12 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
           transitions: [
-            {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
-            {pattern: '1', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
+            {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
+            {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
           ],
         },
       },
@@ -134,8 +134,8 @@ describe('toMermaid', () => {
     expect(out).toContain('s1["entry"]');
     expect(out).toContain('idle([idle])');
     expect(out).toContain('idle -. enter .-> s1');
-    expect(out).toContain('s1 -- "0 → K/R" --> s1');
-    expect(out).toContain('s1 -- "1 → K/S" --> s0');
+    expect(out).toContain("s1 -- \"['0'] → [K]/[R]\" --> s1");
+    expect(out).toContain("s1 -- \"['1'] → [K]/[S]\" --> s0");
   });
 
   test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
@@ -143,8 +143,8 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isClonedHalt: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isHaltMarker: false},
       },
     });
 
@@ -156,9 +156,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
       },
     });
 
@@ -170,12 +170,12 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isClonedHalt: false,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
           transitions: [{
-            pattern: '0,a',
-            command: [{symbol: '0', movement: 'R'}, {symbol: 'a', movement: 'L'}],
+            pattern: "'0','a'",
+            command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],
             nextStateId: 0,
             id: 'test-edge',
           }],
@@ -183,7 +183,7 @@ describe('toMermaid', () => {
       },
     });
 
-    expect(out).toContain('"0,a → 0/R,a/L"');
+    expect(out).toContain("\"['0','a'] → ['0','a']/[R,L]\"");
   });
 });
 
@@ -259,10 +259,38 @@ describe('fromMermaid error paths', () => {
       '  s0(((halt)))',
       '  idle([idle])',
       '  idle -. enter .-> s1',
-      '  s1 -- "* → noslash" --> s0',
+      '  s1 -- "[*] → noslash" --> s0',
     ].join('\n');
 
-    expect(() => fromMermaid(mermaid)).toThrow('malformed command part');
+    expect(() => fromMermaid(mermaid)).toThrow('malformed command label');
+  });
+
+  test('rejects compact in-bracket alternation (must use per-pattern brackets)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'|'1'] → [K]/[R]\" --> s0", // compact alternation — should fail
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
+  });
+
+  test('rejects `|` inside a write/move bracket too (commands have no alternation)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0","1"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K|E]/[R]\" --> s0", // `|` in writes — should fail
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
   });
 });
 
@@ -322,8 +350,8 @@ describe('README example: toMermaid output is stable', () => {
       '  s1["name"]',
       '  idle([idle])',
       '  idle -. enter .-> s1',
-      "  s1 -- \"'1' → '0'/R\" --> s1",
-      "  s1 -- \"'$' → K/L\" --> s0",
+      "  s1 -- \"['1'] → ['0']/[R]\" --> s1",
+      "  s1 -- \"['$'] → [K]/[L]\" --> s0",
     ].join('\n');
 
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
@@ -363,9 +391,9 @@ describe('README diagrams: engine-generated outputs', () => {
       '["replaceB"]', // initial — square (no longer round in v7; idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      "\"'b' → '*'/R\"",
-      '"B → K/L"',
-      '"🞰 → K/R"',
+      "\"['b'] → ['*']/[R]\"",
+      '"[B] → [K]/[L]"',
+      '"[🞰] → [K]/[R]"',
     ]);
   });
 
@@ -387,8 +415,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["b"]', // b is reachable from a → square
       'idle([idle])',
       'idle -. enter .->',
-      "\"'x' → K/S\"",
-      "\"'y' → K/S\"",
+      "\"['x'] → [K]/[S]\"",
+      "\"['y'] → [K]/[S]\"",
     ]);
   });
 
@@ -410,8 +438,8 @@ describe('README diagrams: engine-generated outputs', () => {
       '["scanToX"]', // initial — square (idle arrow signals entry)
       'idle([idle])',
       'idle -. enter .->',
-      "\"'X' → K/S\"",
-      '"🞰 → K/R"',
+      "\"['X'] → [K]/[S]\"",
+      '"[🞰] → [K]/[R]"',
     ]);
   });
 
@@ -436,11 +464,11 @@ describe('README diagrams: engine-generated outputs', () => {
       '(((halt)))', // real halt outside any subgraph
       '["eraseHere"]', // override is a regular [name] node
       '[["scanToX"]]', // wrapper-collapsed bare uses subroutine shape inside the subgraph
-      'subgraph w_', // halt-frame subgraph wraps the bare + its cloned halt
+      'subgraph w_', // halt-frame subgraph wraps the bare + its halt marker
       '"halt frame"', // subgraph label
       'idle([idle])', // pre-execution sentinel — always emitted
       'idle -. enter .->', // labeled dotted enter arrow points at the initial state
-      '"🞰 → E/S"', // eraseHere's erase command
+      '"[🞰] → [E]/[S]"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });

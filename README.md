@@ -83,12 +83,20 @@ flowchart TD
   s1["replaceB"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'b' → '*'/R" --> s1
-  s1 -- "B → K/L" --> s0
-  s1 -- "🞰 → K/R" --> s1
+  s1 -- "['b'] → ['*']/[R]" --> s1
+  s1 -- "[B] → [K]/[L]" --> s0
+  s1 -- "[🞰] → [K]/[R]" --> s1
 ```
 
-Engine notation: `read → write/move`. Write commands: `K` = keep, `E` = erase (write the blank). Movements: `L` / `R` / `S`. Literal alphabet symbols are wrapped in single quotes (`'b'`, `'*'`). Unquoted markers: `🞰` (U+1F7B0) = `ifOtherSymbol` catch-all, `B` = the tape's blank symbol. `(((halt)))` = halt; `["square"]` = a regular state; the `idle([idle])` sentinel + dotted `enter` arrow marks where execution begins. (Subroutine composition adds a `subgraph` "halt frame" + `[[double-walled]]` wrapper node — see [§Subroutine composition](packages/machine/README.md#subroutine-composition-with-withoverriddenhaltstate) in the engine README.)
+Quick legend for the diagram above — full table at [packages/machine/README.md § Diagram conventions](packages/machine/README.md#diagram-conventions):
+
+- **Edge format**: `[reads] → [writes]/[moves]` (each `[…]` is a tape-block reading; brackets always, even single-tape).
+- **Read cells**: `'X'` (literal, single-quoted), `🞰` (`ifOtherSymbol` catch-all, U+1F7B0), `B` (the tape's blank).
+- **Write cells**: `'X'` (literal), `K` (keep), `E` (erase = write blank).
+- **Movement cells**: `L` / `R` / `S` (left / right / stay).
+- **Node shapes**: `(((halt)))` = halt, `["square"]` = regular state, `[[double-walled]]` = wrapper-bare (subroutine shape), `idle([idle])` = pre-execution sentinel.
+- **Edges**: `-->` regular, `==>` thick = transition into a wrapper (stack-push), `-. onHalt .->` = wrapper's catch-and-redirect, `-. enter .->` from `idle` = where execution starts.
+- **Subgraph `w_N["halt frame"]`** wraps a `[[bare]]` + its halt marker — see [§Subroutine composition](packages/machine/README.md#subroutine-composition-with-withoverriddenhaltstate) in the engine README.
 
 Trace on the input tape `abcba`:
 

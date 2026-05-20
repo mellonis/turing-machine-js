@@ -16,6 +16,7 @@ A composable Turing-machine engine for JavaScript: multi-tape, subroutine compos
 - [Debugging breakpoints](#debugging-breakpoints)
 - [Special objects](#special-objects) — [`haltState`](#haltstate) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
 - [Introspection and testing](#introspection-and-testing)
+- [Diagram conventions](#diagram-conventions)
 - [Versioning notes](#versioning-notes)
 - [Libraries](#libraries)
 - [Links](#links)
@@ -79,18 +80,16 @@ flowchart TD
   s1["replaceB"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'b' → '*'/R" --> s1
-  s1 -- "B → K/L" --> s0
-  s1 -- "🞰 → K/R" --> s1
+  s1 -- "['b'] → ['*']/[R]" --> s1
+  s1 -- "[B] → [K]/[L]" --> s0
+  s1 -- "[🞰] → [K]/[R]" --> s1
 ```
 
-Engine notation: `read → write/move`. Write commands: `K` = keep, `E` = erase (write the blank). Movements: `L` = left, `R` = right, `S` = stay. Literal alphabet symbols are wrapped in single quotes: `'b'`, `'*'`, `'X'`. Unquoted markers: `🞰` (U+1F7B0 heavy-eight-balloon-spoked-asterisk) = `ifOtherSymbol` catch-all, `B` = the tape's blank symbol (a literal `B` in the alphabet appears as the quoted `'B'`, so the marker stays unambiguous). `(((double-paren)))` = halt; `["square"]` = a regular state. The `idle([idle])` sentinel + labeled-dotted `-. enter .->` arrow marks where execution begins. Wrapped states (subroutine-shaped `[[double-walled]]`) sit inside a `subgraph w_N["halt frame"]` block — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) below. **Arrow styles** between states: regular `-->` for plain transitions; thick `==>` for transitions whose target is a wrapped state (= stack-push happens at runtime); dotted `-. onHalt .->` for the wrapper's catch-and-redirect.
-
-The shapes and arrow styles above are standard [Mermaid flowchart syntax](https://mermaid.js.org/syntax/flowchart.html); any tool that renders Mermaid (GitHub preview, IDE plugins, [mermaid-js](https://github.com/mermaid-js/mermaid) client-side) will paint these diagrams the same way.
+Reading this specific diagram: `replaceB` (the rectangle) is the start state, marked by the dotted `enter` arrow from the `idle` sentinel. Three self-or-halt transitions: read `'b'` → write `'*'` and step right; read anything else (`🞰`) → keep, step right; read blank (`B`) → keep, step left, halt. Full notation reference — shapes, edge styles, label vocabulary — in [§Diagram conventions](#diagram-conventions).
 
 A `State` is keyed by JS `Symbol`s returned from `tapeBlock.symbol(pattern)` — the pattern lists the expected symbol under each tape's head. Sentinels and constants used throughout: [`ifOtherSymbol`](#ifothersymbol) is the fallback key when nothing else matches; transitioning into [`haltState`](#haltstate) stops the run; [`movements`](#movements)`.{left,right,stay}` direct head moves; [`symbolCommands`](#symbolcommands)`.{keep,erase}` are write shortcuts. Full definitions in [§Special objects](#special-objects).
 
-For multi-tape machines, pass one element per tape: `tapeBlock.symbol(['0', 'a'])` matches only when tape 1 is at `'0'` and tape 2 is at `'a'`.
+For multi-tape machines, pass one element per tape: `tapeBlock.symbol(['0', 'a'])` matches only when tape 1 is at `'0'` and tape 2 is at `'a'`. See the multi-tape example in [§Diagram conventions](#diagram-conventions) for what the rendered graph looks like.
 
 ## Building from a state table
 
@@ -261,8 +260,8 @@ flowchart TD
   s1["name"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'1' → '0'/R" --> s1
-  s1 -- "'$' → K/L" --> s0
+  s1 -- "['1'] → ['0']/[R]" --> s1
+  s1 -- "['$'] → [K]/[L]" --> s0
 ```
 
 *Edge labels are `read → write/move`. Write commands: `K` = keep (no write), `E` = erase (write the blank). Literal alphabet symbols are quoted (`'1'`, `'$'`). Movements: `L` (left), `R` (right), `S` (stay).*
@@ -291,8 +290,8 @@ flowchart TD
   s2["b"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'x' → K/S" --> s2
-  s2 -- "'y' → K/S" --> s1
+  s1 -- "['x'] → [K]/[S]" --> s2
+  s2 -- "['y'] → [K]/[S]" --> s1
 ```
 
 `idle -. enter .->` points at the initial state passed to `toGraph` (`a` here); `b` is reachable from `a` via the bound `Reference`.
@@ -388,8 +387,8 @@ flowchart TD
   s1["scanToX"]
   idle([idle])
   idle -. enter .-> s1
-  s1 -- "'X' → K/S" --> s0
-  s1 -- "🞰 → K/R" --> s1
+  s1 -- "['X'] → [K]/[S]" --> s0
+  s1 -- "[🞰] → [K]/[R]" --> s1
 ```
 
 `toMermaid(toGraph(scanThenErase, tapeBlock))` — the wrapped composition:
@@ -405,9 +404,9 @@ flowchart TD
     c3(((halt)))
   end
   idle -. enter .-> s3
-  s2 -- "🞰 → E/S" --> s0
-  s3 -- "'X' → K/S" --> c3
-  s3 -- "🞰 → K/R" --> s3
+  s2 -- "[🞰] → [E]/[S]" --> s0
+  s3 -- "['X'] → [K]/[S]" --> c3
+  s3 -- "[🞰] → [K]/[R]" --> s3
   s3 -. onHalt .-> s2
 ```
 
@@ -415,11 +414,11 @@ flowchart TD
 
 1. **The subgraph rectangle labeled `"halt frame"`** is the wrapper's runtime scope — while execution is "inside" this rectangle, the override target (`eraseHere`) sits on the runtime stack waiting to catch a halt. Visual-only; it does not mutate any edges.
 2. **`[[scanToX]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node. It's both the runtime entry point (execution starts here when entering the wrapper) AND the source of the dotted `onHalt` redirect. The wrapper's composite name (`scanToX(eraseHere)`) is computed at runtime via `state.name` but does not appear as a graph node label — only the bare's name is in the graph.
-3. **The cloned `(((halt)))` inside the subgraph** (`c3` here) is where the bare's halt-bound transitions land *inside* the wrapper's scope. `haltState` is a runtime singleton; the cloned node is a teaching aid showing "halt is caught here, not at the real terminus." Solid arrows from the bare to the cloned halt all stay inside the rectangle.
+3. **The cloned `(((halt)))` inside the subgraph** (`c3` here) is where the bare's halt-bound transitions land *inside* the wrapper's scope. `haltState` is a runtime singleton; the cloned node is a teaching aid showing "halt is caught here, not at the real terminus." Solid arrows from the bare to the halt marker all stay inside the rectangle.
 4. **The dotted `onHalt` arrow from `[[scanToX]]` to `eraseHere`** is the wrapper's catch-and-redirect. Originates from the wrapper-node since the wrapper *is* the catcher. Solid arrows from `[[scanToX]]` to other states can also cross the subgraph border — those are just regular runtime transitions whose target happens to be drawn outside this rectangle (only the dotted `onHalt` carries wrapper-machinery meaning). In larger compositions (`library-binary-numbers`'s `minusOne`), solid transitions whose target is *itself* a wrapped state render as a **thick `==>` arrow** instead of `-->` — that's the visual signal for "this transition enters a halt frame, pushing the override onto the runtime stack." Stack-growth structure is then scannable from the diagram: count thick arrows along an execution path to see how deep the stack gets.
 5. **Real `(((halt)))` outside any subgraph** (`s0`) is the actual run terminus. Reached only by states that are *not* inside a wrapper's halt-frame — here, by `eraseHere` after it erases the cell.
 
-**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter the `halt frame` at `[[scanToX]]` (with `eraseHere` on the stack); `🞰 → K/R` self-loops until the head sees `X`; the `'X' → K/S` solid edge would normally halt — it lands on the cloned halt `c3`, the wrapper's catch-and-redirect kicks in, pop the stack → `eraseHere`; `eraseHere` runs `🞰 → E/S` and halts at real `s0`. Run terminates.
+**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter the `halt frame` at `[[scanToX]]` (with `eraseHere` on the stack); `[🞰] → [K]/[R]` self-loops until the head sees `X`; the `['X'] → [K]/[S]` solid edge would normally halt — it lands on the halt marker `c3`, the wrapper's catch-and-redirect kicks in, pop the stack → `eraseHere`; `eraseHere` runs `[🞰] → [E]/[S]` and halts at real `s0`. Run terminates.
 
 > 💡 **Round-trip caveat.** `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers like this one ([#139](https://github.com/mellonis/turing-machine-js/issues/139) regression). For shared-bare cases (same `State` instance used as the bare in multiple wrappers — e.g., `library-binary-numbers`'s `minusOne`), per-context duplication produces wrapper-id-dependent ordering that doesn't byte-match across rebuilds — equivalent runtime behavior, different emit-line order.
 
@@ -477,7 +476,7 @@ If `onPause` is not provided, breaks fire-and-resume invisibly — the trajector
 
 **Caveat:** `haltState` is a module-level singleton. Setting `haltState.debug` affects every machine in the process; clear in `afterEach` / `finally` for test isolation.
 
-### Throttle pattern (v6.4.0+)
+### Throttle pattern
 
 For per-iter throttle / animation / "wait between steps" UIs, use the **`onIter`** hook — an awaited callback that fires once at the end of every iter, after both `onPause` dispatches on the same yield. It's the engine-native shape for per-iter coordination:
 
@@ -567,6 +566,77 @@ Together: use `summarize` to ask "is this machine the right shape?" (size, compo
 
 For visualization and round-tripping, see `State.toGraph` / `State.fromGraph` and `toMermaid` / `fromMermaid`.
 
+## Diagram conventions
+
+The full reference for reading `toMermaid` output — shapes, edge styles, and the bracketed edge-label vocabulary. All shapes and arrows are standard [Mermaid flowchart syntax](https://mermaid.js.org/syntax/flowchart.html); any Mermaid renderer (GitHub preview, IDE plugins, [mermaid-js](https://github.com/mermaid-js/mermaid) client-side) paints these diagrams the same way.
+
+### Node shapes
+
+| Shape | Meaning |
+|---|---|
+| `s0(((halt)))` | the halt state |
+| `sN["name"]` | a regular state |
+| `sN[["name"]]` | a `withOverriddenHaltState` wrapper-bare (subroutine shape) — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) |
+| `cN(((halt)))` inside a subgraph | halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
+| `idle([idle])` | pre-execution sentinel (not a real state) |
+
+### Edge styles
+
+| Style | Where | Meaning |
+|---|---|---|
+| `-->` regular solid | between states | plain transition |
+| `==>` thick solid | between states | transition INTO a wrapped state — stack-push happens at runtime |
+| `-. onHalt .->` dotted | from `[[bare]]` to override | wrapper's catch-and-redirect |
+| `-. enter .->` dotted | from `idle` to initial state | execution-start marker |
+
+### Groupings
+
+`subgraph w_N["halt frame"] … end` wraps a `[[bare]]` + its halt marker — visual grouping of the wrapper's runtime halt-handling scope.
+
+### Edge label format
+
+`[reads] → [writes]/[moves]`. Each bracketed list is a tape-block reading — one entry per tape; brackets always present, even single-tape.
+
+| Glyph | Where | Meaning |
+|---|---|---|
+| `'X'` | read, write | literal alphabet symbol (single-quoted) |
+| `🞰` | read only | `ifOtherSymbol` catch-all (U+1F7B0 heavy-eight-balloon-spoked-asterisk) |
+| `B` | read only | the tape's blank symbol (a literal `B` in the alphabet appears as `'B'`, so the marker stays unambiguous) |
+| `K` | write only | keep (no write) |
+| `E` | write only | erase (write the tape's blank) |
+| `L` / `R` / `S` | move only | left / right / stay |
+
+### Alternation rule
+
+Alternative read patterns are always per-pattern-bracket:
+
+- Single-tape: `['^']|['1']|['0']`
+- Multi-tape: `['0','a']|['1','b']` — "(tape 1=`'0'` AND tape 2=`'a'`) OR (tape 1=`'1'` AND tape 2=`'b'`)"
+
+The compact in-bracket form `['^'|'1']` is **rejected** by `fromMermaid` — and never emitted by `toMermaid`. The reason is pedagogical: each alternative is its own drawn transition, and the compact form would read as cross-product semantics in multi-tape (`['0'|'1','a'|'b']` could mean 4 combinations rather than 2 paired alternatives). One consistent rule across tape counts: each alternative is a full bracketed pattern.
+
+### Multi-tape example
+
+A 2-tape "copier" machine — as long as tape 1 reads a non-blank, write the same symbol to tape 2 and step both right; halt when tape 1 reads blank:
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","0","1"],[" ","0","1"]]
+  s0(((halt)))
+  s1["copy"]
+  idle([idle])
+  idle -. enter .-> s1
+  s1 -- "['0',🞰] → [K,'0']/[R,R]" --> s1
+  s1 -- "['1',🞰] → [K,'1']/[R,R]" --> s1
+  s1 -- "[B,🞰] → [K]/[S]" --> s0
+```
+
+Reading `['0',🞰] → [K,'0']/[R,R]`:
+
+- **Read** `['0',🞰]` — tape 1 must be literal `'0'`; tape 2 is `ifOtherSymbol` (any).
+- **Write** `[K,'0']` — tape 1: keep; tape 2: write literal `'0'`.
+- **Move** `[R,R]` — both tapes step right.
+
 ## Versioning notes
 
 API surface changes since v3, in past tense so the timing of each piece is explicit:
@@ -581,7 +651,7 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v7** *(in progress)* — Composition-representation overhaul. Breaking renames + reshapes scheduled for the v7 cut. Landing piecewise on the `v7` branch; one entry per landed change:
   - **`withOverrodeHaltState` → `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: the past-participle `overridden` fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. The getter (`state.overrodeHaltState` → `state.overriddenHaltState`) and the serialized `Graph` data field (`node.overrodeHaltStateId` → `node.overriddenHaltStateId`) rename in lockstep. Consumer migration: global find/replace `OverrodeHaltState` → `OverriddenHaltState` and `overrodeHaltState` → `overriddenHaltState`. Persisted `State.toGraph` JSON dumps would need the same field-rename treatment, but persistence isn't a known consumer pattern.
   - **Paren-based wrapped-state naming** ([#148](https://github.com/mellonis/turing-machine-js/issues/148)). `withOverriddenHaltState`'s composite name format changed from flat `bare>override` to nested `bare(override)`. Same nesting depth reads as `A(B(A))` (bare = `A`, override = `B(A)`) versus `A(B)(A)` (bare = `A(B)`, override = `A`) — two structurally-different wrap-trees that the old `>`-flat notation collided into the single string `A>B>A`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` now throws at construction time if a user passes such a name. The `>` character stays valid in user names (no longer reserved). The `inspect()` / `toGraph` / `toMermaid` outputs carry the new format. `states.md` files in `library-binary-numbers` regenerate accordingly.
-  - **`toMermaid` wrapped-state emit overhaul** ([#138](https://github.com/mellonis/turing-machine-js/issues/138) / [#139](https://github.com/mellonis/turing-machine-js/issues/139)). The wrapper-and-its-bare pair collapses into a single graph node (`isWrapped: true`); the wrapper's composite name no longer appears as a node label (only the bare's name does). Each wrapper gets a Mermaid `subgraph w_${bareId}["halt frame"] … end` block containing the `[[bare]]` (subroutine shape) plus a cloned `(((halt)))` (visualization aid showing where halt-bound transitions land inside the scope). The dotted `onHalt` edge originates from the `[[bare]]` and crosses the subgraph border to the override target — exactly one per wrapper. `Graph` data shape gains `isWrapped` and `isClonedHalt` flags on `GraphNode` and a stable `id` on `GraphTransition` (deterministic per-edge identifier — supports downstream tooling like the `machines-demo` interactive viewer at [machines-demo#10](https://github.com/mellonis/machines-demo/issues/10)). Cloned-halt graph nodes use negative ids and round-trip back to the singleton `haltState` via `fromGraph`. Bytewise round-trip stability falls out for simple wrappers (no composite name in the graph means `fromGraph(toGraph(state))` recomputes names fresh — no accumulation). Shared-bare cases (e.g. `minusOne`'s repeated `invertNumber`) use per-context duplication in the graph emit.
+  - **`toMermaid` wrapped-state emit overhaul** ([#138](https://github.com/mellonis/turing-machine-js/issues/138) / [#139](https://github.com/mellonis/turing-machine-js/issues/139)). The wrapper-and-its-bare pair collapses into a single graph node (`isWrapped: true`); the wrapper's composite name no longer appears as a node label (only the bare's name does). Each wrapper gets a Mermaid `subgraph w_${bareId}["halt frame"] … end` block containing the `[[bare]]` (subroutine shape) plus a cloned `(((halt)))` (visualization aid showing where halt-bound transitions land inside the scope). The dotted `onHalt` edge originates from the `[[bare]]` and crosses the subgraph border to the override target — exactly one per wrapper. `Graph` data shape gains `isWrapped` and `isHaltMarker` flags on `GraphNode` and a stable `id` on `GraphTransition` (deterministic per-edge identifier — supports downstream tooling like the `machines-demo` interactive viewer at [machines-demo#10](https://github.com/mellonis/machines-demo/issues/10)). Halt-marker graph nodes use negative ids and round-trip back to the singleton `haltState` via `fromGraph`. Bytewise round-trip stability falls out for simple wrappers (no composite name in the graph means `fromGraph(toGraph(state))` recomputes names fresh — no accumulation). Shared-bare cases (e.g. `minusOne`'s repeated `invertNumber`) use per-context duplication in the graph emit.
 
 For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
 
