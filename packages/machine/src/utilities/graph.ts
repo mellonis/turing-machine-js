@@ -13,7 +13,7 @@ export type GraphNode = {
   name: string;
   isHalt: boolean;
   transitions: GraphTransition[];
-  overrodeHaltStateId: number | null;
+  overriddenHaltStateId: number | null;
 };
 
 export type Graph = {

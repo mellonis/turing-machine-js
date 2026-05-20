@@ -33,8 +33,8 @@ export function toMermaid(graph: Graph): string {
       lines.push(`  s${node.id} -- "${label}" --> s${t.nextStateId}`);
     }
 
-    if (node.overrodeHaltStateId !== null) {
-      lines.push(`  s${node.id} -. onHalt .-> s${node.overrodeHaltStateId}`);
+    if (node.overriddenHaltStateId !== null) {
+      lines.push(`  s${node.id} -. onHalt .-> s${node.overriddenHaltStateId}`);
     }
   }
 
@@ -75,7 +75,7 @@ export function fromMermaid(text: string): Graph {
         name: opts.name ?? `s${id}`,
         isHalt: opts.isHalt ?? false,
         transitions: [],
-        overrodeHaltStateId: null,
+        overriddenHaltStateId: null,
       };
     } else {
       if (opts.name !== undefined) {
@@ -133,7 +133,7 @@ export function fromMermaid(text: string): Graph {
     const om = line.match(onHaltRegex);
 
     if (om) {
-      ensureNode(Number(om[1])).overrodeHaltStateId = Number(om[2]);
+      ensureNode(Number(om[1])).overriddenHaltStateId = Number(om[2]);
       continue;
     }
 

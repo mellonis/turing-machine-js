@@ -113,9 +113,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overrodeHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
           transitions: [
             {pattern: '0', command: [{symbol: '·', movement: 'R'}], nextStateId: 1},
             {pattern: '1', command: [{symbol: '·', movement: 'S'}], nextStateId: 0},
@@ -132,13 +132,13 @@ describe('toMermaid', () => {
     expect(out).toContain('s1 -- "1 → ·/S" --> s0');
   });
 
-  test('renders dotted onHalt edge when overrodeHaltStateId is set', () => {
+  test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
     const out = toMermaid({
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overrodeHaltStateId: 0},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0},
       },
     });
 
@@ -150,9 +150,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overrodeHaltStateId: null},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overrodeHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null},
       },
     });
 
@@ -164,9 +164,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overrodeHaltStateId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overrodeHaltStateId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null,
           transitions: [{
             pattern: '0,a',
             command: [{symbol: '0', movement: 'R'}, {symbol: 'a', movement: 'L'}],
@@ -371,7 +371,7 @@ describe('README diagrams: engine-generated outputs', () => {
     ]);
   });
 
-  test('withOverrodeHaltState BEFORE (scanToX standalone, machine README)', () => {
+  test('withOverriddenHaltState BEFORE (scanToX standalone, machine README)', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -392,7 +392,7 @@ describe('README diagrams: engine-generated outputs', () => {
     ]);
   });
 
-  test('withOverrodeHaltState AFTER (scanThenErase, machine README) — emits the onHalt dotted edge', () => {
+  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the onHalt dotted edge', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -403,7 +403,7 @@ describe('README diagrams: engine-generated outputs', () => {
     const eraseHere = new State({
       [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
     }, 'eraseHere');
-    const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+    const scanThenErase = scanToX.withOverriddenHaltState(eraseHere);
 
     const output = toMermaid(State.toGraph(scanThenErase, tapeBlock));
 

@@ -207,7 +207,7 @@ describe('TuringMachine — haltState.debug.before', () => {
       [ifOtherSymbol]: {nextState: haltState},
     });
 
-    const wrapped = inner.withOverrodeHaltState(continuation);
+    const wrapped = inner.withOverriddenHaltState(continuation);
 
     haltState.debug = {before: true};
     const steps: MachineState[] = [];

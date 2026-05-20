@@ -90,9 +90,9 @@ describe('State.debug — basics', () => {
     expect(state.debug.after).toBeUndefined();
   });
 
-  test('withOverrodeHaltState returns a new state that shares the debug ref', () => {
+  test('withOverriddenHaltState returns a new state that shares the debug ref', () => {
     const state = makeState();
-    const wrapped = state.withOverrodeHaltState(haltState);
+    const wrapped = state.withOverriddenHaltState(haltState);
 
     expect(wrapped).not.toBe(state);
     // Both lazy-init through the shared ref, so reading either returns the
@@ -110,7 +110,7 @@ describe('State.debug — basics', () => {
   test('null assignment on the original propagates to wrappers (filters reset for both)', () => {
     const state = makeState();
     state.debug = {before: true};
-    const wrapped = state.withOverrodeHaltState(haltState);
+    const wrapped = state.withOverriddenHaltState(haltState);
 
     state.debug = null;
     expect(state.debug.before).toBeUndefined();
@@ -120,7 +120,7 @@ describe('State.debug — basics', () => {
 
   test('setting on the wrapper propagates back to the original', () => {
     const state = makeState();
-    const wrapped = state.withOverrodeHaltState(haltState);
+    const wrapped = state.withOverriddenHaltState(haltState);
 
     wrapped.debug = {after: true};
     expect(state.debug).toBe(wrapped.debug);
@@ -129,8 +129,8 @@ describe('State.debug — basics', () => {
 
   test('chained wrappers all share the SAME debug object (identity)', () => {
     const state = makeState();
-    const w1 = state.withOverrodeHaltState(haltState);
-    const w2 = w1.withOverrodeHaltState(haltState);
+    const w1 = state.withOverriddenHaltState(haltState);
+    const w2 = w1.withOverriddenHaltState(haltState);
 
     state.debug = {before: true};
 

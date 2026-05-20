@@ -89,7 +89,7 @@ const goToNumbersStart = new State({
 //
 // Composition: go to the number's '^', then sweep right erasing every cell
 // (digits, '^', '$') until the number is gone. Implemented as
-// goToNumbersStart.withOverrodeHaltState(deleteNumberInternal): when
+// goToNumbersStart.withOverriddenHaltState(deleteNumberInternal): when
 // goToNumbersStart would halt at '^', it falls through to the eraser instead.
 const deleteNumberInternal = new State({
   [symbol('$')]: {
@@ -108,7 +108,7 @@ const deleteNumberInternal = new State({
 
 const deleteNumber = new State({
   [symbol('^10$')]: {
-    nextState: goToNumbersStart.withOverrodeHaltState(deleteNumberInternal),
+    nextState: goToNumbersStart.withOverriddenHaltState(deleteNumberInternal),
   },
   [ifOtherSymbol]: {
     nextState: haltState,
@@ -118,7 +118,7 @@ const deleteNumber = new State({
 // invertNumber — 5 nodes
 //
 // Composition: go to '^', then sweep right flipping each bit until '$'.
-// Same shape as deleteNumber (goToNumbersStart.withOverrodeHaltState(...)) but
+// Same shape as deleteNumber (goToNumbersStart.withOverriddenHaltState(...)) but
 // the inner state writes the complement instead of erasing.
 const invertNumberGoToNumberWithInversion = new State({
   [symbol('^')]: {
@@ -145,7 +145,7 @@ const invertNumberGoToNumberWithInversion = new State({
 
 const invertNumber = new State({
   [symbol('^10$')]: {
-    nextState: goToNumbersStart.withOverrodeHaltState(invertNumberGoToNumberWithInversion),
+    nextState: goToNumbersStart.withOverriddenHaltState(invertNumberGoToNumberWithInversion),
   },
   [ifOtherSymbol]: {
     nextState: haltState,
@@ -184,7 +184,7 @@ const normalizeNumberMoveNumberStart = new State({
 
 const normalizeNumber = new State({
   [symbol('^10$')]: {
-    nextState: goToNumbersStart.withOverrodeHaltState(normalizeNumberMoveNumberStart),
+    nextState: goToNumbersStart.withOverriddenHaltState(normalizeNumberMoveNumberStart),
   },
   [ifOtherSymbol]: {
     nextState: haltState,
@@ -272,7 +272,7 @@ const plusOne = new State({
 //
 // Computes x − 1 via the two's-complement identity:  x − 1 == ~(~x + 1)
 // (every step is a state we already have), composed with three nested
-// withOverrodeHaltState calls to chain invert → plusOne → invert → normalize.
+// withOverriddenHaltState calls to chain invert → plusOne → invert → normalize.
 //
 // This is *deliberately* the heavy version. It exists side-by-side with
 // minusOneFast (10 nodes, direct borrow) to make the cost of "compose existing
@@ -286,11 +286,11 @@ const minusOne = new State({
   },
   [symbol('$')]: {
     nextState: invertNumber
-      .withOverrodeHaltState(
+      .withOverriddenHaltState(
         plusOne
-          .withOverrodeHaltState(
+          .withOverriddenHaltState(
             invertNumber
-              .withOverrodeHaltState(normalizeNumber),
+              .withOverriddenHaltState(normalizeNumber),
           ),
       ),
   },
@@ -307,7 +307,7 @@ const minusOne = new State({
 //
 // Same algorithm as minusOne in @turing-machine-js/library-binary-numbers-bare
 // (which is 3 nodes there). The extra 7 nodes here are the cost of: scanning
-// past '^' on entry, the goToNumberStart path and its withOverrodeHaltState
+// past '^' on entry, the goToNumberStart path and its withOverriddenHaltState
 // wrapper for normalize, and normalizeNumber's own marker-relocation chain.
 const minusOneFastBorrow = new State({
   [symbol('1')]: {
@@ -337,7 +337,7 @@ const minusOneFast = new State({
     command: {
       movement: movements.left,
     },
-    nextState: minusOneFastBorrow.withOverrodeHaltState(normalizeNumber),
+    nextState: minusOneFastBorrow.withOverriddenHaltState(normalizeNumber),
   },
   [ifOtherSymbol]: {
     nextState: haltState,

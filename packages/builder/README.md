@@ -43,7 +43,7 @@ The state-table format is intentionally minimal. It does **not** support:
 
 - **OR-patterns** (matching multiple current symbols with one transition row). For `tapeBlock.symbol('^10$')` style patterns, use the raw `@turing-machine-js/machine` API.
 - **Multi-tape machines** (`buildMachine` is single-tape only).
-- **`withOverrodeHaltState` composition** (the subroutine-call mechanism). For composed machines like `library-binary-numbers`'s `minusOne`, use the raw API.
+- **`withOverriddenHaltState` composition** (the subroutine-call mechanism). For composed machines like `library-binary-numbers`'s `minusOne`, use the raw API.
 
 If you need any of the above, the inline state-table example in [`@turing-machine-js/machine`'s README](../machine/README.md) shows how to write your own `buildMachine`-equivalent in ~30 lines, and you can extend it to fit your case.
 
