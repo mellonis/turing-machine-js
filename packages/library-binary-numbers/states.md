@@ -53,7 +53,7 @@ flowchart TD
   s0(((halt)))
   s5["goToNumberStart"]
   s6["deleteNumberInternal"]
-  s7["goToNumberStart>deleteNumberInternal"]
+  s7["goToNumberStart(deleteNumberInternal)"]
   s8(("deleteNumber"))
   s5 -- "^ → ·/S" --> s0
   s5 -- "* → ·/L" --> s5
@@ -89,7 +89,7 @@ flowchart TD
   s0(((halt)))
   s5["goToNumberStart"]
   s9["invertNumberGoToNumberWithInversion"]
-  s10["goToNumberStart>invertNumberGoToNumberWithInversion"]
+  s10["goToNumberStart(invertNumberGoToNumberWithInversion)"]
   s11(("invertNumber"))
   s5 -- "^ → ·/S" --> s0
   s5 -- "* → ·/L" --> s5
@@ -116,7 +116,7 @@ flowchart TD
   s5["goToNumberStart"]
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
-  s14["goToNumberStart>normalizeNumberMoveNumberStart"]
+  s14["goToNumberStart(normalizeNumberMoveNumberStart)"]
   s15(("normalizeNumber"))
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
@@ -167,18 +167,18 @@ flowchart TD
   s1["goToNumber"]
   s5["goToNumberStart"]
   s9["invertNumberGoToNumberWithInversion"]
-  s10["goToNumberStart>invertNumberGoToNumberWithInversion"]
+  s10["goToNumberStart(invertNumberGoToNumberWithInversion)"]
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
-  s14["goToNumberStart>normalizeNumberMoveNumberStart"]
+  s14["goToNumberStart(normalizeNumberMoveNumberStart)"]
   s15["normalizeNumber"]
   s16["plusOneFillZeros"]
   s17["plusOneAddNumberStart"]
   s18["plusOneCaryOne"]
   s19["plusOne"]
-  s20["invertNumber>normalizeNumber"]
-  s21["plusOne>invertNumber>normalizeNumber"]
-  s22["invertNumber>plusOne>invertNumber>normalizeNumber"]
+  s20["invertNumber(normalizeNumber)"]
+  s21["plusOne(invertNumber(normalizeNumber))"]
+  s22["invertNumber(plusOne(invertNumber(normalizeNumber)))"]
   s23(("minusOne"))
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1
@@ -236,10 +236,10 @@ flowchart TD
   s5["goToNumberStart"]
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
-  s14["goToNumberStart>normalizeNumberMoveNumberStart"]
+  s14["goToNumberStart(normalizeNumberMoveNumberStart)"]
   s15["normalizeNumber"]
   s24["minusOneFastBorrow"]
-  s25["minusOneFastBorrow>normalizeNumber"]
+  s25["minusOneFastBorrow(normalizeNumber)"]
   s26(("minusOneFast"))
   s1 -- "$ → ·/S" --> s0
   s1 -- "* → ·/R" --> s1

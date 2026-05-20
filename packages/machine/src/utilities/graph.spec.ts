@@ -413,7 +413,7 @@ describe('README diagrams: engine-generated outputs', () => {
       '(((halt)))',
       '["scanToX"]', // original scanToX is reachable from the wrapper → square
       '["eraseHere"]', // eraseHere is reachable via onHalt → square
-      '(("scanToX>eraseHere"))', // wrapper is the initial state → round
+      '(("scanToX(eraseHere)"))', // wrapper is the initial state → round
       '"* → ⌫/S"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — engine's static fingerprint of the override
     ]);
