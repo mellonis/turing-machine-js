@@ -6,24 +6,61 @@
 // imports from `dist/`). Not run during tests; doc artifacts are committed to
 // the repo and regenerated manually when the libraries' state graphs change.
 //
-// Heads-up: state IDs are auto-assigned at module-evaluation time (`State.ts`'s
-// `id(this)` increments a module-level counter). Re-running this script will
-// produce a deterministic-but-different ID renumbering if the import order or
-// other consumers shift; the resulting diff is cosmetic — only the `s<N>`
-// labels move, the graph topology is identical. If a renumber-only diff
-// surfaces during a refresh, it's safe to commit.
+// Per-library isolation: state IDs are auto-assigned by a module-level counter
+// in `State.ts`. If both libraries are imported into the same Node process, the
+// counter is shared and the second-imported library's IDs depend on how many
+// states the first-imported one constructed — adding a state to one library
+// shifts every ID in the other library's states.md. To avoid that cross-
+// coupling, each library is rendered in its own child Node process spawned by
+// this script, so each starts from a fresh counter.
 
+import {spawnSync} from 'node:child_process';
 import {writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {State, toMermaid} from '../packages/machine/dist/index.mjs';
-import binaryNumbers from '../packages/library-binary-numbers/dist/index.mjs';
-import binaryNumbersBare from '../packages/library-binary-numbers-bare/dist/index.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const scriptPath = fileURLToPath(import.meta.url);
 
-function renderLibrary(libraryName, library) {
-  const sections = [`# ${libraryName} — state graphs`, ''];
+const LIBRARIES = [
+  {
+    name: 'library-binary-numbers',
+    importPath: '../packages/library-binary-numbers/dist/index.mjs',
+    outputPath: resolve(root, 'packages/library-binary-numbers/states.md'),
+  },
+  {
+    name: 'library-binary-numbers-bare',
+    importPath: '../packages/library-binary-numbers-bare/dist/index.mjs',
+    outputPath: resolve(root, 'packages/library-binary-numbers-bare/states.md'),
+  },
+];
+
+const libArgIx = process.argv.indexOf('--lib');
+const libName = libArgIx === -1 ? null : process.argv[libArgIx + 1];
+
+if (libName === null) {
+  // Dispatcher mode: one child per library, fresh State id counter in each.
+  for (const {name} of LIBRARIES) {
+    const r = spawnSync(process.execPath, [scriptPath, '--lib', name], {stdio: 'inherit'});
+
+    if (r.status !== 0) {
+      process.exit(r.status ?? 1);
+    }
+  }
+} else {
+  // Worker mode: render exactly one library. Spawned by the dispatcher above
+  // so the State id counter starts fresh for this library's import.
+  const entry = LIBRARIES.find((l) => l.name === libName);
+
+  if (!entry) {
+    console.error(`build-states-md: unknown library "${libName}"`);
+    process.exit(1);
+  }
+
+  const {State, toMermaid} = await import('../packages/machine/dist/index.mjs');
+  const library = (await import(entry.importPath)).default;
+
+  const sections = [`# ${entry.name} — state graphs`, ''];
 
   for (const [stateName, state] of Object.entries(library.states)) {
     const tapeBlock = library.getTapeBlock();
@@ -41,24 +78,6 @@ function renderLibrary(libraryName, library) {
     sections.push('');
   }
 
-  return sections.join('\n');
-}
-
-const libraries = [
-  {
-    libraryName: 'library-binary-numbers',
-    library: binaryNumbers,
-    outputPath: resolve(root, 'packages/library-binary-numbers/states.md'),
-  },
-  {
-    libraryName: 'library-binary-numbers-bare',
-    library: binaryNumbersBare,
-    outputPath: resolve(root, 'packages/library-binary-numbers-bare/states.md'),
-  },
-];
-
-for (const {libraryName, library, outputPath} of libraries) {
-  const content = renderLibrary(libraryName, library);
-  writeFileSync(outputPath, content);
-  console.log(`✓ Wrote ${outputPath}`);
+  writeFileSync(entry.outputPath, sections.join('\n'));
+  console.log(`✓ Wrote ${entry.outputPath}`);
 }
