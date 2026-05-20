@@ -361,7 +361,7 @@ export default class State {
     // to it in transitions. Same as the wrapper's `#id`, recorded for clarity
     // when rewriting transition targets.
     const wrapperGraphId = (s: State): number => s.#id;
-    const clonedHaltIdFor = (wrapper: State): number => -wrapper.#id;
+    const haltMarkerIdFor = (wrapper: State): number => -wrapper.#id;
 
     // The `initialId` is the user-passed start. If it's a wrapper, the
     // collapsed graph node uses its `#id`; otherwise its own `#id`.
@@ -372,7 +372,7 @@ export default class State {
       state: State;
       // When non-null, the State is being processed AS the bare of this wrapper.
       // The collapsed graph node uses `wrapperGraphId(wrapperContext)`,
-      // halt-bound transitions retarget to `clonedHaltIdFor(wrapperContext)`,
+      // halt-bound transitions retarget to `haltMarkerIdFor(wrapperContext)`,
       // self-loop transitions to the bare retarget to the wrapper-id.
       wrapperContext: State | null;
     };
@@ -416,7 +416,7 @@ export default class State {
           continue;
         }
 
-        const clonedHaltId = clonedHaltIdFor(wrapperContext);
+        const haltMarkerId = haltMarkerIdFor(wrapperContext);
         const overrideTarget = wrapperContext.#overriddenHaltState!;
 
         // The override target's collapsed id: if the override is itself a
@@ -427,9 +427,9 @@ export default class State {
           : overrideTarget.#id;
 
         // Emit the halt-marker node if not already present (one per wrapper).
-        if (!(clonedHaltId in nodes)) {
-          nodes[clonedHaltId] = {
-            id: clonedHaltId,
+        if (!(haltMarkerId in nodes)) {
+          nodes[haltMarkerId] = {
+            id: haltMarkerId,
             name: 'halt',
             isHalt: true,
             isHaltMarker: true,
@@ -472,7 +472,7 @@ export default class State {
           let nextStateId: number;
 
           if (target.isHalt) {
-            nextStateId = clonedHaltId;
+            nextStateId = haltMarkerId;
           } else if (target === state) {
             nextStateId = collapsedId;
           } else if (target.#overriddenHaltState && target.#bareState) {

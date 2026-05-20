@@ -47,10 +47,11 @@ const symbolCommandDescriptionToLabel: Record<string, string> = {
 };
 
 // Reserved characters in the encoded pattern string:
-//   '🞰'  (U+1F7B0 HEAVY EIGHT BALLOON-SPOKED ASTERISK) per-cell ifOtherSymbol —
-//        matches any symbol on that tape. Distinct from the regular ASCII '*'
-//        (U+002A) so an alphabet that contains literal '*' (rendered as the
-//        quoted `'*'`) is unambiguously different from the catch-all marker.
+//   '*'  ASCII asterisk (U+002A) — per-cell ifOtherSymbol, matches any symbol
+//        on that tape. ASCII (not a fancier glyph like U+1F7B0) so it renders
+//        in every Mermaid environment and every monospace font. A literal `*`
+//        in the alphabet is unambiguous from the marker because it's quoted
+//        (`'*'`).
 //   'B'  the tape's blank symbol shorthand (in read patterns). A literal `B`
 //        in the alphabet is unambiguous from the marker because it's quoted
 //        (`'B'`).
@@ -58,12 +59,12 @@ const symbolCommandDescriptionToLabel: Record<string, string> = {
 //   '|'  separates alternative patterns
 //   "'"  surrounds a literal alphabet symbol — e.g. `'0'` for literal `0`,
 //        `'X'` for literal `X`. The quoting is what visually separates literal
-//        symbols from the convention markers `🞰` / `B` and from the write
+//        symbols from the convention markers `*` / `B` and from the write
 //        commands `K` / `E`.
-//   '\\' escape prefix — to represent any of '🞰', 'B', ',', '|', "'", or '\\'
+//   '\\' escape prefix — to represent any of '*', 'B', ',', '|', "'", or '\\'
 //        as a *literal* alphabet symbol *inside* the quotes (e.g. `'\''` for
 //        a literal apostrophe).
-const IF_OTHER_MARKER = '🞰';
+const IF_OTHER_MARKER = '*';
 const BLANK_MARKER = 'B';
 
 function escapeAlphabetSymbol(s: string): string {

@@ -49,16 +49,16 @@ export function toMermaid(graph: Graph): string {
   const wrappedNodes = nodes.filter((n) => n.isWrapped);
 
   // Convention: wrapped node id N → halt marker id -N.
-  const clonedHaltFor = (wrappedId: number): number => -wrappedId;
+  const haltMarkerIdFor = (wrappedId: number): number => -wrappedId;
 
   // Set of halt-marker ids that belong to some wrapper (= are inside a subgraph).
-  const clonedHaltIds = new Set<number>();
+  const haltMarkerIds = new Set<number>();
 
   for (const w of wrappedNodes) {
-    const clonedId = clonedHaltFor(w.id);
+    const haltMarkerId = haltMarkerIdFor(w.id);
 
-    if (clonedId in graph.nodes) {
-      clonedHaltIds.add(clonedId);
+    if (haltMarkerId in graph.nodes) {
+      haltMarkerIds.add(haltMarkerId);
     }
   }
 
@@ -66,7 +66,7 @@ export function toMermaid(graph: Graph): string {
   // No special round-shape `((…))` for the initial — the `idle -. enter .->`
   // arrow emitted below is the sole "start here" signal.
   for (const node of nodes) {
-    if (node.isWrapped || clonedHaltIds.has(node.id)) {
+    if (node.isWrapped || haltMarkerIds.has(node.id)) {
       continue;
     }
 
@@ -88,14 +88,14 @@ export function toMermaid(graph: Graph): string {
   // Emit one subgraph per wrapper, in sorted wrapped-id order.
   for (const wrapped of wrappedNodes) {
     const wrappedMid = mermaidIdFor(wrapped.id);
-    const clonedId = clonedHaltFor(wrapped.id);
-    const clonedMid = mermaidIdFor(clonedId);
+    const haltMarkerId = haltMarkerIdFor(wrapped.id);
+    const haltMarkerMid = mermaidIdFor(haltMarkerId);
 
     lines.push(`  subgraph w_${wrapped.id}["halt frame"]`);
     lines.push(`    ${wrappedMid}[["${wrapped.name}"]]`);
 
-    if (clonedId in graph.nodes) {
-      lines.push(`    ${clonedMid}(((halt)))`);
+    if (haltMarkerId in graph.nodes) {
+      lines.push(`    ${haltMarkerMid}(((halt)))`);
     }
 
     lines.push('  end');
@@ -196,7 +196,7 @@ export function fromMermaid(text: string): Graph {
   // Track the halt-marker ids that appeared inside a subgraph — they should be
   // marked `isHaltMarker: true` even though they share the `(((halt)))` shape
   // with the real halt at the top level.
-  const clonedHaltIds = new Set<number>();
+  const haltMarkerIds = new Set<number>();
   let inSubgraph = false;
 
   const ensureNode = (
@@ -262,12 +262,12 @@ export function fromMermaid(text: string): Graph {
 
     if (hm) {
       const id = parseMermaidId(hm[1]);
-      const isCloned = inSubgraph || id < 0;
+      const isHaltMarker = inSubgraph || id < 0;
 
-      ensureNode(id, {name: 'halt', isHalt: true, isHaltMarker: isCloned});
+      ensureNode(id, {name: 'halt', isHalt: true, isHaltMarker});
 
-      if (isCloned) {
-        clonedHaltIds.add(id);
+      if (isHaltMarker) {
+        haltMarkerIds.add(id);
       }
 
       continue;

@@ -85,13 +85,13 @@ flowchart TD
   idle -. enter .-> s1
   s1 -- "['b'] → ['*']/[R]" --> s1
   s1 -- "[B] → [K]/[L]" --> s0
-  s1 -- "[🞰] → [K]/[R]" --> s1
+  s1 -- "[*] → [K]/[R]" --> s1
 ```
 
 Quick legend for the diagram above — full table at [packages/machine/README.md § Diagram conventions](packages/machine/README.md#diagram-conventions):
 
 - **Edge format**: `[reads] → [writes]/[moves]` (each `[…]` is a tape-block reading; brackets always, even single-tape).
-- **Read cells**: `'X'` (literal, single-quoted), `🞰` (`ifOtherSymbol` catch-all, U+1F7B0), `B` (the tape's blank).
+- **Read cells**: `'X'` (literal, single-quoted), `*` (`ifOtherSymbol` catch-all), `B` (the tape's blank).
 - **Write cells**: `'X'` (literal), `K` (keep), `E` (erase = write blank).
 - **Movement cells**: `L` / `R` / `S` (left / right / stay).
 - **Node shapes**: `(((halt)))` = halt, `["square"]` = regular state, `[[double-walled]]` = wrapper-bare (subroutine shape), `idle([idle])` = pre-execution sentinel.

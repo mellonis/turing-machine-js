@@ -232,7 +232,7 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
     // pointing in a loop.
     // Nodes need at least one transition each — State construction at pass 2
     // rejects empty stateDefinitions before pass 3's cycle check would run.
-    const dummyTransition = {pattern: '🞰', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"};
+    const dummyTransition = {pattern: '*', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"};
     const graph = {
       initialId: 1,
       alphabets: [[' ', '0', '1']],

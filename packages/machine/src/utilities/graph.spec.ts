@@ -19,16 +19,16 @@ describe('decodePatternDescription', () => {
     expect(decodePatternDescription(undefined, alphabets)).toBe('?');
   });
 
-  test('"other symbol" → "🞰" (whole-state ifOtherSymbol)', () => {
-    expect(decodePatternDescription('other symbol', alphabets)).toBe('🞰');
+  test('"other symbol" → "*" (whole-state ifOtherSymbol)', () => {
+    expect(decodePatternDescription('other symbol', alphabets)).toBe('*');
   });
 
   test('literal cell wraps in single quotes', () => {
     expect(decodePatternDescription('[["0"]]', alphabets)).toBe("'0'");
   });
 
-  test('per-cell null → "🞰"', () => {
-    expect(decodePatternDescription('[[null]]', alphabets)).toBe('🞰');
+  test('per-cell null → "*"', () => {
+    expect(decodePatternDescription('[[null]]', alphabets)).toBe('*');
   });
 
   test('cell equal to tape blank → "B"', () => {
@@ -203,12 +203,12 @@ describe('splitUnescaped', () => {
 
 describe('parsePatternString', () => {
   test('returns null for the global ifOtherSymbol marker', () => {
-    expect(parsePatternString('🞰', [[' ', '0']])).toBeNull();
+    expect(parsePatternString('*', [[' ', '0']])).toBeNull();
   });
 
-  test('per-cell `🞰` becomes null', () => {
+  test('per-cell `*` becomes null', () => {
     // Multi-tape pattern where one cell is per-cell ifOtherSymbol.
-    expect(parsePatternString("'0',🞰", [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
+    expect(parsePatternString("'0',*", [[' ', '0'], [' ', 'a']])).toEqual([['0', null]]);
   });
 
   test('per-cell `B` becomes the tape blank symbol', () => {
@@ -393,7 +393,7 @@ describe('README diagrams: engine-generated outputs', () => {
       'idle -. enter .->',
       "\"['b'] → ['*']/[R]\"",
       '"[B] → [K]/[L]"',
-      '"[🞰] → [K]/[R]"',
+      '"[*] → [K]/[R]"',
     ]);
   });
 
@@ -439,7 +439,7 @@ describe('README diagrams: engine-generated outputs', () => {
       'idle([idle])',
       'idle -. enter .->',
       "\"['X'] → [K]/[S]\"",
-      '"[🞰] → [K]/[R]"',
+      '"[*] → [K]/[R]"',
     ]);
   });
 
@@ -468,7 +468,7 @@ describe('README diagrams: engine-generated outputs', () => {
       '"halt frame"', // subgraph label
       'idle([idle])', // pre-execution sentinel — always emitted
       'idle -. enter .->', // labeled dotted enter arrow points at the initial state
-      '"[🞰] → [E]/[S]"', // eraseHere's erase command
+      '"[*] → [E]/[S]"', // eraseHere's erase command
       '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
     ]);
   });
