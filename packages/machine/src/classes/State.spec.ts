@@ -224,6 +224,60 @@ describe('State.withOverriddenHaltState', () => {
     expect(W2.overriddenHaltState).toBe(W2direct.overriddenHaltState);
   });
 
+  test('memoization: same (bare, override) pair returns the same wrapper instance (#175)', () => {
+    // `withOverriddenHaltState` interns its results keyed by (bare, override).
+    // Two calls with the same arguments — even with chained construction —
+    // return the literally same JS object.
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t = new State({[ifOtherSymbol]: {}}, 't');
+
+    const W1 = A.withOverriddenHaltState(t);
+    const W2 = A.withOverriddenHaltState(t);
+
+    expect(W1).toBe(W2);
+    expect(W1.id).toBe(W2.id);
+    expect(W1.name).toBe('A(t)');
+  });
+
+  test('memoization composes with chain collapse: A.wohs(t1).wohs(t2) === A.wohs(t2) (#175 + #176)', () => {
+    // After #176 collapses the chain to (A, t2), the cache hit on (A, t2)
+    // returns the same instance as the direct call.
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {}}, 't2');
+
+    const Wdirect = A.withOverriddenHaltState(t2);
+    const Wchained = A.withOverriddenHaltState(t1).withOverriddenHaltState(t2);
+
+    expect(Wchained).toBe(Wdirect);
+  });
+
+  test('memoization is per-(bare, override) pair: different override → different instance (#175)', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {}}, 't2');
+
+    const W1 = A.withOverriddenHaltState(t1);
+    const W2 = A.withOverriddenHaltState(t2);
+
+    expect(W1).not.toBe(W2);
+    expect(W1.name).toBe('A(t1)');
+    expect(W2.name).toBe('A(t2)');
+  });
+
+  test('memoization is per-(bare, override) pair: different bare → different instance (#175)', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const B = new State({[ifOtherSymbol]: {}}, 'B');
+    const t = new State({[ifOtherSymbol]: {}}, 't');
+
+    const W_A = A.withOverriddenHaltState(t);
+    const W_B = B.withOverriddenHaltState(t);
+
+    expect(W_A).not.toBe(W_B);
+    expect(W_A.name).toBe('A(t)');
+    expect(W_B.name).toBe('B(t)');
+  });
+
   test('3-deep `.wohs()` chain collapses to outermost override (#176)', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const t1 = new State({[ifOtherSymbol]: {}}, 't1');
