@@ -268,7 +268,7 @@ flowchart TD
 
 > 💡 **Mermaid renders at most one edge per source/target pair.** If a state has two distinct transitions back to itself (or two parallel transitions to the same target), only one shows in the diagram. The string output is correct — this is a viewer-side limitation. For graphs with multiple parallel edges, paste the `toMermaid` output into [mermaid.live](https://mermaid.live) and switch to the `stateDiagram-v2` renderer, or post-process the output to your preferred format.
 
-`fromMermaid` parses the same format back into a `Graph`. The round-trip is **behaviorally** lossless — the rebuilt graph runs to the same outputs on the same inputs (tested in `test/round-trip.spec.ts` for the binary-numbers libraries). It is *not* bytewise lossless: state IDs auto-reassign on each rebuild, and for `withOverriddenHaltState` wrappers the composite name gains an extra `(${override.name})` wrapping on each pass (e.g., `scanToX(eraseHere)` becomes `scanToX(eraseHere)(eraseHere)` on a second round-trip — tracked in [#138](https://github.com/mellonis/turing-machine-js/issues/138)).
+`fromMermaid` parses the same format back into a `Graph`. The round-trip is **behaviorally** lossless — the rebuilt graph runs to the same outputs on the same inputs (tested in `test/round-trip.spec.ts` for the binary-numbers libraries). Under the v7 callable-subtree emit (#174), bytewise stability holds across rebuilds even for shared-bare cases (modulo state-id renumbering, which the test normalizes). The composite name is not stored as any graph node's label — `fromGraph` recomputes it fresh on reconstruction — so the accumulation problem from #138 cannot reoccur.
 
 ### Reference
 
@@ -398,29 +398,32 @@ flowchart TD
 %% alphabets: [[" ","a","b","X"]]
   s0(((halt)))
   s2["eraseHere"]
+  s3[["scanToX(eraseHere)"]]
   idle([idle])
-  subgraph w_3["halt frame"]
-    s3[["scanToX"]]
-    c3(((halt)))
+  subgraph w_1["callable subtree of scanToX"]
+    s1["scanToX"]
+    c1(((halt)))
   end
   idle -. enter .-> s3
+  s3 == "call" ==> s1
+  w_1 -. "return" .-> s3
+  s3 --> s2
+  s1 -- "['X'] → [K]/[S]" --> c1
+  s1 -- "[*] → [K]/[R]" --> s1
   s2 -- "[*] → [E]/[S]" --> s0
-  s3 -- "['X'] → [K]/[S]" --> c3
-  s3 -- "[*] → [K]/[R]" --> s3
-  s3 -. onHalt .-> s2
 ```
 
-**Reading guide** — the v7 emit (introduced in [#138](https://github.com/mellonis/turing-machine-js/issues/138)) makes the wrapper's runtime stack-frame semantics visible:
+**Reading guide** — the v7 callable-subtree emit (introduced in [#174](https://github.com/mellonis/turing-machine-js/issues/174)) models `withOverriddenHaltState` as a function call: the wrapper is the call site, the bare's subtree is the callable body.
 
-1. **The subgraph rectangle labeled `"halt frame"`** is the wrapper's runtime scope — while execution is "inside" this rectangle, the override target (`eraseHere`) sits on the runtime stack waiting to catch a halt. Visual-only; it does not mutate any edges.
-2. **`[[scanToX]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node. It's both the runtime entry point (execution starts here when entering the wrapper) AND the source of the dotted `onHalt` redirect. The wrapper's composite name (`scanToX(eraseHere)`) is computed at runtime via `state.name` but does not appear as a graph node label — only the bare's name is in the graph.
-3. **The halt-marker `(((halt)))` inside the subgraph** (`c3` here) is where the bare's halt-bound transitions land *inside* the wrapper's scope. `haltState` is a runtime singleton; the halt marker is a teaching aid showing "halt is caught here, not at the real terminus." Solid arrows from the bare to the halt marker all stay inside the rectangle.
-4. **The dotted `onHalt` arrow from `[[scanToX]]` to `eraseHere`** is the wrapper's catch-and-redirect. Originates from the wrapper-node since the wrapper *is* the catcher. Solid arrows from `[[scanToX]]` to other states can also cross the subgraph border — those are just regular runtime transitions whose target happens to be drawn outside this rectangle (only the dotted `onHalt` carries wrapper-machinery meaning). In larger compositions (`library-binary-numbers`'s `minusOne`), solid transitions whose target is *itself* a wrapped state render as a **thick `==>` arrow** instead of `-->` — that's the visual signal for "this transition enters a halt frame, pushing the override onto the runtime stack." Stack-growth structure is then scannable from the diagram: count thick arrows along an execution path to see how deep the stack gets.
-5. **Real `(((halt)))` outside any subgraph** (`s0`) is the actual run terminus. Reached only by states that are *not* inside a wrapper's halt-frame — here, by `eraseHere` after it erases the cell.
+1. **`[[scanToX(eraseHere)]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node, drawn OUTSIDE any subgraph. It's the runtime entry point — `idle -. enter .->` arrives here — and shows the composite name (`bare(override)`). Wrappers have no transitions of their own; they delegate to the bare via the `call` arrow.
+2. **`subgraph w_1["callable subtree of scanToX"]`** is the bare's callable subtree — the scope of code that runs when the wrapper is "called." It contains the bare `s1["scanToX"]`, any body states reachable from the bare, and a local halt marker `c1(((halt)))` where the bare's halt-bound transitions land.
+3. **The bold `==> call`** from wrapper to bare is the call arrow — visual signature of "wrapper invokes this callable subtree, pushing its override onto the runtime stack." Bold arrows are reserved for wrapper-to-bare calls; counting them in a diagram counts the wrappers in play.
+4. **The dotted `-. return .->`** from the subtree back to the wrapper is the return arrow — fires when the bare halts (lands on `c1`) and the stack pops. The wrapper's solid `--> s2` (to `eraseHere`) is the post-return continuation; ordinary transition under the function-call mental model.
+5. **Real `(((halt)))` outside any subgraph** (`s0`) is the actual run terminus. Reached only by states OUTSIDE any callable subtree — here, by `eraseHere` after it erases the cell.
 
-**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter the `halt frame` at `[[scanToX]]` (with `eraseHere` on the stack); `[*] → [K]/[R]` self-loops until the head sees `X`; the `['X'] → [K]/[S]` solid edge would normally halt — it lands on the halt marker `c3`, the wrapper's catch-and-redirect kicks in, pop the stack → `eraseHere`; `eraseHere` runs `[*] → [E]/[S]` and halts at real `s0`. Run terminates.
+**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter at wrapper `[[scanToX(eraseHere)]]` (with `eraseHere` queued as the override); `call` into the subtree of `scanToX`; `[*] → [K]/[R]` self-loops on `s1` until the head sees `X`; the `['X'] → [K]/[S]` edge lands on `c1`; `return` to the wrapper; solid `--> s2` to `eraseHere`; `eraseHere` runs `[*] → [E]/[S]` and halts at real `s0`. Run terminates.
 
-> 💡 **Round-trip caveat.** `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers like this one ([#139](https://github.com/mellonis/turing-machine-js/issues/139) regression). For shared-bare cases (same `State` instance used as the bare in multiple wrappers — e.g., `library-binary-numbers`'s `minusOne`), per-context duplication produces wrapper-id-dependent ordering that doesn't byte-match across rebuilds — equivalent runtime behavior, different emit-line order.
+> 💡 **Round-trip stability.** `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for wrapped states ([#139](https://github.com/mellonis/turing-machine-js/issues/139) regression). The callable-subtree emit (#174) eliminates per-context duplication: shared bares like `library-binary-numbers`'s `invertNumber` (used by two wrappers in `minusOne`) render as a single subtree with two `& `-joined call arrows — so even shared-bare cases now produce stable, dedup'd round-trips.
 
 Wrappers nest: `inner.withOverriddenHaltState(middle).withOverriddenHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
 
@@ -575,8 +578,8 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 | Shape | Meaning |
 |---|---|
 | `s0(((halt)))` | the halt state |
-| `sN["name"]` | a regular state |
-| `sN[["name"]]` | a `withOverriddenHaltState` wrapper-bare (subroutine shape) — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) |
+| `sN["name"]` | a regular state (or a bare, when inside a subgraph) |
+| `sN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site, outside any subgraph) — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) |
 | `cN(((halt)))` inside a subgraph | halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
 | `idle([idle])` | pre-execution sentinel (not a real state) |
 
@@ -584,14 +587,17 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 
 | Style | Where | Meaning |
 |---|---|---|
-| `-->` regular solid | between states | plain transition |
-| `==>` thick solid | between states | transition INTO a wrapped state — stack-push happens at runtime |
-| `-. onHalt .->` dotted | from `[[bare]]` to override | wrapper's catch-and-redirect |
-| `-. enter .->` dotted | from `idle` to initial state | execution-start marker |
+| `-->` regular solid | between states; wrapper → override | plain transition / wrapper's post-return continuation |
+| `==> "call"` thick solid | wrapper → bare | the wrapper's call into its callable subtree; reserved for wrapper-to-bare |
+| `w_N -. "return" .->` dotted | subtree → wrapper | the subtree's halt-marker has incoming → control returns to the calling wrapper |
+| `w_N -. "halt" .->` dotted | subtree → `s0` | the subtree has a non-wrapper entry path → halt-marker can fire with empty stack (real halt) |
+| `idle -. enter .->` dotted | from `idle` to initial state | execution-start marker |
+
+The `&` ribbon syntax (`s_W1 & s_W2 == "call" ==> s_A`) collapses multiple wrappers that share a bare into one arrow. Bold `==>` is reserved exclusively for the wrapper-to-bare `call` arrow.
 
 ### Groupings
 
-`subgraph w_N["halt frame"] … end` wraps a `[[bare]]` + its halt marker — visual grouping of the wrapper's runtime halt-handling scope.
+`subgraph w_N["callable subtree of NAME"] … end` wraps a bare + its body + a halt marker — the callable scope of code that runs when a wrapper "calls" the bare. Multi-bare frames (union-find merged from shared body states) use the label `"callable scope: A ∪ B"`.
 
 ### Edge label format
 
@@ -651,7 +657,7 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v7** *(alpha 1, 2026-05-21)* — Composition-representation overhaul. **First pre-release on the `next` dist-tag:** `npm install @turing-machine-js/machine@next` (or pin `@7.0.0-alpha.1`). Stable v7.0.0 still pending [#102](https://github.com/mellonis/turing-machine-js/issues/102) (debugger step-in/over/out primitives). Landed in alpha.1:
   - **`withOverrodeHaltState` → `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: the past-participle `overridden` fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. The getter (`state.overrodeHaltState` → `state.overriddenHaltState`) and the serialized `Graph` data field (`node.overrodeHaltStateId` → `node.overriddenHaltStateId`) rename in lockstep. Consumer migration: global find/replace `OverrodeHaltState` → `OverriddenHaltState` and `overrodeHaltState` → `overriddenHaltState`. Persisted `State.toGraph` JSON dumps would need the same field-rename treatment, but persistence isn't a known consumer pattern.
   - **Paren-based wrapped-state naming** ([#148](https://github.com/mellonis/turing-machine-js/issues/148)). `withOverriddenHaltState`'s composite name format changed from flat `bare>override` to nested `bare(override)`. Same nesting depth reads as `A(B(A))` (bare = `A`, override = `B(A)`) versus `A(B)(A)` (bare = `A(B)`, override = `A`) — two structurally-different wrap-trees that the old `>`-flat notation collided into the single string `A>B>A`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` now throws at construction time if a user passes such a name. The `>` character stays valid in user names (no longer reserved). The `inspect()` / `toGraph` / `toMermaid` outputs carry the new format. `states.md` files in `library-binary-numbers` regenerate accordingly.
-  - **`toMermaid` wrapped-state emit overhaul** ([#138](https://github.com/mellonis/turing-machine-js/issues/138) / [#139](https://github.com/mellonis/turing-machine-js/issues/139)). The wrapper-and-its-bare pair collapses into a single graph node (`isWrapped: true`); the wrapper's composite name no longer appears as a node label (only the bare's name does). Each wrapper gets a Mermaid `subgraph w_${bareId}["halt frame"] … end` block containing the `[[bare]]` (subroutine shape) plus a halt-marker `(((halt)))` (visualization aid showing where halt-bound transitions land inside the scope). The dotted `onHalt` edge originates from the `[[bare]]` and crosses the subgraph border to the override target — exactly one per wrapper. `Graph` data shape gains `isWrapped` and `isHaltMarker` flags on `GraphNode` and a stable `id` on `GraphTransition` (deterministic per-edge identifier — supports downstream tooling like the `machines-demo` interactive viewer at [machines-demo#10](https://github.com/mellonis/machines-demo/issues/10)). Halt-marker graph nodes use negative ids and round-trip back to the singleton `haltState` via `fromGraph`. Bytewise round-trip stability falls out for simple wrappers (no composite name in the graph means `fromGraph(toGraph(state))` recomputes names fresh — no accumulation). Shared-bare cases (e.g. `minusOne`'s repeated `invertNumber`) use per-context duplication in the graph emit.
+  - **`toMermaid` callable-subtree emit** ([#174](https://github.com/mellonis/turing-machine-js/issues/174), supersedes the alpha.1 collapsed-bare shape from #138/#139). `withOverriddenHaltState` is modeled as a function call: the wrapper is a `[[composite-name]]` call site OUTSIDE any subgraph, the bare's reachable subtree becomes a `subgraph w_${frameId}["callable subtree of NAME"] … end` block containing the bare + body states + a per-frame halt marker `c${frameId}(((halt)))`. Frames are computed via union-find on bare-reachability — overlapping reach sets merge into a single union frame, so shared bares (`library-binary-numbers/minusOne`'s `invertNumber`) appear ONCE with `& `-joined call arrows from each wrapper. Bold `==> "call"` arrows are reserved for the wrapper-to-bare call; dotted `-.->` is reserved for frame-level dispatch (`return` / `halt` / `enter`). The retired `-. onHalt .->` keyword is replaced by a solid `--> override` arrow (just an ordinary transition under the call/return mental model). `GraphNode` gains `isWrapper`, `bareStateId`, `frameId` fields (and drops `isWrapped`). Bytewise round-trip stability now holds for all wrapped states including shared-bare cases (no per-context duplication).
 
 For the full release history, see the [GitHub releases page](https://github.com/mellonis/turing-machine-js/releases).
 

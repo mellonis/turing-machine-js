@@ -308,9 +308,9 @@ describe('State.toGraph — unbound Reference', () => {
   });
 
   test('skips a transition whose nextState is an unbound Reference (wrapper context)', () => {
-    // toGraph has a separate try/catch in its wrapper-context branch — when the
-    // bare being walked is inside a `withOverriddenHaltState` wrapper. Same
-    // skip-and-continue semantic.
+    // Under the v7 callable-subtree model, the bare lives as a separate node
+    // from the wrapper. Same skip-and-continue semantic — the bare's unbound-
+    // Reference transition is dropped while building its node.
     const unboundRef = new Reference();
     const bare = new State({
       [symbol(['0'])]: {nextState: unboundRef},
@@ -324,30 +324,29 @@ describe('State.toGraph — unbound Reference', () => {
 
     const graph = State.toGraph(wrapped, tapeBlock);
 
-    // The collapsed wrapper node retains only the haltState-bound transition;
-    // the unbound-Ref one is dropped.
-    const collapsedNode = graph.nodes[wrapped.id];
-
-    expect(collapsedNode.transitions).toHaveLength(1);
+    // The bare's node retains only the haltState-bound transition; the
+    // wrapper itself has no transitions of its own under the new model.
+    expect(graph.nodes[bare.id].transitions).toHaveLength(1);
+    expect(graph.nodes[wrapped.id].isWrapper).toBe(true);
+    expect(graph.nodes[wrapped.id].transitions).toHaveLength(0);
   });
 });
 
 describe('State.fromGraph — cyclic override-halt chain', () => {
   test('throws when the override-halt graph has a cycle', () => {
-    // Graphs constructed by State.toGraph always have acyclic override chains
-    // (cycles throw at State construction). To exercise the defensive cycle
-    // detection in fromGraph, hand-build a Graph with overriddenHaltStateId
-    // pointing in a loop.
-    // Nodes need at least one transition each — State construction at pass 2
-    // rejects empty stateDefinitions before pass 3's cycle check would run.
+    // Under the v7 callable-subtree model, override-halt chains live on
+    // wrapper nodes. Hand-build two wrappers (sharing a single bare) whose
+    // `overriddenHaltStateId`s point at each other to exercise the defensive
+    // cycle guard in `fromGraph`'s `getFinal`.
     const dummyTransition = {pattern: '*', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"};
     const graph = {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
-        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 2, isWrapped: false, isHaltMarker: false},
-        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 1, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'wA', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null},
+        2: {id: 2, name: 'wB', isHalt: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null},
+        3: {id: 3, name: 'shared', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     };
 

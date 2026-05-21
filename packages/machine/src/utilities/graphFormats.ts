@@ -6,19 +6,25 @@ import {type Graph, type GraphCommand, type GraphNode} from './graph';
 // Currently only Mermaid flowchart syntax is supported. Future formats
 // (Graphviz, JSON-LD, custom DSL) belong here too.
 //
-// v7 emit shape (#138/#139):
-//   - Each wrapper-State collapses onto its bare's representation. The collapsed
-//     graph node has `isWrapped: true` and is emitted as Mermaid `[[…]]`
-//     (subroutine / double-walled-rectangle) shape, inside a `subgraph
-//     w_${id}["halt frame"] … end` block. A synthesized "halt marker" graph
-//     node (with `isHalt: true, isHaltMarker: true`, id = -wrapperId in graph
-//     data) sits inside the subgraph and serves as the local landing point for
-//     the bare's halt-bound transitions. The dotted onHalt edge runs from the
-//     `[[bare]]` directly to the override target, crossing the subgraph border.
-//   - Real halt (id 0) is emitted as `s0(((halt)))` outside any subgraph.
-//   - Halt marker nodes use the Mermaid id `c${absId}` (where `absId = -id`)
-//     since Mermaid IDs must match /[A-Za-z][A-Za-z0-9_]*/ — negative numbers
-//     are not legal syntax.
+// v7 callable-subtree emit (#174):
+//   - Each `withOverriddenHaltState` wrapper produces TWO graph nodes — a
+//     wrapper node (`[[composite-name]]`, OUTSIDE any subgraph) and a bare
+//     node (regular shape, INSIDE its callable subtree subgraph).
+//   - Subgraphs (one per frame): `subgraph w_${frameId}["callable subtree
+//     of NAME"]` (single bare) or `["callable scope: A ∪ B"]` (union).
+//   - Each frame has exactly one halt marker `c${frameId}(((halt)))` inside
+//     its subgraph; halt-bound transitions from in-frame states retarget to
+//     it. Always emitted (orphan signals dead wrapper).
+//   - Arrow conventions:
+//       solid `-->`        regular transitions, including wrapper-to-override.
+//       bold  `==>`        RESERVED for the wrapper-to-bare `call` arrow.
+//                          `&` ribbon collapses multi-wrapper-shares-bare.
+//       dotted `-.->`      frame-level dispatch (`return`, `halt`, `enter`).
+//   - The `return` arrow (subgraph → wrapper) is demand-emitted iff the
+//     frame's halt marker has at least one incoming edge AND the wrapper
+//     calls into the frame. The `halt` arrow (subgraph → s0) is emitted
+//     iff the halt marker has incoming AND there's at least one non-wrapper
+//     entry into the frame (cross-subgraph solid arrow from outside).
 
 // Maps a graph node id to its Mermaid id.
 //   - non-negative id N  → "sN"
@@ -36,130 +42,229 @@ function parseMermaidId(s: string): number {
   return Number(s.slice(1));
 }
 
+function frameSubgraphId(frameId: number): string {
+  return `w_${frameId}`;
+}
+
 export function toMermaid(graph: Graph): string {
   const lines: string[] = [
     'flowchart TD',
     `%% alphabets: ${JSON.stringify(graph.alphabets)}`,
   ];
 
-  // Sort nodes by id (ascending — real halt first at 0, regular states next,
-  // negative-id halt markers last). Deterministic emit lets `toMermaid` →
-  // `fromMermaid` → `toMermaid` round-trip stably (regression for #139).
+  // Sort nodes by id ascending — real halt (0) first, then regulars by their
+  // ids, then halt markers (negative) at the end. Deterministic emit lets
+  // toMermaid → fromMermaid → toMermaid round-trip stably (#139).
   const nodes = Object.values(graph.nodes).slice().sort((a, b) => a.id - b.id);
-  const wrappedNodes = nodes.filter((n) => n.isWrapped);
 
-  // Convention: wrapped node id N → halt marker id -N.
-  const haltMarkerIdFor = (wrappedId: number): number => -wrappedId;
+  // Bucket nodes for emit order.
+  const topLevelNodes = nodes.filter((n) => n.frameId === null && !n.isWrapper);
+  const wrapperNodes = nodes.filter((n) => n.isWrapper);
+  // Bares-and-bodies inside frames, grouped by frameId.
+  const nodesByFrame = new Map<number, GraphNode[]>();
+  // Halt-marker per frame (kept separate so it always emits LAST inside the
+  // subgraph for deterministic shape).
+  const haltMarkerByFrame = new Map<number, GraphNode>();
 
-  // Set of halt-marker ids that belong to some wrapper (= are inside a subgraph).
-  const haltMarkerIds = new Set<number>();
+  for (const node of nodes) {
+    if (node.frameId === null || node.isWrapper) continue;
 
-  for (const w of wrappedNodes) {
-    const haltMarkerId = haltMarkerIdFor(w.id);
+    if (node.isHaltMarker) {
+      haltMarkerByFrame.set(node.frameId, node);
+    } else {
+      let bucket = nodesByFrame.get(node.frameId);
 
-    if (haltMarkerId in graph.nodes) {
-      haltMarkerIds.add(haltMarkerId);
+      if (!bucket) {
+        bucket = [];
+        nodesByFrame.set(node.frameId, bucket);
+      }
+
+      bucket.push(node);
     }
   }
 
-  // Emit non-subgraph nodes first: real halt + regular non-wrapped nodes.
-  // No special round-shape `((…))` for the initial — the `idle -. enter .->`
-  // arrow emitted below is the sole "start here" signal.
-  for (const node of nodes) {
-    if (node.isWrapped || haltMarkerIds.has(node.id)) {
-      continue;
-    }
-
-    const id = mermaidIdFor(node.id);
+  // 1. Emit top-level nodes (real halt, non-wrapper regulars outside any frame).
+  for (const node of topLevelNodes) {
+    const mid = mermaidIdFor(node.id);
 
     if (node.isHalt) {
-      lines.push(`  ${id}(((halt)))`);
+      lines.push(`  ${mid}(((halt)))`);
     } else {
-      lines.push(`  ${id}["${node.name}"]`);
+      lines.push(`  ${mid}["${node.name}"]`);
     }
   }
 
-  // `idle` sentinel = pre-execution marker for the machine. Always emitted,
-  // with a labeled dotted arrow `idle -. enter .-> sN` to the initial state.
-  // Symmetric with the `onHalt` dotted convention used by wrapper redirects.
-  // Visual-only — `idle` is not a graph node.
+  // 2. Emit wrappers at top level.
+  for (const wrapper of wrapperNodes) {
+    lines.push(`  ${mermaidIdFor(wrapper.id)}[["${wrapper.name}"]]`);
+  }
+
+  // 3. `idle` sentinel.
   lines.push('  idle([idle])');
 
-  // Emit one subgraph per wrapper, in sorted wrapped-id order.
-  for (const wrapped of wrappedNodes) {
-    const wrappedMid = mermaidIdFor(wrapped.id);
-    const haltMarkerId = haltMarkerIdFor(wrapped.id);
-    const haltMarkerMid = mermaidIdFor(haltMarkerId);
+  // 4. Subgraph per frame.
+  const frameIds = [...nodesByFrame.keys()].sort((a, b) => a - b);
 
-    lines.push(`  subgraph w_${wrapped.id}["halt frame"]`);
-    lines.push(`    ${wrappedMid}[["${wrapped.name}"]]`);
+  for (const frameId of frameIds) {
+    const frameBares = (nodesByFrame.get(frameId) ?? []).filter(
+      (n) => isFrameBare(n, graph),
+    );
+    const frameBareNames = frameBares
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .map((n) => n.name);
+    const label = frameBareNames.length > 1
+      ? `callable scope: ${frameBareNames.join(' ∪ ')}`
+      : `callable subtree of ${frameBareNames[0] ?? frameId}`;
 
-    if (haltMarkerId in graph.nodes) {
-      lines.push(`    ${haltMarkerMid}(((halt)))`);
+    lines.push(`  subgraph ${frameSubgraphId(frameId)}["${label}"]`);
+
+    // Inner nodes — sort by id for determinism.
+    for (const node of (nodesByFrame.get(frameId) ?? []).slice().sort((a, b) => a.id - b.id)) {
+      lines.push(`    ${mermaidIdFor(node.id)}["${node.name}"]`);
+    }
+
+    const haltMarker = haltMarkerByFrame.get(frameId);
+
+    if (haltMarker) {
+      lines.push(`    ${mermaidIdFor(haltMarker.id)}(((halt)))`);
     }
 
     lines.push('  end');
   }
 
-  // Enter arrow: emitted after subgraphs so it visually points at the initial
-  // node (whether plain `[…]` or wrapped `[[…]]` inside a subgraph).
+  // 5. Enter arrow.
   lines.push(`  idle -. enter .-> ${mermaidIdFor(graph.initialId)}`);
 
-  // Emit transitions per-node in sorted node-id order. Within a node,
-  // transitions emit in their stored array order (which mirrors the source
-  // state's symbol-map insertion order — stable per State instance).
-  for (const node of nodes) {
-    if (node.isHalt && !node.isHaltMarker) {
-      continue;
+  // 6. `call` arrows — grouped by bare (multi-wrapper-shares-bare collapses
+  // into a single `&` ribbon).
+  const wrappersByBare = new Map<number, GraphNode[]>();
+
+  for (const wrapper of wrapperNodes) {
+    if (wrapper.bareStateId === null) continue;
+
+    let group = wrappersByBare.get(wrapper.bareStateId);
+
+    if (!group) {
+      group = [];
+      wrappersByBare.set(wrapper.bareStateId, group);
     }
 
+    group.push(wrapper);
+  }
+
+  const sortedBares = [...wrappersByBare.keys()].sort((a, b) => a - b);
+
+  for (const bareId of sortedBares) {
+    const wrappers = wrappersByBare.get(bareId)!.slice().sort((a, b) => a.id - b.id);
+    const sources = wrappers.map((w) => mermaidIdFor(w.id)).join(' & ');
+
+    lines.push(`  ${sources} == "call" ==> ${mermaidIdFor(bareId)}`);
+  }
+
+  // 7. Demand-emit `return` and `halt` arrows per frame.
+  // For each frame: check if its halt marker has incoming transitions.
+  const haltMarkerHasIncoming = new Map<number, boolean>();
+
+  for (const node of nodes) {
     for (const t of node.transitions) {
-      // Bracketed-tape-block format (v7): each role-list — read alternatives,
-      // writes, movements — wraps in `[…]` to mark "this is a tape-block
-      // reading". Brackets stay even for single-tape machines; the `[…]` is
-      // the tape-block concept indicator.
-      //
-      //   Single-tape:                  ['X'] → [K]/[R]
-      //   Single-tape + alternation:    ['^']|['1']|['0'] → [K]/[S]
-      //   Two-tape:                     ['0','a'] → [K,'1']/[R,S]
-      //   Two-tape + alternation:       ['0','a']|['1','b'] → [K,K]/[R,L]
-      //
-      // Alternation is ALWAYS per-pattern-bracket — one full bracketed list
-      // per alternative — regardless of tape count. Pedagogically each
-      // alternative is its own drawn transition; a compact in-bracket form
-      // (`['^'|'1']`) would read as cross-product semantics in multi-tape
-      // (`['0'|'1','a'|'b']` = 4 combos, not 2 paired alternatives), so we
-      // avoid introducing it for the single-tape case too.
+      const target = graph.nodes[t.nextStateId];
+
+      if (target && target.isHaltMarker && target.frameId !== null) {
+        haltMarkerHasIncoming.set(target.frameId, true);
+      }
+    }
+  }
+
+  // For each frame: check if there's at least one non-wrapper entry (a solid
+  // `-->` from OUTSIDE the frame into any node INSIDE).
+  const hasNonWrapperEntry = new Map<number, boolean>();
+
+  for (const node of nodes) {
+    if (node.isWrapper) continue;
+
+    for (const t of node.transitions) {
+      const target = graph.nodes[t.nextStateId];
+
+      if (
+        target
+        && target.frameId !== null
+        && node.frameId !== target.frameId
+      ) {
+        hasNonWrapperEntry.set(target.frameId, true);
+      }
+    }
+  }
+
+  for (const frameId of frameIds) {
+    if (!haltMarkerHasIncoming.get(frameId)) continue;
+
+    // Return arrow — collapsed `&` ribbon over all wrappers calling this frame.
+    const callingWrappers = wrapperNodes.filter((w) => {
+      if (w.bareStateId === null) return false;
+
+      const bare = graph.nodes[w.bareStateId];
+
+      return !!bare && bare.frameId === frameId;
+    });
+
+    if (callingWrappers.length > 0) {
+      const targets = callingWrappers
+        .slice()
+        .sort((a, b) => a.id - b.id)
+        .map((w) => mermaidIdFor(w.id))
+        .join(' & ');
+
+      lines.push(`  ${frameSubgraphId(frameId)} -. "return" .-> ${targets}`);
+    }
+
+    if (hasNonWrapperEntry.get(frameId)) {
+      lines.push(`  ${frameSubgraphId(frameId)} -. "halt" .-> s0`);
+    }
+  }
+
+  // 8. Wrapper-to-override arrows (regular solid).
+  for (const wrapper of wrapperNodes) {
+    if (wrapper.overriddenHaltStateId === null) continue;
+
+    lines.push(
+      `  ${mermaidIdFor(wrapper.id)} --> ${mermaidIdFor(wrapper.overriddenHaltStateId)}`,
+    );
+  }
+
+  // 9. Regular transitions for non-wrapper non-halt-marker non-halt nodes.
+  for (const node of nodes) {
+    if (node.isHalt || node.isHaltMarker || node.isWrapper) continue;
+
+    for (const t of node.transitions) {
       const alternatives = t.pattern.split('|');
       const reads = alternatives.map((alt) => `[${alt}]`).join('|');
       const writes = `[${t.command.map((c) => c.symbol).join(',')}]`;
       const moves = `[${t.command.map((c) => c.movement).join(',')}]`;
       const label = `${reads} → ${writes}/${moves}`;
 
-      // Thicker `==>` arrow when the transition crosses INTO a wrapper —
-      // signals "this transition pushes that wrapper's override onto the
-      // runtime stack" (per `TuringMachine.run` line ~220's
-      // `if (state !== nextState && nextState.overriddenHaltState) push(...)`).
-      // Self-loops (state === nextState) don't push at runtime — keep the
-      // regular `-->` for those even when the target is wrapped.
-      const targetNode = graph.nodes[t.nextStateId];
-      const isEnteringWrapper = targetNode && targetNode.isWrapped && t.nextStateId !== node.id;
-      const lineSegment = isEnteringWrapper ? '==' : '--';
-      const arrowTip = isEnteringWrapper ? '==>' : '-->';
-
       lines.push(
-        `  ${mermaidIdFor(node.id)} ${lineSegment} "${label}" ${arrowTip} ${mermaidIdFor(t.nextStateId)}`,
-      );
-    }
-
-    if (node.overriddenHaltStateId !== null) {
-      lines.push(
-        `  ${mermaidIdFor(node.id)} -. onHalt .-> ${mermaidIdFor(node.overriddenHaltStateId)}`,
+        `  ${mermaidIdFor(node.id)} -- "${label}" --> ${mermaidIdFor(t.nextStateId)}`,
       );
     }
   }
 
   return lines.join('\n');
+}
+
+// Helper: identify "the bare states" that anchor a frame's name. A bare is a
+// node referenced as some wrapper's `bareStateId`. Body states (also in-frame
+// but not bare) are excluded from the frame label.
+function isFrameBare(node: GraphNode, graph: Graph): boolean {
+  if (node.isWrapper || node.isHalt) return false;
+
+  for (const other of Object.values(graph.nodes)) {
+    if (other.isWrapper && other.bareStateId === node.id) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Inverse of toMermaid: parses the Mermaid output produced by toMermaid back
@@ -176,13 +281,20 @@ export function toMermaid(graph: Graph): string {
 const haltNodeRegex = /^([sc]\d+)\(\(\(halt\)\)\)$/;
 const regularNodeRegex = /^(s\d+)\["([^"]*)"\]$/;
 const wrappedNodeRegex = /^(s\d+)\[\["([^"]*)"\]\]$/;
-const subgraphStartRegex = /^subgraph\s+w_\d+\["([^"]*)"\]$/;
+const subgraphStartRegex = /^subgraph\s+w_(\d+)\["([^"]*)"\]$/;
 const subgraphEndRegex = /^end$/;
 const idleNodeRegex = /^idle\(\[idle\]\)$/;
 const enterArrowRegex = /^idle\s+-\.\s+enter\s+\.->\s+(s\d+)$/;
-const transitionRegex = /^([sc]\d+)\s+--\s+"(.*)"\s+-->\s+([sc]\d+)$/;
-const thickTransitionRegex = /^([sc]\d+)\s+==\s+"(.*)"\s+==>\s+([sc]\d+)$/;
-const onHaltRegex = /^([sc]\d+)\s+-\.\s+onHalt\s+\.->\s+([sc]\d+)$/;
+// Regular labeled transition (solid `-->`).
+const labeledTransitionRegex = /^([sc]\d+)\s+--\s+"(.*)"\s+-->\s+([sc]\d+)$/;
+// Wrapper → override (unlabeled solid `-->`).
+const wrapperOverrideRegex = /^(s\d+)\s+-->\s+([sc]\d+)$/;
+// Call arrow (bold `==>`), with optional `&`-joined source ribbon.
+const callArrowRegex = /^(s\d+(?:\s+&\s+s\d+)*)\s+==\s+"call"\s+==>\s+(s\d+)$/;
+// Return arrow (`w_N -. return .-> s_W` with optional `&` target ribbon).
+const returnArrowRegex = /^w_(\d+)\s+-\.\s+"return"\s+\.->\s+(s\d+(?:\s+&\s+s\d+)*)$/;
+// Halt arrow (`w_N -. halt .-> s0`).
+const haltArrowRegex = /^w_(\d+)\s+-\.\s+"halt"\s+\.->\s+s0$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
 // the preceding \s* and a permissive (.+); see CodeQL js/polynomial-redos.
 const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
@@ -193,11 +305,7 @@ export function fromMermaid(text: string): Graph {
   let alphabets: string[][] = [];
   let initialId: number | null = null;
   const nodes: Record<number, GraphNode> = {};
-  // Track the halt-marker ids that appeared inside a subgraph — they should be
-  // marked `isHaltMarker: true` even though they share the `(((halt)))` shape
-  // with the real halt at the top level.
-  const haltMarkerIds = new Set<number>();
-  let inSubgraph = false;
+  let currentFrameId: number | null = null;
 
   const ensureNode = (
     id: number,
@@ -205,7 +313,9 @@ export function fromMermaid(text: string): Graph {
       name?: string;
       isHalt?: boolean;
       isHaltMarker?: boolean;
-      isWrapped?: boolean;
+      isWrapper?: boolean;
+      bareStateId?: number | null;
+      frameId?: number | null;
     } = {},
   ): GraphNode => {
     if (!nodes[id]) {
@@ -214,7 +324,9 @@ export function fromMermaid(text: string): Graph {
         name: opts.name ?? mermaidIdFor(id),
         isHalt: opts.isHalt ?? false,
         isHaltMarker: opts.isHaltMarker ?? false,
-        isWrapped: opts.isWrapped ?? false,
+        isWrapper: opts.isWrapper ?? false,
+        bareStateId: opts.bareStateId ?? null,
+        frameId: opts.frameId ?? null,
         transitions: [],
         overriddenHaltStateId: null,
       };
@@ -222,17 +334,17 @@ export function fromMermaid(text: string): Graph {
       if (opts.name !== undefined) nodes[id].name = opts.name;
       if (opts.isHalt !== undefined) nodes[id].isHalt = opts.isHalt;
       if (opts.isHaltMarker !== undefined) nodes[id].isHaltMarker = opts.isHaltMarker;
-      if (opts.isWrapped !== undefined) nodes[id].isWrapped = opts.isWrapped;
+      if (opts.isWrapper !== undefined) nodes[id].isWrapper = opts.isWrapper;
+      if (opts.bareStateId !== undefined) nodes[id].bareStateId = opts.bareStateId;
+      if (opts.frameId !== undefined) nodes[id].frameId = opts.frameId;
     }
 
     return nodes[id];
   };
 
-  // First pass: alphabets + nodes (track subgraph context to mark halt markers).
+  // First pass: nodes + alphabets (track subgraph context for frameId).
   for (const line of lines) {
-    if (line === 'flowchart TD') {
-      continue;
-    }
+    if (line === 'flowchart TD') continue;
 
     const am = line.match(alphabetsRegex);
 
@@ -241,34 +353,32 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    if (subgraphStartRegex.test(line)) {
-      inSubgraph = true;
+    const sgStart = line.match(subgraphStartRegex);
+
+    if (sgStart) {
+      currentFrameId = Number(sgStart[1]);
       continue;
     }
 
     if (subgraphEndRegex.test(line)) {
-      inSubgraph = false;
+      currentFrameId = null;
       continue;
     }
 
-    // `idle([idle])` sentinel: a visual pre-execution marker. Not a graph
-    // node — skip declaration, parse the `idle -. enter .-> sN` arrow in the
-    // edge pass to set initialId.
-    if (idleNodeRegex.test(line)) {
-      continue;
-    }
+    if (idleNodeRegex.test(line)) continue;
 
     const hm = line.match(haltNodeRegex);
 
     if (hm) {
       const id = parseMermaidId(hm[1]);
-      const isHaltMarker = inSubgraph || id < 0;
+      const isHaltMarker = currentFrameId !== null;
 
-      ensureNode(id, {name: 'halt', isHalt: true, isHaltMarker});
-
-      if (isHaltMarker) {
-        haltMarkerIds.add(id);
-      }
+      ensureNode(id, {
+        name: 'halt',
+        isHalt: true,
+        isHaltMarker,
+        frameId: isHaltMarker ? currentFrameId : null,
+      });
 
       continue;
     }
@@ -276,21 +386,28 @@ export function fromMermaid(text: string): Graph {
     const wm = line.match(wrappedNodeRegex);
 
     if (wm) {
-      ensureNode(parseMermaidId(wm[1]), {name: wm[2], isWrapped: true});
+      ensureNode(parseMermaidId(wm[1]), {
+        name: wm[2],
+        isWrapper: true,
+      });
+
       continue;
     }
 
     const rm = line.match(regularNodeRegex);
 
     if (rm) {
-      ensureNode(parseMermaidId(rm[1]), {name: rm[2]});
+      ensureNode(parseMermaidId(rm[1]), {
+        name: rm[2],
+        frameId: currentFrameId,
+      });
+
       continue;
     }
   }
 
   // Second pass: edges.
   for (const line of lines) {
-    // `idle -. enter .-> sN`: the sole source of initialId.
     const em = line.match(enterArrowRegex);
 
     if (em) {
@@ -298,16 +415,43 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    const om = line.match(onHaltRegex);
-
-    if (om) {
-      ensureNode(parseMermaidId(om[1])).overriddenHaltStateId = parseMermaidId(om[2]);
+    // Return/halt arrows are derivable from frame structure at the next
+    // toMermaid emit; consume but don't persist as graph data.
+    if (returnArrowRegex.test(line) || haltArrowRegex.test(line)) {
       continue;
     }
 
-    // Thick transition (`==> `) and regular transition (`-->`) share the same
-    // semantics — only the visual differs. Parse both via the same code path.
-    const tm = line.match(transitionRegex) ?? line.match(thickTransitionRegex);
+    // `call` arrow — sets bareStateId on each source wrapper.
+    const cm = line.match(callArrowRegex);
+
+    if (cm) {
+      const sources = cm[1].split(/\s+&\s+/);
+      const bareId = parseMermaidId(cm[2]);
+
+      for (const src of sources) {
+        ensureNode(parseMermaidId(src), {isWrapper: true, bareStateId: bareId});
+      }
+
+      continue;
+    }
+
+    // Wrapper → override (unlabeled solid `-->`). Only fires if the source
+    // node is a known wrapper (declared as `[[…]]`).
+    const wo = line.match(wrapperOverrideRegex);
+
+    if (wo) {
+      const fromId = parseMermaidId(wo[1]);
+      const toId = parseMermaidId(wo[2]);
+
+      if (nodes[fromId] && nodes[fromId].isWrapper) {
+        nodes[fromId].overriddenHaltStateId = toId;
+        continue;
+      }
+      // Fall through — unlabeled solid from a non-wrapper is unexpected;
+      // treated as a malformed line and ignored by the labeled-regex below.
+    }
+
+    const tm = line.match(labeledTransitionRegex);
 
     if (tm) {
       const fromId = parseMermaidId(tm[1]);
@@ -320,34 +464,15 @@ export function fromMermaid(text: string): Graph {
         throw new Error(`fromMermaid: malformed edge label: "${label}"`);
       }
 
-      // Bracketed-tape-block format (v7):
-      //   [<read-cells>]|[<read-cells>]... → [<write-cells>]/[<move-cells>]
-      // Each bracketed list is a tape-block reading; the outer `|` separates
-      // alternative read patterns. For single-tape machines with alternation,
-      // the compact form `[<alt1>|<alt2>|...]` (one bracket, alternatives
-      // inside) is also accepted; both forms decode to the same pattern
-      // string.
       const readLabel = label.slice(0, arrowIx);
       const cmdLabel = label.slice(arrowIx + ' → '.length);
 
-      // Strict per-pattern bracket form: `|` only between bracketed lists,
-      // never inside. The compact `['^'|'1']` form is rejected by design —
-      // every alternative must be its own bracketed pattern (`['^']|['1']`).
-      // Pedagogically: each transition is drawn explicitly; the compact form
-      // would read as cross-product semantics in multi-tape and confuse
-      // readers (`['0'|'1','a'|'b']` could mean 4 combos, not 2 paired alts).
-      // The rule applies to all bracketed lists — read alternatives, writes,
-      // and movements — because commands and movements have no alternation
-      // semantic either.
       const stripBrackets = (s: string): string => {
         if (!s.startsWith('[') || !s.endsWith(']')) {
           throw new Error(`fromMermaid: malformed bracketed list: "${s}"`);
         }
 
         const inner = s.slice(1, -1);
-
-        // Walk the inner content; backslash escapes the next char (so `\|`
-        // inside a cell is a literal pipe, not the alternation separator).
         let i = 0;
 
         while (i < inner.length) {
@@ -369,10 +494,6 @@ export function fromMermaid(text: string): Graph {
         return inner;
       };
 
-      // Match `[…]` blocks in the read label. Inner content is a tape-block
-      // reading (possibly with `|` for compact single-tape alternation).
-      // `[^\]]*` is the simple non-greedy match — works because cell content
-      // doesn't typically contain literal `]`.
       const blockMatches = readLabel.match(/\[[^\]]*\]/g);
 
       if (!blockMatches || blockMatches.length === 0) {
@@ -380,7 +501,6 @@ export function fromMermaid(text: string): Graph {
       }
 
       const pattern = blockMatches.map(stripBrackets).join('|');
-
       const slashIx = cmdLabel.indexOf(']/[');
 
       if (slashIx === -1) {

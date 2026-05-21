@@ -94,9 +94,9 @@ Quick legend for the diagram above — full table at [packages/machine/README.md
 - **Read cells**: `'X'` (literal, single-quoted), `*` (`ifOtherSymbol` catch-all), `B` (the tape's blank).
 - **Write cells**: `'X'` (literal), `K` (keep), `E` (erase = write blank).
 - **Movement cells**: `L` / `R` / `S` (left / right / stay).
-- **Node shapes**: `(((halt)))` = halt, `["square"]` = regular state, `[[double-walled]]` = wrapper-bare (subroutine shape), `idle([idle])` = pre-execution sentinel.
-- **Edges**: `-->` regular, `==>` thick = transition into a wrapper (stack-push), `-. onHalt .->` = wrapper's catch-and-redirect, `-. enter .->` from `idle` = where execution starts.
-- **Subgraph `w_N["halt frame"]`** wraps a `[[bare]]` + its halt marker — see [§Subroutine composition](packages/machine/README.md#subroutine-composition-with-withoverriddenhaltstate) in the engine README.
+- **Node shapes**: `(((halt)))` = halt, `["square"]` = regular state or callable-subtree bare, `[[double-walled]]` = `withOverriddenHaltState` wrapper (call site), `idle([idle])` = pre-execution sentinel.
+- **Edges**: `-->` regular transition (and wrapper → override target), `==> "call"` = bold call arrow from wrapper to bare (`&` ribbons collapse multi-wrapper-shares-bare), `-. "return" .->` / `-. "halt" .->` from subgraph = frame-level dispatch, `-. enter .->` from `idle` = where execution starts.
+- **Subgraph `w_N["callable subtree of NAME"]`** wraps a bare + its body + a halt marker — see [§Subroutine composition](packages/machine/README.md#subroutine-composition-with-withoverriddenhaltstate) in the engine README.
 
 Trace on the input tape `abcba`:
 
