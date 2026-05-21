@@ -354,6 +354,24 @@ describe('fromMermaid error paths', () => {
     expect(() => fromMermaid(mermaid)).toThrow(/write-cells.*move-cells.*mismatch/);
   });
 
+  test('throws on a movement bracket that opens but never closes', () => {
+    // Targets `stripBrackets`'s own throw: writes are well-formed (`[K]`) so
+    // the `slashIx` guard accepts the label as `[…]/[…]`-shaped, but the
+    // movement segment `[S` opens without a closing `]`. `stripBrackets`
+    // catches this even though the earlier label-shape guard didn't.
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K]/[S\" --> s0", // moves part `[S` is missing the closing bracket
+    ].join('\n');
+
+    expect(() => fromMermaid(mermaid)).toThrow(/malformed bracketed list/);
+  });
+
   test('parses backslash-escaped chars inside a bracket (e.g. literal `|` as `\\|`)', () => {
     // `stripBrackets` walks the inner content character-by-character; when it
     // hits `\`, it skips the next char (so `\|` is a literal pipe, not the
@@ -555,5 +573,81 @@ describe('README diagrams: engine-generated outputs', () => {
     // Retired keywords — must NOT appear under the new convention.
     expect(output).not.toContain('onHalt');
     expect(output).not.toContain('halt frame');
+  });
+});
+
+// Spec Example 6 "Shared body state" + worked example 2 (direct entry into the
+// union frame): two wrappers W1, W2 with bares A, B whose reach sets overlap
+// on a shared body state X, plus a dispatcher with a direct entry to X (a
+// non-wrapper transition into the frame).
+//
+// Exercises:
+//   - union-find on overlapping reach sets (State.ts ufFind multi-step walk +
+//     path compression + ufUnion)
+//   - `callable scope: A ∪ B` subgraph label (graphFormats frameBareNames sort)
+//   - `-. "halt" .->` demand-emit arrow (graphFormats hasNonWrapperEntry path)
+describe('callable-subtree: shared body state forces a union frame', () => {
+  test('two bares sharing a body state merge into one frame; non-wrapper entry triggers halt arrow', () => {
+    const alphabet = new Alphabet([' ', '1', '2', '3', 'X']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    // Shared body state X — halts on any symbol.
+    const X = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'X');
+
+    // Bare A — transitions to X.
+    const A = new State({
+      [ifOtherSymbol]: {command: {movement: movements.right}, nextState: X},
+    }, 'A');
+
+    // Bare B — also transitions to X (so reach(A) ∩ reach(B) ⊇ {X}, union triggers).
+    const B = new State({
+      [ifOtherSymbol]: {command: {movement: movements.right}, nextState: X},
+    }, 'B');
+
+    // Targets for the wrappers.
+    const target1 = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 't1');
+    const target2 = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 't2');
+
+    const W1 = A.withOverriddenHaltState(target1);
+    const W2 = B.withOverriddenHaltState(target2);
+
+    // Dispatcher chooses path by symbol: '1' → W1, '2' → W2, '3' → X (direct
+    // entry into the union frame, the non-wrapper entry path that triggers
+    // the `-. "halt" .->` arrow).
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: W1},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: W2},
+      [symbol(['3'])]: {command: {movement: movements.stay}, nextState: X},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+
+    // A and B should share a frameId (union-find merged them).
+    const nodeA = graph.nodes[A.id];
+    const nodeB = graph.nodes[B.id];
+    const nodeX = graph.nodes[X.id];
+
+    expect(nodeA.frameId).not.toBeNull();
+    expect(nodeA.frameId).toBe(nodeB.frameId);
+    expect(nodeX.frameId).toBe(nodeA.frameId);
+
+    // Frame id = smallest bare-id in the component (deterministic canonical).
+    expect(nodeA.frameId).toBe(Math.min(A.id, B.id));
+
+    // Emit: one union frame with `callable scope: A ∪ B` label, halt arrow
+    // present (cross-subgraph dispatcher → X entry).
+    const out = toMermaid(graph);
+
+    expect(out).toContain('callable scope: A ∪ B');
+    expect(out).toMatch(/w_\d+ -\. "halt" \.-> s0/);
+    // Both wrappers call their respective bares.
+    expect(out).toMatch(/s\d+ == "call" ==> s\d+/g);
   });
 });
