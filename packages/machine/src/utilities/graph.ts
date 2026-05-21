@@ -18,36 +18,36 @@ export type GraphNode = {
   name: string;
   isHalt: boolean;
   transitions: GraphTransition[];
+  // On wrapper nodes (`isWrapper: true`), the id of the override target's
+  // GraphNode (could be a wrapper or a regular state). `null` on non-wrapper
+  // nodes (their override semantics live in the wrapper that wraps them, if
+  // any).
   overriddenHaltStateId: number | null;
-  // `true` when this node represents the bare of a `withOverriddenHaltState`-
-  // wrapped state under v7 alpha.1's collapsed emit. Carries the `[[…]]`
-  // (subroutine) shape signal for `toMermaid` and tells `fromGraph` to
-  // reconstruct via `bare.withOverriddenHaltState(target)`. The new
-  // un-collapsed model (#174) supersedes this with `isWrapper` + `bareStateId`
-  // below; `isWrapped` is retained transitionally for backward-compat during
-  // the cutover.
-  isWrapped: boolean;
-  // New (#174): `true` for external `[[…]]` wrapper nodes that have a
-  // separate bare node in the graph. The wrapper sits outside any subtree
-  // subgraph; its `bareStateId` points to the corresponding bare GraphNode
-  // (which lives inside its home subtree). Multiple wrapper nodes can share
-  // the same `bareStateId` when they wrap the same bare with different
-  // override targets. Under the new model, `isWrapped: false` for these
-  // nodes — the wrapper-vs-bare distinction is carried by `isWrapper`.
+  // `true` for external `[[…]]` wrapper nodes — the call sites that
+  // `withOverriddenHaltState` produces. Wrappers sit OUTSIDE any callable
+  // subtree subgraph; their `bareStateId` points to the bare's GraphNode id
+  // (which lives inside its home subtree). Multiple wrappers can share the
+  // same `bareStateId` when they wrap the same bare with different overrides.
+  // Wrapper nodes have NO transitions of their own — the `call` arrow into
+  // the bare is derived from `bareStateId`, the post-return `-->` arrow to
+  // the override is derived from `overriddenHaltStateId`.
   isWrapper: boolean;
-  // New (#174): on wrapper nodes (`isWrapper: true`), the id of the bare
-  // GraphNode this wrapper wraps. `null` for non-wrapper nodes.
+  // On wrappers, the id of the bare GraphNode this wrapper wraps. `null`
+  // for non-wrapper nodes.
   bareStateId: number | null;
-  // New (#174): the id of the wrapper whose callable subtree this node lives
-  // in. `null` for nodes outside any subtree (top-level states, real halt
-  // singleton, wrapper nodes themselves, the `idle` visualization sentinel).
-  // Set on bares, body states, and halt markers. Two bares may share a
-  // `frameId` when union-find merges their reachable sets (shared body state
-  // forces a union frame; see spec Example "Shared body state").
+  // The id of the callable subtree this node lives in. `null` for nodes
+  // outside any subtree (top-level states, real halt singleton, wrapper
+  // nodes themselves, the `idle` visualization sentinel). Set on bares,
+  // body states reachable from any bare, and halt markers. Two bares may
+  // share a `frameId` when union-find merges their reachable sets (shared
+  // body state forces a union frame; see spec Example "Shared body state").
+  // The canonical frame id is the smallest bare-id in the component.
   frameId: number | null;
-  // `true` for a synthesized halt marker graph node — one per wrapper context.
-  // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have both
-  // `true`. `fromGraph` maps halt-marker nodes back to the singleton `haltState`.
+  // `true` for a synthesized halt marker graph node — one per frame.
+  // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have
+  // both `true`. `fromGraph` maps halt-marker nodes back to the singleton
+  // `haltState`. Halt marker id = `-frameId` (sits in disjoint negative-id
+  // range from real node ids).
   isHaltMarker: boolean;
 };
 

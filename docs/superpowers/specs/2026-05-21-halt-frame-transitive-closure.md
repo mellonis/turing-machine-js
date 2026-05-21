@@ -1,6 +1,6 @@
 # Callable-subtree visualization for `withOverriddenHaltState`
 
-**Status:** DRAFT 2026-05-21 — supersedes the earlier "transitive-closure halt-frame" framing of this doc. Tracks [#174](https://github.com/mellonis/turing-machine-js/issues/174). Lands on the `v7` integration branch before v7 stable cut. **Previous implementation (frameId-based exclusive-reachable algorithm in `State.toGraph`) is being reverted in favor of the design below.**
+**Status:** IMPLEMENTED 2026-05-21 — design captured in PR #181 (Phase 1: data model) and the current PR (Phases 2–7: toGraph un-collapse + union-find + toMermaid + fromMermaid + fromGraph + tests + docs). Tracks [#174](https://github.com/mellonis/turing-machine-js/issues/174). Lands on the `v7` integration branch before v7 stable cut.
 
 **Relation to [#173](https://github.com/mellonis/turing-machine-js/issues/173):** #173 closed (2026-05-21) as the literal complaint (orphan `c_N` + onHalt anchor) doesn't apply to the new design — there's no `c_N` per-wrapper concept anymore. The new design has per-bare `c_A` halt sinks and per-wrapper call/return/onHalt edges, which together visualize runtime semantics directly.
 

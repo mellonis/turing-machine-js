@@ -7,9 +7,9 @@ describe('summarizeGraph', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [
             {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
             {pattern: '1', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
@@ -31,9 +31,9 @@ describe('summarizeGraph', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [
             {pattern: '0', command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
           ],
@@ -52,9 +52,9 @@ describe('summarizeGraph', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'a', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [{pattern: '0', command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"}],
         },
       },
@@ -72,10 +72,10 @@ describe('summarizeGraph', () => {
       initialId: 1,
       alphabets: [[' ']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: 2, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        2: {id: 2, name: 'b', isHalt: false, transitions: [], overriddenHaltStateId: 3, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        3: {id: 3, name: 'c', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [], overriddenHaltStateId: 3, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        3: {id: 3, name: 'c', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     };
 
@@ -90,8 +90,8 @@ describe('summarizeGraph', () => {
       initialId: 1,
       alphabets: [[' ']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     };
 
@@ -197,8 +197,8 @@ describe('summarizeGraph defensive guards', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: 2, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        2: {id: 2, name: 'b', isHalt: false, transitions: [], overriddenHaltStateId: 1, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     };
 

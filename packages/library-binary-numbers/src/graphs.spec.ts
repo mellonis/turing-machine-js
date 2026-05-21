@@ -6,17 +6,23 @@ import binaryNumbers from './index';
 // which exclude the `isHaltMarker` visualization sentinels v7 synthesizes
 // inside each `halt frame` subgraph. The states.md per-algorithm header uses
 // the same definition, so all three sources agree by construction.
+// v7 callable-subtree counts (#174). Under the new model, each
+// `withOverriddenHaltState` emits a SEPARATE wrapper node (in addition to the
+// bare's node) — so wrapper-bearing algorithms gain 1 node per wrapper, minus
+// any savings from de-duplicating shared bares (no per-context duplication
+// anymore). `goToNumber`, `goToNextNumber`, `goToPreviousNumber`,
+// `goToNumbersStart`, `plusOne` have no wrappers and are unchanged.
 const expectedNodeCount: Record<keyof typeof binaryNumbers['states'], number> = {
   goToNumber: 2,
   goToNextNumber: 3,
   goToPreviousNumber: 3,
   goToNumbersStart: 2,
-  deleteNumber: 4,
-  invertNumber: 4,
-  normalizeNumber: 6,
+  deleteNumber: 5, // alpha.1: 4 (one wohs); +1 wrapper node
+  invertNumber: 5, // alpha.1: 4 (one wohs); +1 wrapper node
+  normalizeNumber: 7, // alpha.1: 6 (one wohs); +1 wrapper node
   plusOne: 5,
-  minusOne: 15,
-  minusOneFast: 8,
+  minusOne: 18, // alpha.1: 15; +3 for wrapper-vs-bare separation minus shared-bare dedup
+  minusOneFast: 10, // alpha.1: 8; +2 wrapper nodes
 };
 
 const stateNames = Object.keys(expectedNodeCount) as Array<keyof typeof expectedNodeCount>;

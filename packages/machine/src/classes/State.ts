@@ -377,64 +377,53 @@ export default class State {
     };
   }
 
-  // Walks the State graph and emits a `Graph` data structure. v7 emit shape:
-  // wrapper-States (those with `#overriddenHaltState !== null`) are collapsed
-  // onto their bare's representation in the graph, with the wrapper's own `#id`
-  // used as the graph node id, `isWrapped: true`, and `overriddenHaltStateId`
-  // set to the override's collapsed id. A per-wrapper "halt marker" graph node
-  // (id = negative-of-the-wrapper-id, `isHalt: true, isHaltMarker: true`) is
-  // synthesized; the bare's halt-bound transitions are rewritten to target the
-  // halt marker instead of the real one.
+  // Walks the State graph and emits a `Graph` data structure. v7 callable-
+  // subtree emit shape (#174):
   //
-  // Halt-marker node ids use the negation of the wrapper's id so they sit in a
-  // disjoint integer range from real ids (which are always non-negative). Real
-  // halt is always id 0.
+  // Each `withOverriddenHaltState` wrapper produces TWO graph nodes:
+  //   - A wrapper node (`isWrapper: true`, `[[composite-name]]` shape) — the
+  //     call site. No transitions of its own. `bareStateId` points to the
+  //     bare's GraphNode; `overriddenHaltStateId` points to the override
+  //     target's GraphNode.
+  //   - A bare node (`isWrapper: false`, regular shape) — the callable body.
+  //     Has the bare's transitions. Shared across all wrappers that wrap
+  //     this bare (no per-context duplication).
+  //
+  // Frames are computed via union-find on bare reachability: two bares whose
+  // forward-reachable sets overlap merge into one frame. Each frame contains
+  // its bares + body states + a single halt marker (id = `-frameId`). The
+  // canonical `frameId` is the smallest bare-id in the component.
+  //
+  // Halt-bound transitions of any in-frame state are retargeted to the
+  // frame's halt marker. The frame's `subtree -. return .-> wrapper` and
+  // `subtree -. halt .-> s0` arrows are demand-emitted by `toMermaid` from
+  // the frame structure; they're not stored as graph edges.
   static toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
     const nodes: Record<number, GraphNode> = {};
     const alphabets = tapeBlock.alphabets.map((alphabet) => alphabet.symbols);
 
-    // Map from a wrapper-State to the "collapsed" graph node id used to refer
-    // to it in transitions. Same as the wrapper's `#id`, recorded for clarity
-    // when rewriting transition targets.
-    const wrapperGraphId = (s: State): number => s.#id;
-    const haltMarkerIdFor = (wrapper: State): number => -wrapper.#id;
-
-    // The `initialId` is the user-passed start. If it's a wrapper, the
-    // collapsed graph node uses its `#id`; otherwise its own `#id`.
-    const initialId = initialState.#id;
-
-    type QueueItem = {
-      // The State instance to process at this slot.
-      state: State;
-      // When non-null, the State is being processed AS the bare of this wrapper.
-      // The collapsed graph node uses `wrapperGraphId(wrapperContext)`,
-      // halt-bound transitions retarget to `haltMarkerIdFor(wrapperContext)`,
-      // self-loop transitions to the bare retarget to the wrapper-id.
-      wrapperContext: State | null;
-    };
-
-    const queue: QueueItem[] = [];
-
-    // Decide how to enqueue the start: if it's a wrapper, enqueue its bare with
-    // the wrapper as context; otherwise enqueue the state itself.
-    if (initialState.#overriddenHaltState && initialState.#bareState) {
-      queue.push({state: initialState.#bareState, wrapperContext: initialState});
-    } else {
-      queue.push({state: initialState, wrapperContext: null});
-    }
+    // Pass 1: BFS-discover all reachable States; emit one GraphNode per State
+    // (wrapper or bare/regular). Wrappers and bares are separate nodes.
+    const visited = new Set<number>();
+    const queue: State[] = [initialState];
+    const bareIds = new Set<number>(); // ids referenced as a wrapper's bareStateId
 
     while (queue.length > 0) {
-      const {state, wrapperContext} = queue.shift()!;
+      const state = queue.shift()!;
+
+      if (visited.has(state.#id)) {
+        continue;
+      }
+
+      visited.add(state.#id);
 
       if (state.isHalt) {
-        // Real halt — always id 0, single node.
         if (!(0 in nodes)) {
           nodes[0] = {
             id: 0,
             name: state.#name,
             isHalt: true,
             isHaltMarker: false,
-            isWrapped: false,
             isWrapper: false,
             bareStateId: null,
             frameId: null,
@@ -446,122 +435,36 @@ export default class State {
         continue;
       }
 
-      if (wrapperContext !== null) {
-        // Process `state` (the bare) collapsed under `wrapperContext` (the
-        // wrapper). Graph node id = wrapper's id.
-        const collapsedId = wrapperGraphId(wrapperContext);
+      // Wrapper? Emit wrapper node + queue bare and override target.
+      if (state.#overriddenHaltState !== null && state.#bareState !== null) {
+        const bareState = state.#bareState;
+        const overrideTarget = state.#overriddenHaltState;
 
-        if (collapsedId in nodes) {
-          continue;
-        }
-
-        const haltMarkerId = haltMarkerIdFor(wrapperContext);
-        const overrideTarget = wrapperContext.#overriddenHaltState!;
-
-        // The override target's collapsed id: if the override is itself a
-        // wrapper, its graph node id is `overrideTarget.#id` (its own wrapper
-        // id); otherwise its own bare id.
-        const overrideGraphId = overrideTarget.#overriddenHaltState
-          ? wrapperGraphId(overrideTarget)
-          : overrideTarget.#id;
-
-        // Emit the halt-marker node if not already present (one per wrapper).
-        if (!(haltMarkerId in nodes)) {
-          nodes[haltMarkerId] = {
-            id: haltMarkerId,
-            name: 'halt',
-            isHalt: true,
-            isHaltMarker: true,
-            isWrapped: false,
-            isWrapper: false,
-            bareStateId: null,
-            frameId: null,
-            transitions: [],
-            overriddenHaltStateId: null,
-          };
-        }
-
-        // Build the collapsed node.
-        const collapsedNode: GraphNode = {
-          id: collapsedId,
-          name: state.#name,
+        nodes[state.#id] = {
+          id: state.#id,
+          name: state.#name, // composite name like "A(target)"
           isHalt: false,
           isHaltMarker: false,
-          isWrapped: true,
-          isWrapper: false,
-          bareStateId: null,
+          isWrapper: true,
+          bareStateId: bareState.#id,
           frameId: null,
           transitions: [],
-          overriddenHaltStateId: overrideGraphId,
+          overriddenHaltStateId: overrideTarget.#id,
         };
 
-        nodes[collapsedId] = collapsedNode;
-
-        let patternIx = 0;
-
-        for (const [sym, {command, nextState}] of state.#symbolToDataMap) {
-          let target: State;
-
-          try {
-            target = nextState instanceof State ? nextState : nextState.ref;
-          } catch {
-            patternIx += 1;
-            continue;
-          }
-
-          // Retarget transitions per Variant X conventions:
-          // - target == haltState → halt marker (stays inside the subgraph)
-          // - target == bare (self-loop) → the collapsed wrapper id
-          // - target is itself a wrapper → that wrapper's collapsed id
-          // - else → target's own id
-          let nextStateId: number;
-
-          if (target.isHalt) {
-            nextStateId = haltMarkerId;
-          } else if (target === state) {
-            nextStateId = collapsedId;
-          } else if (target.#overriddenHaltState && target.#bareState) {
-            nextStateId = wrapperGraphId(target);
-            queue.push({state: target.#bareState, wrapperContext: target});
-          } else {
-            nextStateId = target.#id;
-            queue.push({state: target, wrapperContext: null});
-          }
-
-          collapsedNode.transitions.push({
-            pattern: decodePatternDescription(sym.description, alphabets),
-            command: command.tapesCommands.map((tc) => ({
-              symbol: decodeWriteSymbol(tc.symbol),
-              movement: decodeMovement((tc.movement as symbol).description),
-            })),
-            nextStateId,
-            id: `${collapsedId}-${patternIx}`,
-          });
-
-          patternIx += 1;
-        }
-
-        // Enqueue the override target so its own node is emitted.
-        if (overrideTarget.#overriddenHaltState && overrideTarget.#bareState) {
-          queue.push({state: overrideTarget.#bareState, wrapperContext: overrideTarget});
-        } else {
-          queue.push({state: overrideTarget, wrapperContext: null});
-        }
+        bareIds.add(bareState.#id);
+        queue.push(bareState);
+        queue.push(overrideTarget);
 
         continue;
       }
 
-      // Non-wrapper context: emit `state` as a regular node.
-      if (state.#id in nodes) {
-        continue;
-      }
-
+      // Regular (or bare) state — build node with transitions.
       const node: GraphNode = {
         id: state.#id,
         name: state.#name,
         isHalt: false,
         isHaltMarker: false,
-        isWrapped: false,
         isWrapper: false,
         bareStateId: null,
         frameId: null,
@@ -583,38 +486,208 @@ export default class State {
           continue;
         }
 
-        let nextStateId: number;
-
-        if (target.#overriddenHaltState && target.#bareState) {
-          // Transition into a wrapper — use its collapsed id.
-          nextStateId = wrapperGraphId(target);
-          queue.push({state: target.#bareState, wrapperContext: target});
-        } else {
-          nextStateId = target.#id;
-          queue.push({state: target, wrapperContext: null});
-        }
-
         node.transitions.push({
           pattern: decodePatternDescription(sym.description, alphabets),
           command: command.tapesCommands.map((tc) => ({
             symbol: decodeWriteSymbol(tc.symbol),
             movement: decodeMovement((tc.movement as symbol).description),
           })),
-          nextStateId,
+          nextStateId: target.#id,
           id: `${state.#id}-${patternIx}`,
         });
 
+        queue.push(target);
         patternIx += 1;
       }
     }
 
-    return {initialId, alphabets, nodes};
+    // Always emit real halt as a sentinel, even if no transition targets it.
+    // It anchors the `subtree -. halt .-> s0` frame-level arrow whenever a
+    // frame demand-emits one, and it's the canonical machine-halt singleton.
+    if (!(0 in nodes)) {
+      nodes[0] = {
+        id: 0,
+        name: 'halt',
+        isHalt: true,
+        isHaltMarker: false,
+        isWrapper: false,
+        bareStateId: null,
+        frameId: null,
+        transitions: [],
+        overriddenHaltStateId: null,
+      };
+    }
+
+    // Pass 2: For each bare, compute its forward-reachable set (following
+    // transitions; stopping at halt and at wrappers — both are frame
+    // boundaries).
+    const computeReach = (startId: number): Set<number> => {
+      const reach = new Set<number>();
+      const stack = [startId];
+
+      while (stack.length > 0) {
+        const id = stack.pop()!;
+
+        if (reach.has(id)) {
+          continue;
+        }
+
+        const node = nodes[id];
+
+        if (!node || node.isHalt || node.isWrapper) {
+          continue;
+        }
+
+        reach.add(id);
+
+        for (const t of node.transitions) {
+          const target = nodes[t.nextStateId];
+
+          if (!target || target.isHalt || target.isWrapper) {
+            continue;
+          }
+
+          stack.push(t.nextStateId);
+        }
+      }
+
+      return reach;
+    };
+
+    const reachByBare = new Map<number, Set<number>>();
+
+    for (const bareId of bareIds) {
+      reachByBare.set(bareId, computeReach(bareId));
+    }
+
+    // Pass 3: Union-find on bare overlaps. Two bares merge if their reach
+    // sets share any state. Canonical representative = smallest bare-id in
+    // the component.
+    const ufParent = new Map<number, number>();
+
+    const ufFind = (id: number): number => {
+      if (!ufParent.has(id)) {
+        ufParent.set(id, id);
+      }
+
+      let root = id;
+
+      while (ufParent.get(root) !== root) {
+        root = ufParent.get(root)!;
+      }
+
+      // Path compression
+      let cur = id;
+
+      while (ufParent.get(cur) !== root) {
+        const next = ufParent.get(cur)!;
+
+        ufParent.set(cur, root);
+        cur = next;
+      }
+
+      return root;
+    };
+
+    const ufUnion = (a: number, b: number) => {
+      const ra = ufFind(a);
+      const rb = ufFind(b);
+
+      if (ra === rb) return;
+
+      if (ra < rb) {
+        ufParent.set(rb, ra);
+      } else {
+        ufParent.set(ra, rb);
+      }
+    };
+
+    for (const bareId of bareIds) {
+      ufFind(bareId);
+    }
+
+    // For each state, collect the bares that reach it; union all bares that
+    // share a state.
+    const stateToReachingBares = new Map<number, number[]>();
+
+    for (const [bareId, reachSet] of reachByBare) {
+      for (const stateId of reachSet) {
+        let bares = stateToReachingBares.get(stateId);
+
+        if (!bares) {
+          bares = [];
+          stateToReachingBares.set(stateId, bares);
+        }
+
+        bares.push(bareId);
+      }
+    }
+
+    for (const bares of stateToReachingBares.values()) {
+      for (let i = 1; i < bares.length; i += 1) {
+        ufUnion(bares[0], bares[i]);
+      }
+    }
+
+    // Assign frameId to each in-reach state.
+    const frameIds = new Set<number>();
+
+    for (const [stateId, bares] of stateToReachingBares) {
+      const frameId = ufFind(bares[0]);
+
+      nodes[stateId].frameId = frameId;
+      frameIds.add(frameId);
+    }
+
+    // Pass 4: Retarget halt-bound transitions for in-frame states to the
+    // frame's halt marker. Out-of-frame states (top-level dispatcher, override
+    // targets, etc.) keep their halt-bound transitions pointing at real halt.
+    for (const node of Object.values(nodes)) {
+      if (node.frameId === null) {
+        continue;
+      }
+
+      const haltMarkerId = -node.frameId;
+
+      for (const t of node.transitions) {
+        const target = nodes[t.nextStateId];
+
+        if (target && target.isHalt && !target.isHaltMarker) {
+          t.nextStateId = haltMarkerId;
+        }
+      }
+    }
+
+    // Pass 5: Emit one halt marker per frame.
+    for (const frameId of frameIds) {
+      const haltMarkerId = -frameId;
+
+      nodes[haltMarkerId] = {
+        id: haltMarkerId,
+        name: 'halt',
+        isHalt: true,
+        isHaltMarker: true,
+        isWrapper: false,
+        bareStateId: null,
+        frameId,
+        transitions: [],
+        overriddenHaltStateId: null,
+      };
+    }
+
+    return {initialId: initialState.#id, alphabets, nodes};
   }
 
   // Inverse of toGraph: rebuilds a State graph (and a fresh TapeBlock with the
   // graph's alphabets) from a serialized Graph. Round-trips with toGraph in
   // the sense that running the rebuilt machine on the same input gives the
   // same output, but the rebuilt State instances have *new* internal IDs.
+  //
+  // Under the v7 callable-subtree model (#174), graph nodes split into:
+  //   - Wrapper nodes (`isWrapper: true`, no transitions) — reconstructed via
+  //     `bareStates[bareStateId].withOverriddenHaltState(finalStates[overriddenHaltStateId])`.
+  //   - Bare/regular nodes — constructed as normal States with transitions.
+  //   - Halt + halt-marker nodes — collapse to the singleton `haltState`.
   static fromGraph(graph: Graph): {
     start: State;
     tapeBlock: TapeBlock;
@@ -624,12 +697,15 @@ export default class State {
     const tapeBlock = TapeBlock.fromAlphabets(alphabetObjs);
     const ids = Object.keys(graph.nodes).map(Number);
 
-    // Pass 1: pre-create a Reference for each non-halt node so transitions can
-    // forward-declare their targets.
+    // Pass 1: pre-create a Reference for each non-halt non-halt-marker node
+    // (both wrappers and regulars). Halt and halt-marker nodes collapse to the
+    // singleton `haltState` and need no ref.
     const refs: Record<number, Reference> = {};
 
     for (const nodeId of ids) {
-      if (!graph.nodes[nodeId].isHalt) {
+      const node = graph.nodes[nodeId];
+
+      if (!node.isHalt) {
         refs[nodeId] = new Reference();
       }
     }
@@ -651,14 +727,15 @@ export default class State {
       return tapeBlock.symbol(flat);
     };
 
-    // Pass 2: build a "bare" State for each non-halt node (no override yet).
-    // nextState entries point at refs so cycles work; haltState is used directly.
+    // Pass 2: build a State for each non-wrapper non-halt non-halt-marker
+    // node. Transitions point at refs so cycles work; haltState (and halt
+    // markers, which collapse to haltState) are used directly.
     const bareStates: Record<number, State> = {};
 
     for (const nodeId of ids) {
       const node = graph.nodes[nodeId];
 
-      if (node.isHalt) {
+      if (node.isHalt || node.isWrapper) {
         continue;
       }
 
@@ -667,7 +744,9 @@ export default class State {
       for (const t of node.transitions) {
         const key = patternToKey(parsePatternString(t.pattern, graph.alphabets));
         const target = graph.nodes[t.nextStateId];
-        const nextState: State | Reference = target.isHalt ? haltState : refs[t.nextStateId];
+        const nextState: State | Reference = !target || target.isHalt
+          ? haltState
+          : refs[t.nextStateId];
 
         stateDefinition![key] = {
           command: t.command.map((c) => ({
@@ -678,16 +757,19 @@ export default class State {
         };
       }
 
-      // Graph-sourced names may contain `(` and `)` (composite wrapper names
-      // emitted by toGraph). Bypass the constructor's user-facing name
-      // validation by constructing without a name and assigning #name directly.
+      // Graph-sourced names may contain `(` and `)` (composite wrapper names —
+      // although wrappers go through a separate path below, defensive
+      // construction here keeps the bypass uniform). Construct without a name
+      // and assign `#name` directly to skip user-facing name validation.
       const bare = new State(stateDefinition);
 
       bare.#name = node.name;
       bareStates[nodeId] = bare;
     }
 
-    // Pass 3: apply overrideHaltStates transitively.
+    // Pass 3: resolve every node to its final State (memoized + cycle-safe).
+    // Wrappers compose lazily via `withOverriddenHaltState` once their bare
+    // and override are resolved.
     const finalStates: Record<number, State> = {};
     const inProgress = new Set<number>();
 
@@ -698,7 +780,7 @@ export default class State {
 
       const node = graph.nodes[nodeId];
 
-      if (node.isHalt) {
+      if (!node || node.isHalt) {
         finalStates[nodeId] = haltState;
 
         return haltState;
@@ -710,10 +792,15 @@ export default class State {
 
       inProgress.add(nodeId);
 
-      let state = bareStates[nodeId];
+      let state: State;
 
-      if (node.overriddenHaltStateId !== null) {
-        state = bareStates[nodeId].withOverriddenHaltState(getFinal(node.overriddenHaltStateId));
+      if (node.isWrapper) {
+        const bare = getFinal(node.bareStateId!);
+        const override = getFinal(node.overriddenHaltStateId!);
+
+        state = bare.withOverriddenHaltState(override);
+      } else {
+        state = bareStates[nodeId];
       }
 
       inProgress.delete(nodeId);
@@ -726,8 +813,8 @@ export default class State {
       getFinal(nodeId);
     }
 
-    // Pass 4: bind each ref to the FINAL (possibly wrapped) state so transitions
-    // resolve to the version that has its override-halt set.
+    // Pass 4: bind each ref to the resolved final State so cross-node
+    // transitions land on the right instance.
     for (const nodeId of ids) {
       if (!graph.nodes[nodeId].isHalt) {
         refs[nodeId].bind(finalStates[nodeId]);

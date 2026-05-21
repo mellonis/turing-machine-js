@@ -118,9 +118,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [
             {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
             {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
@@ -139,17 +139,21 @@ describe('toMermaid', () => {
     expect(out).toContain("s1 -- \"['1'] → [K]/[S]\" --> s0");
   });
 
-  test('renders dotted onHalt edge when overriddenHaltStateId is set', () => {
+  test('renders wrapper-to-override solid arrow when overriddenHaltStateId is set', () => {
+    // Under the v7 callable-subtree model, wrapper → override is a regular
+    // solid `-->` (the new convention reserves bold/dotted for `call`/`return`/
+    // `halt`). The retired `-. onHalt .->` keyword no longer appears.
     const out = toMermaid({
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isHaltMarker: false, isWrapper: true, bareStateId: null, frameId: null},
       },
     });
 
-    expect(out).toContain('s1 -. onHalt .-> s0');
+    expect(out).toContain('s1 --> s0');
+    expect(out).not.toContain('onHalt');
   });
 
   test('non-initial, non-halt node uses square bracket shape', () => {
@@ -157,9 +161,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     });
 
@@ -171,9 +175,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [{
             pattern: "'0','a'",
             command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],
@@ -517,7 +521,7 @@ describe('README diagrams: engine-generated outputs', () => {
     ]);
   });
 
-  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the v7 halt-frame subgraph', () => {
+  test('withOverriddenHaltState AFTER (scanThenErase, machine README) — emits the v7 callable-subtree shape', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -537,13 +541,19 @@ describe('README diagrams: engine-generated outputs', () => {
       '%% alphabets: [[" ","a","b","X"]]',
       '(((halt)))', // real halt outside any subgraph
       '["eraseHere"]', // override is a regular [name] node
-      '[["scanToX"]]', // wrapper-collapsed bare uses subroutine shape inside the subgraph
-      'subgraph w_', // halt-frame subgraph wraps the bare + its halt marker
-      '"halt frame"', // subgraph label
+      '[["scanToX(eraseHere)"]]', // wrapper uses [[…]] subroutine shape (composite name)
+      '["scanToX"]', // bare uses regular [name] shape inside the subgraph
+      'subgraph w_', // callable-subtree subgraph wraps the bare + its halt marker
+      'callable subtree of scanToX', // subgraph label
       'idle([idle])', // pre-execution sentinel — always emitted
-      'idle -. enter .->', // labeled dotted enter arrow points at the initial state
+      'idle -. enter .->', // labeled dotted enter arrow points at the wrapper
       '"[*] → [E]/[S]"', // eraseHere's erase command
-      '-. onHalt .->', // the dotted override-halt edge — wrapper's catch-and-redirect, crosses the subgraph border
+      '== "call" ==>', // wrapper-to-bare bold call arrow
+      '-. "return" .->', // frame-to-wrapper dotted return arrow
     ]);
+
+    // Retired keywords — must NOT appear under the new convention.
+    expect(output).not.toContain('onHalt');
+    expect(output).not.toContain('halt frame');
   });
 });
