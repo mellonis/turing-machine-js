@@ -392,8 +392,13 @@ const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
 // the tag set on re-emit. `class` lines carry the actual graph-node
 // assignments; we strip the `tag_` prefix and assign each tag to each
 // listed node's `tags` array.
-const classDefTagRegex = /^classDef\s+tag_([A-Za-z0-9_-]+)\s+.+$/;
-const classAssignTagRegex = /^class\s+([sc]\d+(?:,[sc]\d+)*)\s+tag_([A-Za-z0-9_-]+)$/;
+//
+// Inter-token gaps are fixed at single literal spaces (matching toMermaid's
+// canonical emit) rather than `\s+`. This avoids the polynomial-ReDoS
+// pattern CodeQL flags when `\s+` surrounds a content group (see also
+// `callArrowRegex` / `returnArrowRegex` tightening in PR #182).
+const classDefTagRegex = /^classDef tag_([A-Za-z0-9_-]+) .+$/;
+const classAssignTagRegex = /^class ([sc]\d+(?:,[sc]\d+)*) tag_([A-Za-z0-9_-]+)$/;
 
 // Splits a node label like `"A<br>hot, sampled"` into its name and tags (#186).
 // Labels without `<br>` have no tags. Tags are comma-joined; trimmed of
