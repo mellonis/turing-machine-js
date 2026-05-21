@@ -419,6 +419,135 @@ describe('State tags (#186)', () => {
     haltState.untag('halt-debug-marker');
     expect(haltState.tags).not.toContain('halt-debug-marker');
   });
+
+  // Round-trip tag application (#186) — exercises both fromGraph branches:
+  // tagging a bare/regular node (the simple branch) and tagging a wrapper
+  // node (the path that goes through `state.tag(...node.tags)` after
+  // `withOverriddenHaltState`).
+  test('toGraph → fromGraph preserves tags on bare/regular nodes', () => {
+    const tapeBlock = TapeBlock.fromAlphabets([new Alphabet([' ', '0'])]);
+    const original = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'tagged-bare').tag('alpha', 'beta');
+
+    const graph = State.toGraph(original, tapeBlock);
+    const {start} = State.fromGraph(graph);
+
+    expect(start.tags).toEqual(['alpha', 'beta']);
+  });
+
+  test('toGraph → fromGraph preserves tags on wrapper nodes', () => {
+    const tapeBlock = TapeBlock.fromAlphabets([new Alphabet([' ', '0'])]);
+    const bare = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'bare');
+    const target = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'target');
+    const wrapper = bare.withOverriddenHaltState(target).tag('hot');
+
+    const graph = State.toGraph(wrapper, tapeBlock);
+    const {start} = State.fromGraph(graph);
+
+    expect(start.tags).toEqual(['hot']);
+  });
+});
+
+describe('State.toGraph — union-find depth & ordering', () => {
+  // Direct coverage for the path-compression loop and the reverse-order
+  // `ra > rb` branch in `ufUnion`. The simpler shared-body-state tests in
+  // `graph.spec.ts` only exercise depth-1 unions; this case forces depth ≥ 2
+  // by chaining: A and B share X; C and D share Y; bridging through a shared
+  // state Z forces a multi-level union where `ufFind` walks > 1 step.
+  test('reverse-order union — bares[0] has higher id than bares[i], hits the ra > rb branch', () => {
+    // The simpler shared-body tests in `graph.spec.ts` always have the
+    // lowest-id bare encountered first (so `ufUnion(bares[0], bares[i])`
+    // runs with ra < rb and the smaller-id branch fires). To cover the
+    // ra > rb else-branch in `ufUnion`, we construct the higher-id bare's
+    // wrapper first and reach it via the dispatcher's FIRST transition —
+    // so BFS visits its bare before the lower-id one, making it bares[0].
+    const alphabet = new Alphabet([' ', '1', '2']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    // Construct the higher-id bare FIRST so it has a HIGHER #id than the
+    // lower-id bare we construct later. Counter-intuitive — but bare
+    // identity in toGraph's `bareIds` Set is insertion order = BFS visit
+    // order, which depends on the dispatcher's transition order, NOT on
+    // construction order. So we construct B before A (B gets a lower #id),
+    // then route dispatcher to reach A's wrapper FIRST.
+    const X = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'X');
+    const B = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'B');
+    const A = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'A');
+    // A.id > B.id (A constructed later). Now dispatcher visits A's wrapper
+    // FIRST via the [1] transition, so BFS puts A in bareIds before B →
+    // bares[0]=A (higher id), bares[1]=B (lower id) → ufUnion(A, B) with
+    // ra > rb → hits the else-branch.
+    const t = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 't');
+    const WA = A.withOverriddenHaltState(t);
+    const WB = B.withOverriddenHaltState(t);
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: WA},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: WB},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+
+    // The frame id is the smallest id in the component (canonical), which
+    // is B (constructed first) — confirms `ra > rb` did the right thing:
+    // when ufUnion(A, B) ran with A as `ra`, the else-branch set
+    // parent[A] = B, keeping the smaller id as root.
+    expect(graph.nodes[A.id].frameId).toBe(B.id);
+    expect(graph.nodes[B.id].frameId).toBe(B.id);
+    expect(graph.nodes[X.id].frameId).toBe(B.id);
+  });
+
+  test('multi-bare overlap with several shared bares (smoke test)', () => {
+    const alphabet = new Alphabet([' ', '1', '2', '3', '4']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    // Z is a "bridge" body state that A, B, C, D all eventually transition
+    // into. Ensures every bare's reach set contains Z → all bares unioned.
+    const Z = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'Z');
+    const A = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: Z}}, 'A');
+    const B = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: Z}}, 'B');
+    const C = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: Z}}, 'C');
+    const D = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: Z}}, 'D');
+
+    const t = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 't');
+
+    const WA = A.withOverriddenHaltState(t);
+    const WB = B.withOverriddenHaltState(t);
+    const WC = C.withOverriddenHaltState(t);
+    const WD = D.withOverriddenHaltState(t);
+
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: WA},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: WB},
+      [symbol(['3'])]: {command: {movement: movements.stay}, nextState: WC},
+      [symbol(['4'])]: {command: {movement: movements.stay}, nextState: WD},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+
+    // All four bares end up in the same union frame (canonical = smallest id).
+    const frameId = graph.nodes[A.id].frameId;
+
+    expect(frameId).not.toBeNull();
+    expect(graph.nodes[B.id].frameId).toBe(frameId);
+    expect(graph.nodes[C.id].frameId).toBe(frameId);
+    expect(graph.nodes[D.id].frameId).toBe(frameId);
+    expect(graph.nodes[Z.id].frameId).toBe(frameId);
+  });
 });
 
 describe('State.fromGraph — cyclic override-halt chain', () => {
