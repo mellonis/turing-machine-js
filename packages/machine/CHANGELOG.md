@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.3] - 2026-05-21
+
+Third v7 pre-release. Adds first-class out-of-band tags on `State` ([#186](https://github.com/mellonis/turing-machine-js/issues/186)) — a metadata channel for visualization grouping and debugger labels that survives `toGraph` / `fromGraph` / `toMermaid` / `fromMermaid` round-trips. Driven by downstream [post-machine-js#86](https://github.com/mellonis/post-machine-js/issues/86), which will build a path-based registry and inline pseudo-command on top once this ships. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.3`.
+
+### Added
+
+- **`State.tag(...) / .untag(...) / .tags` API** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Fluent post-construct API for attaching string tags to a State. Tags are out-of-band metadata — they don't affect runtime transition lookup, `equivalentOn` comparisons, or any structural identity. Storage lives on the State INSTANCE (not on the shared `#symbolToDataMap`), so engine [#175](https://github.com/mellonis/turing-machine-js/issues/175) memoization doesn't leak tags across wrappers that share a bare: `A.wohs(t1).tag('hot')` does NOT propagate to `A.wohs(t2)`.
+
+  ```ts
+  const s = new State({...}, 'foo')
+    .tag('hot', 'sampled')
+    .untag('sampled');
+  s.tags; // ['hot']  ← frozen snapshot, in insertion order
+  ```
+
+- **`GraphNode.tags: string[]`** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). New field on the serialized graph node. Survives `State.toGraph` / `State.fromGraph` round-trip; empty array for untagged states.
+
+- **`toMermaid` tag rendering** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Two surfaces:
+  - **Visible labels via `<br>`**: tagged node labels include the tag names inline (`s5["A<br>hot, sampled"]`). Uses Mermaid's universal `<br>` line break — works across mermaid.js, the live editor, machines-demo, and any other renderer; no CSS-pseudo-element tricks.
+  - **Color grouping via `classDef` + `class`**: each unique tag gets a `classDef tag_<sanitized> fill:#...,stroke:#...` line (palette of 6 colors selected by tag-name hash) and a `class s5,s6 tag_<sanitized>` line listing every node carrying the tag.
+
+- **`fromMermaid` tag parse** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Splits the node label on `<br>` to extract tags as the source of truth; `class` lines are decorative and discarded on parse (they regenerate on the next `toMermaid` emit from the tag set).
+
+### Compatibility
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.2` → `^7.0.0-alpha.3` on `@turing-machine-js/builder`, `@turing-machine-js/library-binary-numbers`, `@turing-machine-js/library-binary-numbers-bare`.
+
+### Migration from alpha.2
+
+Purely additive — no breaking changes. Existing code that doesn't call `state.tag(...)` or read `state.tags` / `GraphNode.tags` continues to work identically. Mermaid emit for untagged states is bytewise unchanged.
+
+If you serialize `GraphNode` JSON, note that the new `tags: string[]` field is now required by the type (always emitted; empty array if no tags).
+
+### Out of v7-alpha.3 (still pending for stable v7.0.0)
+
+- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives.
+- **[#180](https://github.com/mellonis/turing-machine-js/issues/180)** — extract `State.toGraph`/`fromGraph` to its own module.
+
 ## [7.0.0-alpha.2] - 2026-05-21
 
 Second v7 pre-release. Refines alpha.1's `toMermaid` wrapped-state emit into the function-call model ([#174](https://github.com/mellonis/turing-machine-js/issues/174)) and adds two construction-time improvements to `withOverriddenHaltState` ([#175](https://github.com/mellonis/turing-machine-js/issues/175), [#176](https://github.com/mellonis/turing-machine-js/issues/176)). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.

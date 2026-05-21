@@ -13,6 +13,7 @@ A composable Turing-machine engine for JavaScript: multi-tape, subroutine compos
 - [Building from a state table](#building-from-a-state-table)
 - [Classes](#classes) — [`Alphabet`](#alphabet) · [`Tape`](#tape) · [`TapeBlock`](#tapeblock) · [`TapeCommand`](#tapecommand) · [`Command`](#command) · [`State`](#state) · [`Reference`](#reference) · [`TuringMachine`](#turingmachine)
 - [Subroutine composition with `withOverriddenHaltState`](#subroutine-composition-with-withoverriddenhaltstate)
+- [State tags](#state-tags)
 - [Debugging breakpoints](#debugging-breakpoints)
 - [Special objects](#special-objects) — [`haltState`](#haltstate) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
 - [Introspection and testing](#introspection-and-testing)
@@ -427,6 +428,25 @@ flowchart TD
 
 Wrappers nest: `inner.withOverriddenHaltState(middle).withOverriddenHaltState(outer)` chains halt-redirects through `middle → outer → halt`. `library-binary-numbers/src/index.ts`'s `minusOne` (the `~(~x + 1)` composition) uses a 4-deep nest of wrappers.
 
+## State tags
+
+A State carries an optional set of string tags — out-of-band metadata for visualization grouping and debugger labels. Tags don't affect runtime transition lookup, `equivalentOn` comparisons, or any structural identity; they ride alongside the State.
+
+```ts
+const s = new State({...}, 'walkToBlank::1')
+  .tag('hot', 'subroutine-entry');
+
+s.tags; // readonly ['hot', 'subroutine-entry'] — frozen snapshot
+s.untag('hot');
+s.tags; // readonly ['subroutine-entry']
+```
+
+**Scoped to the wrapper instance.** Under [`withOverriddenHaltState` memoization (#175)](https://github.com/mellonis/turing-machine-js/issues/175), `A.wohs(t1)` and `A.wohs(t2)` are distinct wrapper instances even though they share `A`'s `#symbolToDataMap`. Tags live on the instance, so tagging one wrapper doesn't propagate to siblings sharing the same bare. Wrappers from `withOverriddenHaltState` start with an empty tag set (do not inherit from bare); the caller tags explicitly as needed.
+
+**Round-trip preserved.** `state.toGraph` writes the tag set to `GraphNode.tags`; `state.fromGraph` reads it back and reapplies. `toMermaid` renders tags two ways: inline in the node label (`sN["name<br>tag1, tag2"]`, universal Mermaid line break) and as `classDef tag_<sanitized>` + `class sN tag_<sanitized>` lines for color grouping. `fromMermaid` splits the label on `<br>` as source of truth; the `class` lines are decorative and discarded on parse.
+
+See [§Diagram conventions § Tags](#tags) for the full emit shape.
+
 ## Debugging breakpoints
 
 Any `State` can carry a runtime-mutable `debug` config that pauses execution at chosen points.
@@ -599,6 +619,15 @@ The `&` ribbon syntax (`s_W1 & s_W2 == "call" ==> s_A`) collapses multiple wrapp
 
 `subgraph w_N["callable subtree of NAME"] … end` wraps a bare + its body + a halt marker — the callable scope of code that runs when a wrapper "calls" the bare. Multi-bare frames (union-find merged from shared body states) use the label `"callable scope: A ∪ B"`.
 
+### Tags
+
+Tagged states (via `state.tag('hot', 'sampled')` — see [§State tags](#state-tags)) render two ways simultaneously:
+
+- **Inline in the node label**: `sN["name<br>tag1, tag2"]` — the `<br>` is Mermaid's universal line break, so the tags display as a second line under the state name in any renderer.
+- **As a color class**: `classDef tag_<sanitized> fill:#...,stroke:#...` per unique tag (6-color palette selected by tag-name hash), plus `class sN,sM tag_<sanitized>` listing all nodes carrying the tag. Lets the eye group related states by color even when their names are scattered across the diagram.
+
+The `<br>`-embedded label is the source of truth for `fromMermaid` round-trip; the `classDef`/`class` lines are decorative and regenerate on the next `toMermaid` emit. Tag-name sanitization in `classDef` identifiers: any char outside `[A-Za-z0-9_-]` is replaced with `_`. Labels preserve the raw tag names.
+
 ### Edge label format
 
 `[reads] → [writes]/[moves]`. Each bracketed list is a tape-block reading — one entry per tape; brackets always present, even single-tape.
@@ -654,7 +683,13 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 - **v6.2** *(superseded by v6.3.0)* — widened `onStep`'s signature to `(m) => void | Promise<void>` and added an inline `await onStep(...)` in the run loop, enabling throttle-in-`onStep` patterns. This overturned the docstring-stated contract that `onStep` is sync (microtask-free); the right place for per-iter throttling is `onPause` with self-rearm (see [Throttle pattern](#throttle-pattern)). Restored in v6.3.0.
 - **v6.3** — `onStep` reverted to its v6.0–v6.1 sync contract — `(m) => void`, called synchronously inside the run loop. The Throttle pattern section documents the engine-native shape for per-iter throttle / "wait between iters" UIs. No other API changes.
 - **v6.4** — New **`onIter`** hook on `run()`: awaited, fires once at the end of every iter (after both `onPause` dispatches on the same yield), unaffected by the `debug` master switch. Use for per-iter throttle / animation / coordination needing a suspend point; complements the existing sync `onStep` (tracing) and conditional `onPause` (user breakpoints). Three-hook contract is now `onStep` (sync, mid-iter) / `onPause` (awaited, on `state.debug` match) / `onIter` (awaited, end-of-iter). Additive — peer-deps unchanged. The v6.3.0 README's `onPause`-rearm throttle workaround is superseded.
-- **v7** *(alpha 1, 2026-05-21)* — Composition-representation overhaul. **First pre-release on the `next` dist-tag:** `npm install @turing-machine-js/machine@next` (or pin `@7.0.0-alpha.1`). Stable v7.0.0 still pending [#102](https://github.com/mellonis/turing-machine-js/issues/102) (debugger step-in/over/out primitives). Landed in alpha.1:
+- **v7** *(latest alpha: alpha.3, 2026-05-21)* — Composition-representation overhaul + first-class state tags. **Pre-release on the `next` dist-tag:** `npm install @turing-machine-js/machine@next` (or pin `@7.0.0-alpha.3`). Stable v7.0.0 still pending [#102](https://github.com/mellonis/turing-machine-js/issues/102) (debugger step-in/over/out primitives). Highlights across alphas:
+
+  **alpha.3** — first-class **State tags** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). `state.tag(...) / .untag(...) / .tags` API; `GraphNode.tags: string[]` round-trips through `toGraph`/`fromGraph`; `toMermaid` emits tags two ways simultaneously — inline via `<br>` in node labels (`sN["name<br>tag1, tag2"]`) and as `classDef`/`class` for color grouping. Tags live on the State instance (not on the shared `#symbolToDataMap`), so engine [#175](https://github.com/mellonis/turing-machine-js/issues/175) memoization doesn't leak tags across wrappers sharing a bare. See [§State tags](#state-tags).
+
+  **alpha.2** — callable-subtree `toMermaid` emit refinement ([#174](https://github.com/mellonis/turing-machine-js/issues/174)). The wrapper is a separate `[[composite-name]]` node OUTSIDE the subgraph; the bare's reachable subtree becomes a `subgraph w_${frameId}["callable subtree of NAME"]` block. Frames computed via union-find — shared bares dedupe with `&` ribbons on call arrows. Bold `==> "call"` reserved for wrapper-to-bare; dotted `-.->` for frame dispatch (`return` / `halt` / `enter`). Plus engine memoization ([#175](https://github.com/mellonis/turing-machine-js/issues/175)) and nested-chain collapse ([#176](https://github.com/mellonis/turing-machine-js/issues/176)) for `.wohs()`.
+
+  **alpha.1** — initial v7 composition-representation overhaul:
   - **`withOverrodeHaltState` → `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: the past-participle `overridden` fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. The getter (`state.overrodeHaltState` → `state.overriddenHaltState`) and the serialized `Graph` data field (`node.overrodeHaltStateId` → `node.overriddenHaltStateId`) rename in lockstep. Consumer migration: global find/replace `OverrodeHaltState` → `OverriddenHaltState` and `overrodeHaltState` → `overriddenHaltState`. Persisted `State.toGraph` JSON dumps would need the same field-rename treatment, but persistence isn't a known consumer pattern.
   - **Paren-based wrapped-state naming** ([#148](https://github.com/mellonis/turing-machine-js/issues/148)). `withOverriddenHaltState`'s composite name format changed from flat `bare>override` to nested `bare(override)`. Same nesting depth reads as `A(B(A))` (bare = `A`, override = `B(A)`) versus `A(B)(A)` (bare = `A(B)`, override = `A`) — two structurally-different wrap-trees that the old `>`-flat notation collided into the single string `A>B>A`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` now throws at construction time if a user passes such a name. The `>` character stays valid in user names (no longer reserved). The `inspect()` / `toGraph` / `toMermaid` outputs carry the new format. `states.md` files in `library-binary-numbers` regenerate accordingly.
   - **`toMermaid` callable-subtree emit** ([#174](https://github.com/mellonis/turing-machine-js/issues/174), supersedes the alpha.1 collapsed-bare shape from #138/#139). `withOverriddenHaltState` is modeled as a function call: the wrapper is a `[[composite-name]]` call site OUTSIDE any subgraph, the bare's reachable subtree becomes a `subgraph w_${frameId}["callable subtree of NAME"] … end` block containing the bare + body states + a per-frame halt marker `c${frameId}(((halt)))`. Frames are computed via union-find on bare-reachability — overlapping reach sets merge into a single union frame, so shared bares (`library-binary-numbers/minusOne`'s `invertNumber`) appear ONCE with `& `-joined call arrows from each wrapper. Bold `==> "call"` arrows are reserved for the wrapper-to-bare call; dotted `-.->` is reserved for frame-level dispatch (`return` / `halt` / `enter`). The retired `-. onHalt .->` keyword is replaced by a solid `--> override` arrow (just an ordinary transition under the call/return mental model). `GraphNode` gains `isWrapper`, `bareStateId`, `frameId` fields (and drops `isWrapped`). Bytewise round-trip stability now holds for all wrapped states including shared-bare cases (no per-context duplication).
