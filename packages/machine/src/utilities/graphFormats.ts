@@ -210,24 +210,23 @@ export function toMermaid(graph: Graph): string {
   for (const frameId of frameIds) {
     if (!haltMarkerHasIncoming.get(frameId)) continue;
 
-    // Return arrow — collapsed `&` ribbon over all wrappers calling this frame.
+    // Return arrow — collapsed `&` ribbon over all wrappers calling this
+    // frame. Frames only exist because at least one wrapper's bareStateId
+    // points to a bare in the frame, so `callingWrappers` is always
+    // non-empty for any frame that reached this code path.
     const callingWrappers = wrapperNodes.filter((w) => {
-      if (w.bareStateId === null) return false;
+      const bare = graph.nodes[w.bareStateId!];
 
-      const bare = graph.nodes[w.bareStateId];
-
-      return !!bare && bare.frameId === frameId;
+      return bare.frameId === frameId;
     });
 
-    if (callingWrappers.length > 0) {
-      const targets = callingWrappers
-        .slice()
-        .sort((a, b) => a.id - b.id)
-        .map((w) => mermaidIdFor(w.id))
-        .join(' & ');
+    const targets = callingWrappers
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .map((w) => mermaidIdFor(w.id))
+      .join(' & ');
 
-      lines.push(`  ${frameSubgraphId(frameId)} -. "return" .-> ${targets}`);
-    }
+    lines.push(`  ${frameSubgraphId(frameId)} -. "return" .-> ${targets}`);
 
     if (hasNonWrapperEntry.get(frameId)) {
       lines.push(`  ${frameSubgraphId(frameId)} -. "halt" .-> s0`);
@@ -343,9 +342,11 @@ function emitTagAnnotations(lines: string[], nodes: GraphNode[]): void {
 // Helper: identify "the bare states" that anchor a frame's name. A bare is a
 // node referenced as some wrapper's `bareStateId`. Body states (also in-frame
 // but not bare) are excluded from the frame label.
+//
+// The caller in `toMermaid` only passes non-wrapper, non-halt-marker nodes
+// (wrappers go to a separate bucket; halt markers go to `haltMarkerByFrame`).
+// No defensive `isHalt` / `isWrapper` guards needed here.
 function isFrameBare(node: GraphNode, graph: Graph): boolean {
-  if (node.isWrapper || node.isHalt) return false;
-
   for (const other of Object.values(graph.nodes)) {
     if (other.isWrapper && other.bareStateId === node.id) {
       return true;
