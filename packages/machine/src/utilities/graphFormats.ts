@@ -135,11 +135,12 @@ export function toMermaid(graph: Graph): string {
       lines.push(`    ${mermaidIdFor(node.id)}["${labelOf(node)}"]`);
     }
 
-    const haltMarker = haltMarkerByFrame.get(frameId);
+    // Every frame has a halt marker — `State.toGraph`'s frame-emit pass
+    // creates one for each frame. Non-null assertion is safe; a defensive
+    // null check would be dead.
+    const haltMarker = haltMarkerByFrame.get(frameId)!;
 
-    if (haltMarker) {
-      lines.push(`    ${mermaidIdFor(haltMarker.id)}(((halt)))`);
-    }
+    lines.push(`    ${mermaidIdFor(haltMarker.id)}(((halt)))`);
 
     lines.push('  end');
   }

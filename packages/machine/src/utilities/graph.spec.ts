@@ -425,6 +425,56 @@ describe('fromMermaid ensureNode update branches', () => {
 
     expect(graph.nodes[1].isHalt).toBe(true);
   });
+
+  test('`class` line referencing an undeclared node creates it with a fallback name', () => {
+    // Defensive path: `ensureNode(id, {tags: [...]})` called without
+    // `opts.name` for a node that pass 1 didn't declare. Fires the
+    // `opts.name ?? mermaidIdFor(id)` fallback. Real `toMermaid` output
+    // never produces this (every node referenced by a `class` line is
+    // declared first), but hand-edited Mermaid can.
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K]/[S]\" --> s0",
+      '  class s99 tag_orphan', // s99 isn't declared anywhere else
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    expect(graph.nodes[99]).toBeDefined();
+    expect(graph.nodes[99].name).toBe('s99'); // fallback to mermaidIdFor(99)
+    expect(graph.nodes[99].tags).toEqual(['orphan']);
+  });
+
+  test('unlabeled `sN --> sM` from a non-wrapper source falls through to labeled-regex (no-op)', () => {
+    // Defensive path: the wrapper-override regex matches `sN --> sM`
+    // (unlabeled) only when the source is a wrapper. If hand-edited input
+    // has `sN --> sM` with N being a regular state, the wrapper-override
+    // branch doesn't fire (the `if (nodes[fromId].isWrapper)` guard) and
+    // the labeled-regex below also doesn't match (no label). No edge is
+    // added, no overriddenHaltStateId set. Documented as malformed-input
+    // behavior.
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s0(((halt)))',
+      '  s1["entry"]',     // s1 is a regular state, NOT a wrapper
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      '  s1 --> s0',       // unlabeled — wrapper-override regex matches but isWrapper is false
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    // No transition added, no overriddenHaltStateId set — the line is
+    // silently ignored.
+    expect(graph.nodes[1].transitions).toHaveLength(0);
+    expect(graph.nodes[1].overriddenHaltStateId).toBeNull();
+  });
 });
 
 // Pin the exact toMermaid output shown in packages/machine/README.md so the
