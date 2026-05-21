@@ -235,11 +235,14 @@ export function toMermaid(graph: Graph): string {
   }
 
   // 8. Wrapper-to-override arrows (regular solid).
+  //
+  // `wrapper.overriddenHaltStateId` is always non-null on wrapper nodes
+  // (set by `State.toGraph` for every `isWrapper: true` node — it's the
+  // wrapper's override target, which a wrapper by definition has). The
+  // non-null assertion is safe; a defensive null check would be dead.
   for (const wrapper of wrapperNodes) {
-    if (wrapper.overriddenHaltStateId === null) continue;
-
     lines.push(
-      `  ${mermaidIdFor(wrapper.id)} --> ${mermaidIdFor(wrapper.overriddenHaltStateId)}`,
+      `  ${mermaidIdFor(wrapper.id)} --> ${mermaidIdFor(wrapper.overriddenHaltStateId!)}`,
     );
   }
 
@@ -597,7 +600,12 @@ export function fromMermaid(text: string): Graph {
       const fromId = parseMermaidId(wo[1]);
       const toId = parseMermaidId(wo[2]);
 
-      if (nodes[fromId] && nodes[fromId].isWrapper) {
+      // The wrapper-override regex only matches `sN --> sM` (unlabeled);
+      // since `toMermaid` only emits this shape from wrappers, the source
+      // is guaranteed to be a wrapper if `fromMermaid`'s input came from
+      // `toMermaid`. `nodes[fromId]` is always populated (first pass emits
+      // node declarations before any edge parsing).
+      if (nodes[fromId].isWrapper) {
         nodes[fromId].overriddenHaltStateId = toId;
         continue;
       }

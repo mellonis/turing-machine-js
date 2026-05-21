@@ -582,7 +582,10 @@ export default class State {
 
         const node = nodes[id];
 
-        if (!node || node.isHalt || node.isWrapper) {
+        // `nodes[id]` is always populated for `id` that the BFS reached, so
+        // a defensive `!node` check would be dead. `isHalt` / `isWrapper`
+        // are real boundaries — both stop reach-set expansion.
+        if (node.isHalt || node.isWrapper) {
           continue;
         }
 
@@ -613,6 +616,10 @@ export default class State {
     // the component.
     const ufParent = new Map<number, number>();
 
+    // Note: no path compression. The union policy below ("smaller id always
+    // becomes root") keeps the tree flat — every union targets bares[0] as
+    // the root, so any node's parent IS the root. Walking up never exceeds
+    // one step. Path compression would be dead code under this invariant.
     const ufFind = (id: number): number => {
       if (!ufParent.has(id)) {
         ufParent.set(id, id);
@@ -622,16 +629,6 @@ export default class State {
 
       while (ufParent.get(root) !== root) {
         root = ufParent.get(root)!;
-      }
-
-      // Path compression
-      let cur = id;
-
-      while (ufParent.get(cur) !== root) {
-        const next = ufParent.get(cur)!;
-
-        ufParent.set(cur, root);
-        cur = next;
       }
 
       return root;
