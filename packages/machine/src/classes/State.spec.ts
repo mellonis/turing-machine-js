@@ -188,22 +188,52 @@ describe('State.withOverriddenHaltState', () => {
     expect(wrapped.name).toBe('inner(outer)');
   });
 
-  test('paren-naming distinguishes nestings that flat `>` notation would collide', () => {
+  test('paren-naming distinguishes wrapping where the override is itself wrapped', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const B = new State({[ifOtherSymbol]: {}}, 'B');
 
-    // Construction 1: bare=A, override=(B with override A)
+    // bare=A, override=(B with override A) — outer1 = A.wohs(B.wohs(A))
+    // Under #176, only `this` is unwrapped; the override (B.wohs(A)) is preserved as-is.
     const inner1 = B.withOverriddenHaltState(A);
     const outer1 = A.withOverriddenHaltState(inner1);
 
-    // Construction 2: bare=(A with override B), override=A
-    const inner2 = A.withOverriddenHaltState(B);
-    const outer2 = inner2.withOverriddenHaltState(A);
-
-    // Old `>` notation would collide both at "A>B>A". Paren notation keeps them distinct.
     expect(outer1.name).toBe('A(B(A))');
-    expect(outer2.name).toBe('A(B)(A)');
-    expect(outer1.name).not.toBe(outer2.name);
+    expect(outer1.overriddenHaltState).toBe(inner1);
+  });
+
+  test('nested `.wohs()` chain collapses inner overrides (#176)', () => {
+    // `A.wohs(t1).wohs(t2)` is equivalent to `A.wohs(t2)` — t1 is dead at
+    // runtime (only the outermost wohs's override is pushed onto the stack
+    // when the wrapper is entered; verified empirically by probe). The
+    // composite name reflects the runtime behavior, not construction history.
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {}}, 't2');
+
+    const W1 = A.withOverriddenHaltState(t1);
+    const W2 = W1.withOverriddenHaltState(t2);
+
+    // Composite name: outer override only, inner ('t1') dropped.
+    expect(W2.name).toBe('A(t2)');
+    expect(W2.overriddenHaltState).toBe(t2);
+
+    // Structurally equivalent to direct construction.
+    const W2direct = A.withOverriddenHaltState(t2);
+
+    expect(W2.name).toBe(W2direct.name);
+    expect(W2.overriddenHaltState).toBe(W2direct.overriddenHaltState);
+  });
+
+  test('3-deep `.wohs()` chain collapses to outermost override (#176)', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {}}, 't2');
+    const t3 = new State({[ifOtherSymbol]: {}}, 't3');
+
+    const W = A.withOverriddenHaltState(t1).withOverriddenHaltState(t2).withOverriddenHaltState(t3);
+
+    expect(W.name).toBe('A(t3)');
+    expect(W.overriddenHaltState).toBe(t3);
   });
 });
 

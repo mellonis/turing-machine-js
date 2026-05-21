@@ -280,11 +280,17 @@ export default class State {
     // private-field access (legal within the same class).
     const state = new State();
 
-    state.#name = `${this.name}(${overriddenHaltState.name})`;
-    state.#symbolToDataMap = this.#symbolToDataMap;
+    // Unwrap `this` if it's itself a wrapper — the chain's inner overrides
+    // are dead at runtime anyway (only the outermost `.wohs()`'s override is
+    // pushed onto the halt-stack on entry; verified empirically). Composite
+    // name reflects runtime behavior, not construction history. See #176.
+    const bare = this.#bareState ?? this;
+
+    state.#name = `${bare.name}(${overriddenHaltState.name})`;
+    state.#symbolToDataMap = bare.#symbolToDataMap;
     state.#overriddenHaltState = overriddenHaltState;
-    state.#debugRef = this.#debugRef;
-    state.#bareState = this;
+    state.#debugRef = bare.#debugRef;
+    state.#bareState = bare;
 
     return state;
   }
