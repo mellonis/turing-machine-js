@@ -568,6 +568,158 @@ Cross-subgraph entry `s_disp -- ['3'] --> s_X` triggers the `halt` arrow to emit
 
 The union model degrades gracefully — adding direct entry to a state inside the union just flips the `halt` arrow on. No new structural concept needed.
 
+### Worked union shapes — engine-emitted Mermaid
+
+Real `toMermaid` output (post-#174) for three increasingly merged union shapes. Each test machine has a dispatcher routing by tape symbol into per-bare wrappers `W = bare.withOverriddenHaltState(target)`. The bares' transitions land on shared body states that drive the union-find merge.
+
+#### Case 1: `A ∪ B` (two bares, one shared state)
+
+```text
+reach(A) = {A, X}
+reach(B) = {B, X}
+A ∩ B = {X} → union(A, B)
+```
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","1","2"]]
+  s0(((halt)))
+  s4["t1"]
+  s5["t2"]
+  s8["dispatcher"]
+  s6[["A(t1)"]]
+  s7[["B(t2)"]]
+  idle([idle])
+  subgraph w_2["callable scope: A ∪ B"]
+    s1["X"]
+    s2["A"]
+    s3["B"]
+    c2(((halt)))
+  end
+  idle -. enter .-> s8
+  s6 == "call" ==> s2
+  s7 == "call" ==> s3
+  w_2 -. "return" .-> s6 & s7
+  s6 --> s4
+  s7 --> s5
+  s1 -- "[*] → [K]/[S]" --> c2
+  s2 -- "[*] → [K]/[R]" --> s1
+  s3 -- "[*] → [K]/[R]" --> s1
+  s4 -- "[*] → [K]/[S]" --> s0
+  s5 -- "[*] → [K]/[S]" --> s0
+  s8 -- "['1'] → [K]/[S]" --> s6
+  s8 -- "['2'] → [K]/[S]" --> s7
+```
+
+Two `==> call` arrows into the same frame; one `& `-joined `return` ribbon back to both wrappers.
+
+#### Case 2: `A ∪ B ∪ C` (three bares, all share X directly)
+
+```text
+reach(A) = {A, X}
+reach(B) = {B, X}
+reach(C) = {C, X}
+Every pair intersects on X → all merge.
+```
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","1","2","3"]]
+  s0(((halt)))
+  s13["t1"]
+  s14["t2"]
+  s15["t3"]
+  s19["dispatcher"]
+  s16[["A(t1)"]]
+  s17[["B(t2)"]]
+  s18[["C(t3)"]]
+  idle([idle])
+  subgraph w_10["callable scope: A ∪ B ∪ C"]
+    s9["X"]
+    s10["A"]
+    s11["B"]
+    s12["C"]
+    c10(((halt)))
+  end
+  idle -. enter .-> s19
+  s16 == "call" ==> s10
+  s17 == "call" ==> s11
+  s18 == "call" ==> s12
+  w_10 -. "return" .-> s16 & s17 & s18
+  s16 --> s13
+  s17 --> s14
+  s18 --> s15
+  s9 -- "[*] → [K]/[S]" --> c10
+  s10 -- "[*] → [K]/[R]" --> s9
+  s11 -- "[*] → [K]/[R]" --> s9
+  s12 -- "[*] → [K]/[R]" --> s9
+  s13 -- "[*] → [K]/[S]" --> s0
+  s14 -- "[*] → [K]/[S]" --> s0
+  s15 -- "[*] → [K]/[S]" --> s0
+  s19 -- "['1'] → [K]/[S]" --> s16
+  s19 -- "['2'] → [K]/[S]" --> s17
+  s19 -- "['3'] → [K]/[S]" --> s18
+```
+
+Three `call` arrows, one three-way `& `-joined `return` ribbon. Same frame, one halt marker.
+
+#### Case 3: `(A ∪ B) ∪ C` — transitive (B and C don't share anything direct)
+
+```text
+reach(A) = {A, X, Y}
+reach(B) = {B, X}
+reach(C) = {C, Y}
+A ∩ B = {X}   → union(A, B)
+A ∩ C = {Y}   → union(A, C)  ← C joins {A, B} via A
+B ∩ C = ∅     ← but they end up in the same frame anyway, transitively
+```
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","1","2","3"]]
+  s0(((halt)))
+  s25["t1"]
+  s26["t2"]
+  s27["t3"]
+  s31["dispatcher"]
+  s28[["A(t1)"]]
+  s29[["B(t2)"]]
+  s30[["C(t3)"]]
+  idle([idle])
+  subgraph w_22["callable scope: A ∪ B ∪ C"]
+    s20["X"]
+    s21["Y"]
+    s22["A"]
+    s23["B"]
+    s24["C"]
+    c22(((halt)))
+  end
+  idle -. enter .-> s31
+  s28 == "call" ==> s22
+  s29 == "call" ==> s23
+  s30 == "call" ==> s24
+  w_22 -. "return" .-> s28 & s29 & s30
+  s28 --> s25
+  s29 --> s26
+  s30 --> s27
+  s20 -- "[*] → [K]/[S]" --> c22
+  s21 -- "[*] → [K]/[S]" --> c22
+  s22 -- "['1'] → [K]/[R]" --> s20
+  s22 -- "['2'] → [K]/[R]" --> s21
+  s23 -- "[*] → [K]/[R]" --> s20
+  s24 -- "[*] → [K]/[R]" --> s21
+  s25 -- "[*] → [K]/[S]" --> s0
+  s26 -- "[*] → [K]/[S]" --> s0
+  s27 -- "[*] → [K]/[S]" --> s0
+  s31 -- "['1'] → [K]/[S]" --> s28
+  s31 -- "['2'] → [K]/[S]" --> s29
+  s31 -- "['3'] → [K]/[S]" --> s30
+```
+
+Two shared body states (X, Y). B reaches X only; C reaches Y only. They never see each other directly — yet they live in the same frame because A bridges them. The union-find transitive-closure step is what bundles them.
+
+**Reading rule encoded in the emit:** one subgraph = one union component. The label tells you how many bares share the scope. `& `-joined `call` / `return` arrows tell you how many wrappers are in play (always one per wrapper; the union collapses bares, never wrappers).
+
 ## Data model changes
 
 The callable-subtree model **un-collapses what v7 alpha.1 collapsed**. In alpha.1, each `withOverriddenHaltState` wrapper produces ONE `GraphNode` representing both the wrapper and its bare (the bare is "collapsed onto" the wrapper's id, with `isWrapped: true`). Under the new model, **wrappers and bares are separate `GraphNode` instances**:
