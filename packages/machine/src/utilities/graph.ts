@@ -49,6 +49,11 @@ export type GraphNode = {
   // `haltState`. Halt marker id = `-frameId` (sits in disjoint negative-id
   // range from real node ids).
   isHaltMarker: boolean;
+  // Out-of-band tags applied to this State (#186). Empty array if untagged.
+  // Survives `toGraph`/`fromGraph` round-trip and renders in `toMermaid` as
+  // `classDef tag_<name>` + `class sN tag_<name>` lines. Doesn't affect
+  // runtime semantics — purely a visualization/debugger-tooling channel.
+  tags: string[];
 };
 
 export type Graph = {
