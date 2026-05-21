@@ -345,9 +345,9 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
-        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 2, isWrapped: false, isHaltMarker: false},
-        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 1, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'a', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 2, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        2: {id: 2, name: 'b', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: 1, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     };
 

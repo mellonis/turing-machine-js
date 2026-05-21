@@ -20,9 +20,31 @@ export type GraphNode = {
   transitions: GraphTransition[];
   overriddenHaltStateId: number | null;
   // `true` when this node represents the bare of a `withOverriddenHaltState`-
-  // wrapped state. Carries the `[[…]]` (subroutine) shape signal for `toMermaid`
-  // and tells `fromGraph` to reconstruct via `bare.withOverriddenHaltState(target)`.
+  // wrapped state under v7 alpha.1's collapsed emit. Carries the `[[…]]`
+  // (subroutine) shape signal for `toMermaid` and tells `fromGraph` to
+  // reconstruct via `bare.withOverriddenHaltState(target)`. The new
+  // un-collapsed model (#174) supersedes this with `isWrapper` + `bareStateId`
+  // below; `isWrapped` is retained transitionally for backward-compat during
+  // the cutover.
   isWrapped: boolean;
+  // New (#174): `true` for external `[[…]]` wrapper nodes that have a
+  // separate bare node in the graph. The wrapper sits outside any subtree
+  // subgraph; its `bareStateId` points to the corresponding bare GraphNode
+  // (which lives inside its home subtree). Multiple wrapper nodes can share
+  // the same `bareStateId` when they wrap the same bare with different
+  // override targets. Under the new model, `isWrapped: false` for these
+  // nodes — the wrapper-vs-bare distinction is carried by `isWrapper`.
+  isWrapper: boolean;
+  // New (#174): on wrapper nodes (`isWrapper: true`), the id of the bare
+  // GraphNode this wrapper wraps. `null` for non-wrapper nodes.
+  bareStateId: number | null;
+  // New (#174): the id of the wrapper whose callable subtree this node lives
+  // in. `null` for nodes outside any subtree (top-level states, real halt
+  // singleton, wrapper nodes themselves, the `idle` visualization sentinel).
+  // Set on bares, body states, and halt markers. Two bares may share a
+  // `frameId` when union-find merges their reachable sets (shared body state
+  // forces a union frame; see spec Example "Shared body state").
+  frameId: number | null;
   // `true` for a synthesized halt marker graph node — one per wrapper context.
   // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have both
   // `true`. `fromGraph` maps halt-marker nodes back to the singleton `haltState`.

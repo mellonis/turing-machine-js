@@ -118,9 +118,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [
             {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
             {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
@@ -144,8 +144,8 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     });
 
@@ -157,9 +157,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
       },
     });
 
@@ -171,9 +171,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isWrapped: false, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
           transitions: [{
             pattern: "'0','a'",
             command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],

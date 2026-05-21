@@ -435,6 +435,9 @@ export default class State {
             isHalt: true,
             isHaltMarker: false,
             isWrapped: false,
+            isWrapper: false,
+            bareStateId: null,
+            frameId: null,
             transitions: [],
             overriddenHaltStateId: null,
           };
@@ -470,6 +473,9 @@ export default class State {
             isHalt: true,
             isHaltMarker: true,
             isWrapped: false,
+            isWrapper: false,
+            bareStateId: null,
+            frameId: null,
             transitions: [],
             overriddenHaltStateId: null,
           };
@@ -482,6 +488,9 @@ export default class State {
           isHalt: false,
           isHaltMarker: false,
           isWrapped: true,
+          isWrapper: false,
+          bareStateId: null,
+          frameId: null,
           transitions: [],
           overriddenHaltStateId: overrideGraphId,
         };
@@ -553,6 +562,9 @@ export default class State {
         isHalt: false,
         isHaltMarker: false,
         isWrapped: false,
+        isWrapper: false,
+        bareStateId: null,
+        frameId: null,
         transitions: [],
         overriddenHaltStateId: null,
       };

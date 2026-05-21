@@ -206,6 +206,9 @@ export function fromMermaid(text: string): Graph {
       isHalt?: boolean;
       isHaltMarker?: boolean;
       isWrapped?: boolean;
+      isWrapper?: boolean;
+      bareStateId?: number | null;
+      frameId?: number | null;
     } = {},
   ): GraphNode => {
     if (!nodes[id]) {
@@ -215,6 +218,9 @@ export function fromMermaid(text: string): Graph {
         isHalt: opts.isHalt ?? false,
         isHaltMarker: opts.isHaltMarker ?? false,
         isWrapped: opts.isWrapped ?? false,
+        isWrapper: opts.isWrapper ?? false,
+        bareStateId: opts.bareStateId ?? null,
+        frameId: opts.frameId ?? null,
         transitions: [],
         overriddenHaltStateId: null,
       };
@@ -223,6 +229,9 @@ export function fromMermaid(text: string): Graph {
       if (opts.isHalt !== undefined) nodes[id].isHalt = opts.isHalt;
       if (opts.isHaltMarker !== undefined) nodes[id].isHaltMarker = opts.isHaltMarker;
       if (opts.isWrapped !== undefined) nodes[id].isWrapped = opts.isWrapped;
+      if (opts.isWrapper !== undefined) nodes[id].isWrapper = opts.isWrapper;
+      if (opts.bareStateId !== undefined) nodes[id].bareStateId = opts.bareStateId;
+      if (opts.frameId !== undefined) nodes[id].frameId = opts.frameId;
     }
 
     return nodes[id];
