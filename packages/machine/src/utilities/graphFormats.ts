@@ -290,9 +290,12 @@ const labeledTransitionRegex = /^([sc]\d+)\s+--\s+"(.*)"\s+-->\s+([sc]\d+)$/;
 // Wrapper → override (unlabeled solid `-->`).
 const wrapperOverrideRegex = /^(s\d+)\s+-->\s+([sc]\d+)$/;
 // Call arrow (bold `==>`), with optional `&`-joined source ribbon.
-const callArrowRegex = /^(s\d+(?:\s+&\s+s\d+)*)\s+==\s+"call"\s+==>\s+(s\d+)$/;
+// Ribbon separator is fixed at " & " (single spaces around &) — toMermaid
+// emits exactly that form, so the parser is strict to it. The literal-space
+// form avoids CodeQL's polynomial-ReDoS flag on a `\s+&\s+` shape.
+const callArrowRegex = /^(s\d+(?: & s\d+)*)\s+==\s+"call"\s+==>\s+(s\d+)$/;
 // Return arrow (`w_N -. return .-> s_W` with optional `&` target ribbon).
-const returnArrowRegex = /^w_(\d+)\s+-\.\s+"return"\s+\.->\s+(s\d+(?:\s+&\s+s\d+)*)$/;
+const returnArrowRegex = /^w_(\d+)\s+-\.\s+"return"\s+\.->\s+(s\d+(?: & s\d+)*)$/;
 // Halt arrow (`w_N -. halt .-> s0`).
 const haltArrowRegex = /^w_(\d+)\s+-\.\s+"halt"\s+\.->\s+s0$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
@@ -425,7 +428,7 @@ export function fromMermaid(text: string): Graph {
     const cm = line.match(callArrowRegex);
 
     if (cm) {
-      const sources = cm[1].split(/\s+&\s+/);
+      const sources = cm[1].split(' & ');
       const bareId = parseMermaidId(cm[2]);
 
       for (const src of sources) {
