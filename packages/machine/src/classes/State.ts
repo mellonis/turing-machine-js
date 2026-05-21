@@ -72,6 +72,13 @@ export class DebugConfig {
 }
 
 export default class State {
+  // Memoization cache for `withOverriddenHaltState`. Keyed by
+  // (bare, override) — same args return the same wrapper instance (#175).
+  // Two-level WeakMap so the outer entry is GC'd when the bare is collected;
+  // WeakRef values let wrappers themselves be GC'd when nothing else holds
+  // them, with cache misses simply reconstructing fresh wrappers.
+  static #wrapperCache = new WeakMap<State, WeakMap<State, WeakRef<State>>>();
+
   readonly #id: number = id(this);
 
   // Not `readonly` because `withOverriddenHaltState` and `fromGraph` set the
@@ -274,23 +281,46 @@ export default class State {
   }
 
   withOverriddenHaltState(overriddenHaltState: State) {
-    // Construct with no name, then overwrite #name directly — the composed
-    // name contains `(` and `)` by design, which the constructor's user-facing
-    // validation would reject. Internal composition bypasses validation via
-    // private-field access (legal within the same class).
-    const state = new State();
-
     // Unwrap `this` if it's itself a wrapper — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
     // pushed onto the halt-stack on entry; verified empirically). Composite
     // name reflects runtime behavior, not construction history. See #176.
     const bare = this.#bareState ?? this;
 
+    // Memoize by (bare, override) so identical args return the same instance
+    // (#175). The cache uses WeakMaps + WeakRefs so cached wrappers can be
+    // GC'd when nothing else holds them. Compounds with the chain-collapse
+    // above: `A.wohs(t1).wohs(t2)` keys as (A, t2) after the unwrap, hitting
+    // the same cache slot as a direct `A.wohs(t2)`.
+    let innerCache = State.#wrapperCache.get(bare);
+
+    if (innerCache !== undefined) {
+      const ref = innerCache.get(overriddenHaltState);
+
+      if (ref !== undefined) {
+        const cached = ref.deref();
+
+        if (cached !== undefined) {
+          return cached;
+        }
+      }
+    } else {
+      innerCache = new WeakMap();
+      State.#wrapperCache.set(bare, innerCache);
+    }
+
+    // Cache miss — construct with no name, then overwrite #name directly
+    // (composed names contain `(` and `)` which the constructor's user-facing
+    // validation would reject; private-field access bypasses that).
+    const state = new State();
+
     state.#name = `${bare.name}(${overriddenHaltState.name})`;
     state.#symbolToDataMap = bare.#symbolToDataMap;
     state.#overriddenHaltState = overriddenHaltState;
     state.#debugRef = bare.#debugRef;
     state.#bareState = bare;
+
+    innerCache.set(overriddenHaltState, new WeakRef(state));
 
     return state;
   }
