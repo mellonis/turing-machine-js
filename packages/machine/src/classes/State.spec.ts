@@ -332,6 +332,95 @@ describe('State.toGraph — unbound Reference', () => {
   });
 });
 
+describe('State tags (#186)', () => {
+  test('a fresh State has an empty tags array', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    expect(s.tags).toEqual([]);
+  });
+
+  test('tag() adds tags and is chainable', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    const ret = s.tag('hot', 'sampled');
+
+    expect(ret).toBe(s);
+    expect(s.tags).toEqual(['hot', 'sampled']);
+  });
+
+  test('tag() de-duplicates repeated tags', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    s.tag('hot');
+    s.tag('hot', 'cold');
+
+    expect(s.tags).toEqual(['hot', 'cold']);
+  });
+
+  test('untag() removes tags and is chainable', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    s.tag('hot', 'sampled', 'cold');
+    const ret = s.untag('hot');
+
+    expect(ret).toBe(s);
+    expect(s.tags).toEqual(['sampled', 'cold']);
+  });
+
+  test('untag() of a non-present tag is a no-op', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    s.tag('a');
+    s.untag('not-present');
+
+    expect(s.tags).toEqual(['a']);
+  });
+
+  test('tags getter returns a frozen snapshot — caller cannot mutate', () => {
+    const s = new State({[ifOtherSymbol]: {nextState: haltState}});
+
+    s.tag('a');
+    const snapshot = s.tags;
+
+    expect(() => {
+      (snapshot as unknown as string[]).push('b');
+    }).toThrow();
+
+    expect(s.tags).toEqual(['a']);
+  });
+
+  test('tags are scoped to the wrapper instance, not the shared bare (#175 sharing)', () => {
+    // Engine #175 memoization means `A.wohs(t1)` and `A.wohs(t2)` produce
+    // distinct wrapper instances even though they share the same `#symbolToDataMap`.
+    // Tags must live on the wrapper instance — tagging one wrapper must NOT
+    // propagate to siblings sharing the same bare.
+    const A = new State({[ifOtherSymbol]: {nextState: haltState}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {nextState: haltState}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {nextState: haltState}}, 't2');
+
+    const W1 = A.withOverriddenHaltState(t1);
+    const W2 = A.withOverriddenHaltState(t2);
+
+    W1.tag('hot');
+
+    expect(W1.tags).toEqual(['hot']);
+    expect(W2.tags).toEqual([]); // no leak across wrappers sharing a bare
+    expect(A.tags).toEqual([]);  // no leak to the bare either
+  });
+
+  test('haltState is not specially excluded from tagging', () => {
+    // No reason to forbid tagging haltState. Engine doesn't impose a tag
+    // semantic, so tagging the halt singleton is the consumer's call.
+    haltState.tag('halt-debug-marker');
+
+    expect(haltState.tags).toContain('halt-debug-marker');
+
+    // Cleanup so other tests don't see the residue.
+    haltState.untag('halt-debug-marker');
+    expect(haltState.tags).not.toContain('halt-debug-marker');
+  });
+});
+
 describe('State.fromGraph — cyclic override-halt chain', () => {
   test('throws when the override-halt graph has a cycle', () => {
     // Under the v7 callable-subtree model, override-halt chains live on
@@ -343,10 +432,10 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'wA', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null},
-        2: {id: 2, name: 'wB', isHalt: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null},
-        3: {id: 3, name: 'shared', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'wA', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
+        2: {id: 2, name: 'wB', isHalt: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
+        3: {id: 3, name: 'shared', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
       },
     };
 

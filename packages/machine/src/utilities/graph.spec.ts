@@ -118,9 +118,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
           transitions: [
             {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
             {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
@@ -147,8 +147,8 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isHaltMarker: false, isWrapper: true, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isHaltMarker: false, isWrapper: true, bareStateId: null, frameId: null, tags: []},
       },
     });
 
@@ -161,9 +161,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
       },
     });
 
@@ -175,9 +175,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null},
+        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null,
+          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
           transitions: [{
             pattern: "'0','a'",
             command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],
@@ -905,5 +905,101 @@ describe('spec doc: worked union shapes are real engine emit', () => {
     ].join('\n');
 
     expect(stripIds(out)).toBe(expected);
+  });
+});
+
+describe('toMermaid: tags (#186)', () => {
+  test('no tags → no classDef / class lines', () => {
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'plain');
+
+    const out = toMermaid(State.toGraph(s, tapeBlock));
+
+    expect(out).not.toContain('classDef');
+    expect(out).not.toContain('class ');
+  });
+
+  test('one tag → one classDef + matching class assignment', () => {
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'tagged').tag('hot');
+
+    const out = toMermaid(State.toGraph(s, tapeBlock));
+
+    expect(out).toMatch(/classDef tag_hot /);
+    expect(out).toMatch(/class s\d+ tag_hot/);
+  });
+
+  test('multiple states sharing a tag → one classDef, comma-joined ids in class', () => {
+    const alphabet = new Alphabet([' ', '0', '1']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+    const b = new State({
+      [symbol(['1'])]: {nextState: haltState},
+    }, 'b').tag('hot');
+    const a = new State({
+      [symbol(['0'])]: {nextState: b},
+    }, 'a').tag('hot');
+
+    const out = toMermaid(State.toGraph(a, tapeBlock));
+
+    expect((out.match(/classDef tag_hot /g) ?? []).length).toBe(1);
+    // Two states share the tag — emitted on one `class` line with
+    // comma-joined ids.
+    expect(out).toMatch(/class s\d+,s\d+ tag_hot/);
+  });
+
+  test('multiple tags on one state → one class line per tag', () => {
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'tagged').tag('hot', 'sampled');
+
+    const out = toMermaid(State.toGraph(s, tapeBlock));
+
+    expect(out).toMatch(/classDef tag_hot /);
+    expect(out).toMatch(/classDef tag_sampled /);
+    expect(out).toMatch(/class s\d+ tag_hot/);
+    expect(out).toMatch(/class s\d+ tag_sampled/);
+  });
+});
+
+describe('fromMermaid: tags (#186)', () => {
+  test('parses classDef + class lines back into GraphNode.tags', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s0(((halt)))',
+      '  s1["a"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      "  s1 -- \"['0'] → [K]/[S]\" --> s0",
+      '  classDef tag_hot fill:#fef3c7',
+      '  class s1 tag_hot',
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    expect(graph.nodes[1].tags).toEqual(['hot']);
+    expect(graph.nodes[0].tags).toEqual([]);
+  });
+
+  test('multi-tag round-trip preserves order', () => {
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'rt').tag('alpha', 'beta');
+
+    const emitted = toMermaid(State.toGraph(s, tapeBlock));
+    const reparsed = fromMermaid(emitted);
+
+    expect(reparsed.nodes[s.id].tags).toEqual(['alpha', 'beta']);
   });
 });

@@ -102,6 +102,15 @@ export default class State {
   // a runtime concern, not part of the structural graph.
   #debugRef: { current: DebugConfig | null } = {current: null};
 
+  // Out-of-band tags applied to this State (#186). Tags are visualization
+  // and debugger-tooling metadata — they don't affect runtime transition
+  // lookup or `equivalentOn` comparisons. Stored as a Set for de-duplication;
+  // exposed via the `tags` getter as a frozen array snapshot. Lives on the
+  // State INSTANCE so wrappers (from `withOverriddenHaltState`) carry tags
+  // independently of their bare's tag set — see the #175 sharing test in
+  // State.spec.ts.
+  #tags: Set<string> = new Set();
+
   constructor(stateDefinition: Record<string | symbol, {
     command?: Command | ConstructorParameters<typeof TapeCommand>[0] | ConstructorParameters<typeof TapeCommand>[0][],
     nextState?: State | Reference,
@@ -214,6 +223,41 @@ export default class State {
     }
 
     this.#debugRef.current = new DebugConfig(this, value);
+  }
+
+  /**
+   * Add one or more tags to this State (#186). Tags are out-of-band metadata
+   * used by visualization (`toMermaid` emits `classDef`/`class` lines) and
+   * debugger tooling — they don't affect runtime transition lookup,
+   * `equivalentOn` comparisons, or any structural identity. Chainable.
+   */
+  tag(...tags: string[]): this {
+    for (const t of tags) {
+      this.#tags.add(t);
+    }
+
+    return this;
+  }
+
+  /**
+   * Remove one or more tags from this State (#186). Untagging a tag the
+   * State doesn't carry is a no-op. Chainable.
+   */
+  untag(...tags: string[]): this {
+    for (const t of tags) {
+      this.#tags.delete(t);
+    }
+
+    return this;
+  }
+
+  /**
+   * Frozen snapshot of this State's current tags (#186). The returned array
+   * is `Object.freeze`d — mutating it throws in strict mode (which TS-emitted
+   * code uses). Order matches insertion order of the underlying Set.
+   */
+  get tags(): readonly string[] {
+    return Object.freeze([...this.#tags]);
   }
 
   /** @internal — invoked by DebugConfig setters via module-private symbol. */
@@ -429,6 +473,7 @@ export default class State {
             frameId: null,
             transitions: [],
             overriddenHaltStateId: null,
+            tags: [...state.#tags],
           };
         }
 
@@ -450,6 +495,7 @@ export default class State {
           frameId: null,
           transitions: [],
           overriddenHaltStateId: overrideTarget.#id,
+          tags: [...state.#tags],
         };
 
         bareIds.add(bareState.#id);
@@ -470,6 +516,7 @@ export default class State {
         frameId: null,
         transitions: [],
         overriddenHaltStateId: null,
+        tags: [...state.#tags],
       };
 
       nodes[state.#id] = node;
@@ -515,6 +562,7 @@ export default class State {
         frameId: null,
         transitions: [],
         overriddenHaltStateId: null,
+        tags: [...haltState.#tags],
       };
     }
 
@@ -672,6 +720,7 @@ export default class State {
         frameId,
         transitions: [],
         overriddenHaltStateId: null,
+        tags: [],
       };
     }
 
@@ -764,6 +813,11 @@ export default class State {
       const bare = new State(stateDefinition);
 
       bare.#name = node.name;
+
+      if (node.tags.length > 0) {
+        bare.tag(...node.tags);
+      }
+
       bareStates[nodeId] = bare;
     }
 
@@ -799,6 +853,14 @@ export default class State {
         const override = getFinal(node.overriddenHaltStateId!);
 
         state = bare.withOverriddenHaltState(override);
+
+        // Apply wrapper-scoped tags (#186). Tags don't leak across wrappers
+        // sharing a bare — the wrapper instance owns its own tag set, and
+        // engine #175 memoization returns the same instance for the same
+        // (bare, override) pair, so this is idempotent across rebuilds.
+        if (node.tags.length > 0) {
+          state.tag(...node.tags);
+        }
       } else {
         state = bareStates[nodeId];
       }

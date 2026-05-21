@@ -83,6 +83,17 @@ export function toMermaid(graph: Graph): string {
     }
   }
 
+  // Build the visible-label string for a node — name plus, if tagged, a
+  // `<br>tag1, tag2, ...` suffix so the rendered Mermaid shows both. Tags
+  // are the source of truth on the GraphNode; `<br>` is the universal
+  // Mermaid line-break that works across renderers without `classDef`-
+  // pseudo-element hacks (#186).
+  const labelOf = (node: GraphNode): string => {
+    if (node.tags.length === 0) return node.name;
+
+    return `${node.name}<br>${node.tags.join(', ')}`;
+  };
+
   // 1. Emit top-level nodes (real halt, non-wrapper regulars outside any frame).
   for (const node of topLevelNodes) {
     const mid = mermaidIdFor(node.id);
@@ -90,13 +101,13 @@ export function toMermaid(graph: Graph): string {
     if (node.isHalt) {
       lines.push(`  ${mid}(((halt)))`);
     } else {
-      lines.push(`  ${mid}["${node.name}"]`);
+      lines.push(`  ${mid}["${labelOf(node)}"]`);
     }
   }
 
   // 2. Emit wrappers at top level.
   for (const wrapper of wrapperNodes) {
-    lines.push(`  ${mermaidIdFor(wrapper.id)}[["${wrapper.name}"]]`);
+    lines.push(`  ${mermaidIdFor(wrapper.id)}[["${labelOf(wrapper)}"]]`);
   }
 
   // 3. `idle` sentinel.
@@ -121,7 +132,7 @@ export function toMermaid(graph: Graph): string {
 
     // Inner nodes — sort by id for determinism.
     for (const node of (nodesByFrame.get(frameId) ?? []).slice().sort((a, b) => a.id - b.id)) {
-      lines.push(`    ${mermaidIdFor(node.id)}["${node.name}"]`);
+      lines.push(`    ${mermaidIdFor(node.id)}["${labelOf(node)}"]`);
     }
 
     const haltMarker = haltMarkerByFrame.get(frameId);
@@ -249,7 +260,81 @@ export function toMermaid(graph: Graph): string {
     }
   }
 
+  // 10. Tags (#186) — emit one `classDef tag_<name> fill:#...` per unique
+  //     tag across all nodes, then one `class <ids> tag_<name>` line per
+  //     tag listing every node that carries it (comma-joined for compact
+  //     emit). Tag-name → CSS-class identifier sanitization replaces any
+  //     char outside `[A-Za-z0-9_-]` with `_`; tag-name uniqueness in the
+  //     emit assumes user tags are already distinct after sanitization
+  //     (collisions are user error).
+  emitTagAnnotations(lines, nodes);
+
   return lines.join('\n');
+}
+
+// Default Mermaid `classDef` palette — 6 visually distinct fill+stroke pairs,
+// selected by tag-name hash so multi-tag diagrams look readable out of the
+// box without user configuration. Users who want different colors can edit
+// the emitted Mermaid before rendering or override post-emit.
+const TAG_PALETTE: ReadonlyArray<readonly [string, string]> = [
+  ['#fef3c7', '#92400e'], // amber
+  ['#dbeafe', '#1e40af'], // blue
+  ['#dcfce7', '#166534'], // green
+  ['#fce7f3', '#9d174d'], // pink
+  ['#ede9fe', '#5b21b6'], // violet
+  ['#fee2e2', '#991b1b'], // red
+];
+
+function sanitizeTagName(tag: string): string {
+  return tag.replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function tagColor(tag: string): readonly [string, string] {
+  // Cheap deterministic hash — sum of char codes mod palette length. Stable
+  // across runs; same tag name always picks the same color.
+  let h = 0;
+
+  for (let i = 0; i < tag.length; i += 1) {
+    h = (h + tag.charCodeAt(i)) % TAG_PALETTE.length;
+  }
+
+  return TAG_PALETTE[h];
+}
+
+function emitTagAnnotations(lines: string[], nodes: GraphNode[]): void {
+  // Collect nodes per tag in node-id order so output is deterministic.
+  const nodesByTag = new Map<string, number[]>();
+
+  for (const node of nodes) {
+    for (const tag of node.tags) {
+      let list = nodesByTag.get(tag);
+
+      if (!list) {
+        list = [];
+        nodesByTag.set(tag, list);
+      }
+
+      list.push(node.id);
+    }
+  }
+
+  if (nodesByTag.size === 0) return;
+
+  const sortedTags = [...nodesByTag.keys()].sort();
+
+  for (const tag of sortedTags) {
+    const sanitized = sanitizeTagName(tag);
+    const [fill, stroke] = tagColor(tag);
+
+    lines.push(`  classDef tag_${sanitized} fill:${fill},stroke:${stroke}`);
+  }
+
+  for (const tag of sortedTags) {
+    const sanitized = sanitizeTagName(tag);
+    const ids = nodesByTag.get(tag)!.map((id) => mermaidIdFor(id)).join(',');
+
+    lines.push(`  class ${ids} tag_${sanitized}`);
+  }
 }
 
 // Helper: identify "the bare states" that anchor a frame's name. A bare is a
@@ -301,6 +386,32 @@ const haltArrowRegex = /^w_(\d+)\s+-\.\s+"halt"\s+\.->\s+s0$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
 // the preceding \s* and a permissive (.+); see CodeQL js/polynomial-redos.
 const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
+// Tag annotation lines (#186). Matches both `classDef tag_<sanitized>` and
+// `class <id-list> tag_<sanitized>`. ClassDef declarations are decorative
+// (palette) and discarded on parse — toMermaid will regenerate them from
+// the tag set on re-emit. `class` lines carry the actual graph-node
+// assignments; we strip the `tag_` prefix and assign each tag to each
+// listed node's `tags` array.
+const classDefTagRegex = /^classDef\s+tag_([A-Za-z0-9_-]+)\s+.+$/;
+const classAssignTagRegex = /^class\s+([sc]\d+(?:,[sc]\d+)*)\s+tag_([A-Za-z0-9_-]+)$/;
+
+// Splits a node label like `"A<br>hot, sampled"` into its name and tags (#186).
+// Labels without `<br>` have no tags. Tags are comma-joined; trimmed of
+// whitespace. The `<br>` is the single source of truth for tag-name parsing —
+// `class` lines are decorative-only and not consulted here.
+function splitLabelTags(label: string): {name: string; tags: string[]} {
+  const brIx = label.indexOf('<br>');
+
+  if (brIx < 0) {
+    return {name: label, tags: []};
+  }
+
+  const name = label.slice(0, brIx);
+  const tagsStr = label.slice(brIx + '<br>'.length);
+  const tags = tagsStr.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+
+  return {name, tags};
+}
 
 export function fromMermaid(text: string): Graph {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -319,6 +430,7 @@ export function fromMermaid(text: string): Graph {
       isWrapper?: boolean;
       bareStateId?: number | null;
       frameId?: number | null;
+      tags?: string[];
     } = {},
   ): GraphNode => {
     if (!nodes[id]) {
@@ -332,6 +444,7 @@ export function fromMermaid(text: string): Graph {
         frameId: opts.frameId ?? null,
         transitions: [],
         overriddenHaltStateId: null,
+        tags: opts.tags ? [...opts.tags] : [],
       };
     } else {
       if (opts.name !== undefined) nodes[id].name = opts.name;
@@ -340,6 +453,11 @@ export function fromMermaid(text: string): Graph {
       if (opts.isWrapper !== undefined) nodes[id].isWrapper = opts.isWrapper;
       if (opts.bareStateId !== undefined) nodes[id].bareStateId = opts.bareStateId;
       if (opts.frameId !== undefined) nodes[id].frameId = opts.frameId;
+      if (opts.tags !== undefined) {
+        for (const t of opts.tags) {
+          if (!nodes[id].tags.includes(t)) nodes[id].tags.push(t);
+        }
+      }
     }
 
     return nodes[id];
@@ -355,6 +473,11 @@ export function fromMermaid(text: string): Graph {
       alphabets = JSON.parse(am[1]);
       continue;
     }
+
+    // Tag annotations (#186) — classDef lines are decorative and skipped;
+    // `class` lines are parsed in the edge pass since they reference nodes
+    // by id and need those nodes already created in the first pass.
+    if (classDefTagRegex.test(line)) continue;
 
     const sgStart = line.match(subgraphStartRegex);
 
@@ -389,9 +512,12 @@ export function fromMermaid(text: string): Graph {
     const wm = line.match(wrappedNodeRegex);
 
     if (wm) {
+      const {name, tags} = splitLabelTags(wm[2]);
+
       ensureNode(parseMermaidId(wm[1]), {
-        name: wm[2],
+        name,
         isWrapper: true,
+        tags,
       });
 
       continue;
@@ -400,9 +526,12 @@ export function fromMermaid(text: string): Graph {
     const rm = line.match(regularNodeRegex);
 
     if (rm) {
+      const {name, tags} = splitLabelTags(rm[2]);
+
       ensureNode(parseMermaidId(rm[1]), {
-        name: rm[2],
+        name,
         frameId: currentFrameId,
+        tags,
       });
 
       continue;
@@ -421,6 +550,23 @@ export function fromMermaid(text: string): Graph {
     // Return/halt arrows are derivable from frame structure at the next
     // toMermaid emit; consume but don't persist as graph data.
     if (returnArrowRegex.test(line) || haltArrowRegex.test(line)) {
+      continue;
+    }
+
+    // Tag class-assignment line (#186): `class s1,s5 tag_hot` — adds
+    // the tag to each listed node. Tag-name preserved as written
+    // (sanitization on emit is lossy in principle; on parse we don't
+    // un-sanitize, since the original could have any characters).
+    const tagMatch = line.match(classAssignTagRegex);
+
+    if (tagMatch) {
+      const ids = tagMatch[1].split(',');
+      const tagName = tagMatch[2];
+
+      for (const idStr of ids) {
+        ensureNode(parseMermaidId(idStr), {tags: [tagName]});
+      }
+
       continue;
     }
 
