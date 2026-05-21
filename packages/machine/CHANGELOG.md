@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.2] - 2026-05-21
+
+Second v7 pre-release. Refines alpha.1's `toMermaid` wrapped-state emit into the function-call model ([#174](https://github.com/mellonis/turing-machine-js/issues/174)) and adds two construction-time improvements to `withOverriddenHaltState` ([#175](https://github.com/mellonis/turing-machine-js/issues/175), [#176](https://github.com/mellonis/turing-machine-js/issues/176)). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.2`. Migration walkthrough at the bottom.
+
+### Changed
+
+- **`toMermaid` callable-subtree emit** ([#174](https://github.com/mellonis/turing-machine-js/issues/174)) — supersedes alpha.1's collapsed-bare emit (#138/#139) with a function-call model:
+  - **Wrapper and bare are separate graph nodes.** The wrapper sits OUTSIDE any subgraph as `[[composite-name]]` (call site). The bare lives INSIDE its callable subtree subgraph as a regular `[name]` node.
+  - **Subgraph label** changed from `"halt frame"` to `"callable subtree of NAME"` (single bare) or `"callable scope: A ∪ B"` (multi-bare union frame).
+  - **Halt marker is per-frame**, not per-wrapper. When union-find merges two bares' subtrees (shared body state), they share one halt marker.
+  - **Arrow vocabulary rewritten**:
+    - Solid `-->` for regular transitions AND for the wrapper's post-return `--> override` (just an ordinary transition under the call/return model).
+    - Bold `==> "call"` is RESERVED for the wrapper-to-bare call. `&` ribbon syntax (`s_W1 & s_W2 == "call" ==> s_A`) collapses multiple wrappers that share a bare.
+    - Dotted `-.->` is reserved for frame-level dispatch: `w_N -. "return" .-> wrapper` (demand-emit), `w_N -. "halt" .-> s0` (demand-emit on non-wrapper entry), `idle -. enter .-> sN` (unchanged).
+    - The `-. onHalt .->` keyword from alpha.1 is **retired** — replaced by a solid `--> override` arrow.
+  - **No per-context duplication.** Shared bares (e.g. `library-binary-numbers/minusOne`'s `invertNumber`, called by two wrappers) appear as a single subtree with `& `-joined call arrows from each wrapper.
+  - **`GraphNode` field changes**: `isWrapped` removed; `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null` added. `overriddenHaltStateId` now lives on wrapper nodes only.
+  - Bytewise round-trip stability now holds for **all** wrapped states, including shared-bare cases (alpha.1 was only stable for simple wrappers).
+
+- **Nested `.wohs()` chain collapse** ([#176](https://github.com/mellonis/turing-machine-js/issues/176)) — `A.withOverriddenHaltState(t1).withOverriddenHaltState(t2)` is now equivalent to `A.withOverriddenHaltState(t2)`. The chain's inner override (`t1`) is dead at runtime (only the outermost wrapper's override is pushed onto the halt stack on entry — verified empirically). Composite name now reflects runtime behavior: `A(t2)`, not the misleading `A(t1)(t2)`. `withOverriddenHaltState` unwraps `this` to its bare before constructing the new wrapper.
+
+### Added
+
+- **`withOverriddenHaltState` memoization** ([#175](https://github.com/mellonis/turing-machine-js/issues/175)) — calls with the same `(bare, override)` pair return the literally-same `State` instance. Backed by a two-level `WeakMap` keyed by the bare with `WeakRef`-valued entries, so cached wrappers can be GC'd when nothing else holds them. Composes with #176's chain-collapse: `A.wohs(t1).wohs(t2)` and `A.wohs(t2)` both resolve to the same instance.
+
+- **Spec doc** at `docs/superpowers/specs/2026-05-21-halt-frame-transitive-closure.md` capturing the callable-subtree model design (worked examples for simple wrappers, PostMachine subroutines, shared-bare wrappers, self-wrapping, nested chains, Reference cycles, shared body states).
+
+### Migration from alpha.1
+
+Three breaking changes vs alpha.1, all in the visualization layer:
+
+**1. Mermaid format** — alpha.1 Mermaid strings (with `-. onHalt .->` edges or `[[bare]]` inside subgraphs) will NOT parse with the new `fromMermaid`. The format is one-way: re-emit via `toMermaid(toGraph(state, tapeBlock))` on alpha.2 to regenerate.
+
+**2. `Graph` data shape** — `GraphNode.isWrapped` removed; replaced by `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null`. If you store serialized `Graph` JSON from alpha.1, re-emit on alpha.2.
+
+**3. Wrapper composite name in nested chains** — `A.wohs(t1).wohs(t2)` was `A(t1)(t2)` in alpha.1; under #176 it's now `A(t2)`. Code that parsed the composite name to extract intermediate overrides will need to adapt (those overrides were never actually pushed at runtime — alpha.1's name was misleading).
+
+`withOverriddenHaltState` memoization (#175) is fully additive — same arguments now return the same instance, but no observable behavior changes for code that doesn't rely on instance identity.
+
+### Out of v7-alpha.2 (still pending for stable v7.0.0)
+
+- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.3` or stable `v7.0.0`.
+- **[#180](https://github.com/mellonis/turing-machine-js/issues/180)** — extract `State.toGraph`/`fromGraph` to its own module. Internal refactor; no API change.
+
+### Compatibility
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.1` → `^7.0.0-alpha.2` on `@turing-machine-js/builder`, `@turing-machine-js/library-binary-numbers`, `@turing-machine-js/library-binary-numbers-bare`.
+
 ## [7.0.0-alpha.1] - 2026-05-21
 
 First v7 pre-release. Consolidates the composition-representation overhaul landed across [#149](https://github.com/mellonis/turing-machine-js/issues/149), [#148](https://github.com/mellonis/turing-machine-js/issues/148), [#138](https://github.com/mellonis/turing-machine-js/issues/138), and [#139](https://github.com/mellonis/turing-machine-js/issues/139). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
