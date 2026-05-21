@@ -651,3 +651,259 @@ describe('callable-subtree: shared body state forces a union frame', () => {
     expect(out).toMatch(/s\d+ == "call" ==> s\d+/g);
   });
 });
+
+// Spec-doc invariants + snapshots for the three worked union shapes in
+// `docs/superpowers/specs/2026-05-21-halt-frame-transitive-closure.md`'s
+// "Worked union shapes — engine-emitted Mermaid" section.
+//
+// The spec doc claims its Mermaid blocks are real engine emit (not
+// hand-drawn). These tests enforce that claim two ways:
+//   1. Invariant tests assert the structural rules the model promises
+//      (frame merging, ribbon collapse, demand-emit arrows). Named tests
+//      → failures point at the broken rule, not at a byte diff.
+//   2. Snapshot tests (with id normalization, same shape as the
+//      round-trip test) pin the cosmetic emit. Failures here catch drift
+//      between the doc and the engine — either rerun the probe + update
+//      the doc, or revert the unintended emit change.
+//
+// Normalize all `s\d+`, `c\d+`, `w_\d+` to `sX`/`cX`/`w_X` since global
+// State.#id is shared across tests and isn't stable across test-ordering
+// changes. Same normalization used by `test/round-trip.spec.ts`.
+function stripIds(mermaid: string): string {
+  return mermaid
+    .replace(/\bs\d+\b/g, 'sX')
+    .replace(/\bc\d+\b/g, 'cX')
+    .replace(/\bw_\d+\b/g, 'w_X');
+}
+
+describe('spec doc: worked union shapes are real engine emit', () => {
+  // Reusable target factory — each test needs N small halting States as
+  // wrapper targets. Inlining the State construction directly would clutter
+  // each test.
+  const haltingTarget = (name: string) => new State({
+    [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+  }, name);
+
+  test('Case 1: A ∪ B (two bares, one shared body state X)', () => {
+    const alphabet = new Alphabet([' ', '1', '2']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const X = haltingTarget('X');
+    const A = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'A');
+    const B = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'B');
+    const W1 = A.withOverriddenHaltState(haltingTarget('t1'));
+    const W2 = B.withOverriddenHaltState(haltingTarget('t2'));
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: W1},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: W2},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+    const out = toMermaid(graph);
+
+    // Invariants — A, B distinct bares so call arrows are NOT ribbon-collapsed
+    // (the `& ` ribbon on calls collapses only wrappers SHARING a bare).
+    expect(graph.nodes[A.id].frameId).toBe(graph.nodes[B.id].frameId);
+    expect(graph.nodes[X.id].frameId).toBe(graph.nodes[A.id].frameId);
+    expect(out).toContain('"callable scope: A ∪ B"');
+    expect(out.match(/== "call" ==>/g)).toHaveLength(2); // one per wrapper
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+/); // ribbon on return side
+    expect(out).not.toMatch(/-\. "halt" \.->/); // no non-wrapper entry to frame
+
+    // Snapshot (id-normalized). Doubles as the cosmetic-drift detector for
+    // the matching block in the spec doc.
+    const expected = [
+      'flowchart TD',
+      '%% alphabets: [[" ","1","2"]]',
+      '  sX(((halt)))',
+      '  sX["t1"]',
+      '  sX["t2"]',
+      '  sX["dispatcher"]',
+      '  sX[["A(t1)"]]',
+      '  sX[["B(t2)"]]',
+      '  idle([idle])',
+      '  subgraph w_X["callable scope: A ∪ B"]',
+      '    sX["X"]',
+      '    sX["A"]',
+      '    sX["B"]',
+      '    cX(((halt)))',
+      '  end',
+      '  idle -. enter .-> sX',
+      '  sX == "call" ==> sX',
+      '  sX == "call" ==> sX',
+      '  w_X -. "return" .-> sX & sX',
+      '  sX --> sX',
+      '  sX --> sX',
+      '  sX -- "[*] → [K]/[S]" --> cX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      "  sX -- \"['1'] → [K]/[S]\" --> sX",
+      "  sX -- \"['2'] → [K]/[S]\" --> sX",
+    ].join('\n');
+
+    expect(stripIds(out)).toBe(expected);
+  });
+
+  test('Case 2: A ∪ B ∪ C (three bares, all share X directly)', () => {
+    const alphabet = new Alphabet([' ', '1', '2', '3']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const X = haltingTarget('X');
+    const A = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'A');
+    const B = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'B');
+    const C = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'C');
+    const W1 = A.withOverriddenHaltState(haltingTarget('t1'));
+    const W2 = B.withOverriddenHaltState(haltingTarget('t2'));
+    const W3 = C.withOverriddenHaltState(haltingTarget('t3'));
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: W1},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: W2},
+      [symbol(['3'])]: {command: {movement: movements.stay}, nextState: W3},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+    const out = toMermaid(graph);
+
+    // Invariants
+    const frameA = graph.nodes[A.id].frameId;
+
+    expect(frameA).not.toBeNull();
+    expect(graph.nodes[B.id].frameId).toBe(frameA);
+    expect(graph.nodes[C.id].frameId).toBe(frameA);
+    expect(graph.nodes[X.id].frameId).toBe(frameA);
+    expect(out).toContain('"callable scope: A ∪ B ∪ C"');
+    expect(out.match(/== "call" ==>/g)).toHaveLength(3); // one per wrapper, no ribbon
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+ & s\d+/);
+    expect(out).not.toMatch(/-\. "halt" \.->/);
+
+    const expected = [
+      'flowchart TD',
+      '%% alphabets: [[" ","1","2","3"]]',
+      '  sX(((halt)))',
+      '  sX["t1"]',
+      '  sX["t2"]',
+      '  sX["t3"]',
+      '  sX["dispatcher"]',
+      '  sX[["A(t1)"]]',
+      '  sX[["B(t2)"]]',
+      '  sX[["C(t3)"]]',
+      '  idle([idle])',
+      '  subgraph w_X["callable scope: A ∪ B ∪ C"]',
+      '    sX["X"]',
+      '    sX["A"]',
+      '    sX["B"]',
+      '    sX["C"]',
+      '    cX(((halt)))',
+      '  end',
+      '  idle -. enter .-> sX',
+      '  sX == "call" ==> sX',
+      '  sX == "call" ==> sX',
+      '  sX == "call" ==> sX',
+      '  w_X -. "return" .-> sX & sX & sX',
+      '  sX --> sX',
+      '  sX --> sX',
+      '  sX --> sX',
+      '  sX -- "[*] → [K]/[S]" --> cX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      "  sX -- \"['1'] → [K]/[S]\" --> sX",
+      "  sX -- \"['2'] → [K]/[S]\" --> sX",
+      "  sX -- \"['3'] → [K]/[S]\" --> sX",
+    ].join('\n');
+
+    expect(stripIds(out)).toBe(expected);
+  });
+
+  test('Case 3: (A ∪ B) ∪ C — transitive (A bridges B and C via X and Y)', () => {
+    const alphabet = new Alphabet([' ', '1', '2', '3']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    const X = haltingTarget('X');
+    const Y = haltingTarget('Y');
+    // A has TWO transitions — one to X (overlapping B's reach), one to Y
+    // (overlapping C's reach). B and C share nothing directly.
+    const A = new State({
+      [symbol(['1'])]: {command: {movement: movements.right}, nextState: X},
+      [symbol(['2'])]: {command: {movement: movements.right}, nextState: Y},
+    }, 'A');
+    const B = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: X}}, 'B');
+    const C = new State({[ifOtherSymbol]: {command: {movement: movements.right}, nextState: Y}}, 'C');
+    const W1 = A.withOverriddenHaltState(haltingTarget('t1'));
+    const W2 = B.withOverriddenHaltState(haltingTarget('t2'));
+    const W3 = C.withOverriddenHaltState(haltingTarget('t3'));
+    const dispatcher = new State({
+      [symbol(['1'])]: {command: {movement: movements.stay}, nextState: W1},
+      [symbol(['2'])]: {command: {movement: movements.stay}, nextState: W2},
+      [symbol(['3'])]: {command: {movement: movements.stay}, nextState: W3},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+    const out = toMermaid(graph);
+
+    // Invariants — transitive merge is the load-bearing rule.
+    const frameA = graph.nodes[A.id].frameId;
+
+    expect(frameA).not.toBeNull();
+    expect(graph.nodes[B.id].frameId).toBe(frameA);
+    expect(graph.nodes[C.id].frameId).toBe(frameA);
+    expect(graph.nodes[X.id].frameId).toBe(frameA);
+    expect(graph.nodes[Y.id].frameId).toBe(frameA); // critical: B-C don't share directly
+    expect(out).toContain('"callable scope: A ∪ B ∪ C"');
+    expect(out.match(/== "call" ==>/g)).toHaveLength(3);
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+ & s\d+/);
+    expect(out).not.toMatch(/-\. "halt" \.->/);
+
+    const expected = [
+      'flowchart TD',
+      '%% alphabets: [[" ","1","2","3"]]',
+      '  sX(((halt)))',
+      '  sX["t1"]',
+      '  sX["t2"]',
+      '  sX["t3"]',
+      '  sX["dispatcher"]',
+      '  sX[["A(t1)"]]',
+      '  sX[["B(t2)"]]',
+      '  sX[["C(t3)"]]',
+      '  idle([idle])',
+      '  subgraph w_X["callable scope: A ∪ B ∪ C"]',
+      '    sX["X"]',
+      '    sX["Y"]',
+      '    sX["A"]',
+      '    sX["B"]',
+      '    sX["C"]',
+      '    cX(((halt)))',
+      '  end',
+      '  idle -. enter .-> sX',
+      '  sX == "call" ==> sX',
+      '  sX == "call" ==> sX',
+      '  sX == "call" ==> sX',
+      '  w_X -. "return" .-> sX & sX & sX',
+      '  sX --> sX',
+      '  sX --> sX',
+      '  sX --> sX',
+      '  sX -- "[*] → [K]/[S]" --> cX',
+      '  sX -- "[*] → [K]/[S]" --> cX',
+      "  sX -- \"['1'] → [K]/[R]\" --> sX",
+      "  sX -- \"['2'] → [K]/[R]\" --> sX",
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[R]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      '  sX -- "[*] → [K]/[S]" --> sX',
+      "  sX -- \"['1'] → [K]/[S]\" --> sX",
+      "  sX -- \"['2'] → [K]/[S]\" --> sX",
+      "  sX -- \"['3'] → [K]/[S]\" --> sX",
+    ].join('\n');
+
+    expect(stripIds(out)).toBe(expected);
+  });
+});
