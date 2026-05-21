@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/builder",
-  "version": "7.0.0-alpha.1",
+  "version": "7.0.0-alpha.2",
   "description": "A turing machine builder — declarative state-table construction. Not actively developed by the author; the same state-table pattern is also shown as an inline example in @turing-machine-js/machine's README. Contributions welcome.",
   "engines": {
     "npm": ">=7.0.0"
@@ -25,7 +25,7 @@
     "builder"
   ],
   "peerDependencies": {
-    "@turing-machine-js/machine": "^7.0.0-alpha.1"
+    "@turing-machine-js/machine": "^7.0.0-alpha.2"
   },
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/builder",
