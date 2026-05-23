@@ -109,6 +109,23 @@ describe('collectStates (#195)', () => {
     expect(haltEntry.transitionSymbols).toEqual([]);
   });
 
+  test('halt singleton falls back to the module singleton when BFS never reaches haltState', () => {
+    // No transition targets haltState — the BFS visits only `looping`,
+    // so `stateById` has no entry at id 0. `toGraph` still emits the
+    // halt sentinel unconditionally (it anchors `subtree -. halt .-> s0`
+    // edges), so id 0 IS in `graph.nodes`. collectStates must fall back
+    // to the module-level `haltState` for the entry's `.state` field —
+    // pinning that fallback path here.
+    const looping = new State({
+      [symbol(['0'])]: {}, // nextState defaults to self → self-loop, no halt reached
+    }, 'loop');
+
+    const entry = collectStates(looping, tapeBlock).get(0)!;
+
+    expect(entry.state).toBe(haltState);
+    expect(entry.transitionSymbols).toEqual([]);
+  });
+
   test('halt markers (negative ids) are excluded from the map', () => {
     // A wrapper produces a callable-subtree frame, which gets a synthetic
     // halt marker with id = -frameId. collectStates must skip it — the

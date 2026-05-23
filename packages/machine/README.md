@@ -242,6 +242,7 @@ Notable members and statics:
 - **`state.withOverriddenHaltState(other)`** — returns a copy whose would-be halt transitions fall through to `other`. The subroutine-call composition mechanism (see `library-binary-numbers/src/index.ts` for examples).
 - **`State.toGraph(state, tapeBlock)`** — walks the reachable graph from `state` and returns a serializable `Graph` (states, transitions, alphabets).
 - **`State.fromGraph(graph)`** — inverse of `toGraph`: rebuilds `State` instances + a fresh `TapeBlock` from a `Graph`. Round-trips together with `toMermaid` / `fromMermaid`.
+- **`State.collectStates(state, tapeBlock)`** — walks the same graph and returns a `Map<number, {state, transitionSymbols}>` keyed by `GraphNode.id`. Use when downstream tooling holds a numeric id (e.g. a clicked node in a rendered graph) and needs the live `State` instance or the per-pattern `Symbol` for breakpoint setup. See [Setting breakpoints by graph id](#setting-breakpoints-by-graph-id).
 
 For visualization, pair `State.toGraph` with `toMermaid` to render the graph in any Mermaid-aware viewer (GitHub, VS Code, mermaid.live):
 
@@ -498,6 +499,36 @@ If `onPause` is not provided, breaks fire-and-resume invisibly — the trajector
 **Filter semantics:** `true` is a wildcard (match any symbol). `[ifOtherSymbol]` is NOT a wildcard — it matches only the catch-all resolution case (same meaning as in transition keys).
 
 **Caveat:** `haltState` is a module-level singleton. Setting `haltState.debug` affects every machine in the process; clear in `afterEach` / `finally` for test isolation.
+
+### Setting breakpoints by graph id
+
+Downstream UIs (graph renderers, debugger panels) often have only a numeric `GraphNode.id` — the user clicked a state node, or a transition edge in a rendered SVG. `State.collectStates(initial, tapeBlock)` returns a `Map` keyed by that numeric id, with the live `State` instance and the per-pattern `Symbol` array as its value:
+
+```ts
+import { State, ifOtherSymbol } from '@turing-machine-js/machine';
+
+const stateMap = State.collectStates(initial, tapeBlock);
+
+// Toggle a state-level breakpoint by id (any pattern triggers).
+const entry = stateMap.get(clickedStateId);
+if (entry) {
+  entry.state.debug.before = true;
+}
+
+// Per-pattern breakpoint by GraphTransition.id — the contract is
+// positional: `transitionSymbols[K]` is the Symbol that the
+// `${stateId}-${K}` GraphTransition fires on.
+const [n, k] = clickedEdgeId.split('-').map(Number);
+const e = stateMap.get(n);
+const sym = e?.transitionSymbols[k];
+if (e && sym) {
+  e.state.debug.before = [sym];
+}
+```
+
+**Coverage rules:** regular / bare states get the full `[...#symbolToDataMap.keys()]` including `ifOtherSymbol` at its natural slot; wrappers and the halt singleton get empty `transitionSymbols`; synthetic halt markers (Graph nodes with `id = -frameId`, one per callable-subtree frame) are excluded from the map. See `State.collectStates` JSDoc for the full contract.
+
+> ⚠️ `stateMap.get(0)!.state === haltState` — the entry at id `0` is the process-wide halt singleton. Toggling its `debug` affects every machine in the runtime, same caveat as direct `haltState.debug` writes.
 
 ### Throttle pattern
 
