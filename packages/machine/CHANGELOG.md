@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.4] - 2026-05-23
+
+Fourth v7 pre-release. Adds an id-keyed lookup helper for the State graph ([#195](https://github.com/mellonis/turing-machine-js/issues/195)), fixes two upstream issues surfaced while wiring the new helper into downstream tooling — a `toMermaid` label-grammar bug ([#194](https://github.com/mellonis/turing-machine-js/issues/194)) and a halt-stack lifetime bug in `runStepByStep` ([#196](https://github.com/mellonis/turing-machine-js/issues/196)) — and extracts graph serialization into its own module without API change ([#180](https://github.com/mellonis/turing-machine-js/issues/180)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.4`.
+
+### Added
+
+- **`State.collectStates(initialState, tapeBlock)`** ([#195](https://github.com/mellonis/turing-machine-js/issues/195)). Static helper that returns a `Map<number, {state: State; transitionSymbols: symbol[]}>` keyed by engine `GraphNode.id`. Lets downstream tooling (graph renderers, debugger panels) mutate `state.debug` on a specific State by numeric id, and set per-pattern breakpoints by `GraphTransition.id`. The K-th `transitionSymbols` slot is positionally aligned with the GraphTransition whose id is `${stateId}-${K}`, so a consumer holding `(stateId, patternIx)` from the rendered graph reaches the firing Symbol with no walk.
+
+  ```ts
+  const stateMap = State.collectStates(initial, tapeBlock);
+
+  // State-level breakpoint by id (any pattern fires).
+  stateMap.get(clickedStateId)!.state.debug.before = true;
+
+  // Per-pattern breakpoint by GraphTransition.id ("${stateId}-${patternIx}").
+  const [n, k] = clickedEdgeId.split('-').map(Number);
+  const entry = stateMap.get(n)!;
+  entry.state.debug.before = [entry.transitionSymbols[k]!];
+  ```
+
+  Coverage: regular / bare states get the full `[...#symbolToDataMap.keys()]` including `ifOtherSymbol` at its natural slot; wrappers and the halt singleton get empty `transitionSymbols`; synthetic halt markers (`isHaltMarker: true`, id `= -frameId`) are excluded — they all collapse to `haltState` at runtime, and the named consumer surfaces halt-pause via a separate UI control, not via clicks on halt glyphs. The halt singleton entry at id `0` is the process-wide `haltState` — toggling its `.debug` affects every machine in the runtime, same caveat as direct `haltState.debug` writes.
+
+- **`StateMap` and `StateMapEntry` types** ([#195](https://github.com/mellonis/turing-machine-js/issues/195)). Exported from the package's public surface so TypeScript consumers can annotate `collectStates` results without re-deriving the shape.
+
+### Changed
+
+- **Graph serialization extracted to `utilities/stateGraph.ts`** ([#180](https://github.com/mellonis/turing-machine-js/issues/180)). `State.toGraph` and `State.fromGraph` move out of the State class into a sibling module, alongside the new `collectStates`. Public surface preserved — `State.toGraph` / `State.fromGraph` remain as thin static delegates. State.ts shrank ~440 lines and now focuses on the runtime machinery (transitions, debug, halt-stack composition) rather than mixing in serialization concerns. A new `@internal` `STATE_INTERNAL` Symbol-keyed accessor on `State` gives sibling modules in `packages/machine/src` getter/setter access to private fields (`id`, `name`, `bareState`, `overriddenHaltState`, `symbolToDataMap`, `tags`); not re-exported from the public `index.ts`, so external consumers can't observe it.
+
+### Fixed
+
+- **`toMermaid` edge labels containing literal `"` now parse correctly** ([#194](https://github.com/mellonis/turing-machine-js/issues/194)). Before: an alphabet that includes printable ASCII as literal symbols (e.g. a Brainfuck-flavored UTM whose data alphabet covers U+0020–U+007E) would emit an edge label like `s1 -- "['a'] → ['"']/[R]" --> s0`; Mermaid's parser terminated the string early on the inner `"`. After: user-supplied content (alphabet symbols, state names, tag names, frame bare names) is HTML-entity-escaped at the leaf — `&`, `"`, `<`, `>` to named entities; statement terminators (`\n`, `\r`), C0 controls minus `\t`, DEL, bidi controls, and lone UTF-16 surrogates to numeric entities. Printable Unicode (Cyrillic, CJK, accented Latin, etc.) passes through unchanged so non-ASCII alphabets stay readable in the emitted `.mmd`. `fromMermaid` mirrors with a single-pass entity decoder applied at the leaf, after structural parsing.
+
+- **`runStepByStep` halt-stack is now run-scoped, not machine-scoped** ([#196](https://github.com/mellonis/turing-machine-js/issues/196)). Before: the `#stack` field on `TuringMachine` was an instance field; a build-time peek that didn't drain the generator (e.g. graph-construction utilities that ask for one yield to inspect the initial state) left leftover entries in the stack that were popped during the NEXT halt-bound transition, producing a "ghost iteration" and silently leaking memory across consecutive `runStepByStep` calls on the same machine. After: the halt stack is a local `const stack: State[] = []` declared inside `runStepByStep`, so each generator call starts with a clean stack and entries can't survive into the next call.
+
+### Compatibility
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.3` → `^7.0.0-alpha.4` on `@turing-machine-js/builder`, `@turing-machine-js/library-binary-numbers`, `@turing-machine-js/library-binary-numbers-bare`.
+
+### Migration from alpha.3
+
+Purely additive — no breaking changes. Existing code that doesn't call `State.collectStates` continues to work identically. `State.toGraph` / `State.fromGraph` behave identically (the delegate-to-stateGraph wiring is internal); no consumer changes needed.
+
+The `STATE_INTERNAL` accessor is `@internal` and not part of the supported surface; ignore it unless you're authoring a sibling module inside `packages/machine/src`.
+
+### Out of v7-alpha.4 (still pending for stable v7.0.0)
+
+- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives.
+
 ## [7.0.0-alpha.3] - 2026-05-21
 
 Third v7 pre-release. Adds first-class out-of-band tags on `State` ([#186](https://github.com/mellonis/turing-machine-js/issues/186)) — a metadata channel for visualization grouping and debugger labels that survives `toGraph` / `fromGraph` / `toMermaid` / `fromMermaid` round-trips. Driven by downstream [post-machine-js#86](https://github.com/mellonis/post-machine-js/issues/86), which will build a path-based registry and inline pseudo-command on top once this ships. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
