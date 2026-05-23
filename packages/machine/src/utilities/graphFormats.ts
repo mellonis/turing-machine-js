@@ -46,6 +46,81 @@ function frameSubgraphId(frameId: number): string {
   return `w_${frameId}`;
 }
 
+// User-controlled content (state names, tag names, alphabet symbols inside
+// edge labels) is interpolated into Mermaid label strings (`"..."` wrappers
+// on nodes, wrappers, subgraphs, and edges). Mermaid's grammar terminates
+// the string on a literal `"`, and labels render via HTML/foreignObject so
+// `<`, `>`, `&` get interpreted as markup. Statement terminators (`\n`,
+// `\r`), C0 controls (except `\t`), DEL, bidi controls, and lone UTF-16
+// surrogates are encoded as numeric entities so they can't confuse the
+// tokenizer or flip text direction silently (#194).
+//
+// Printable Unicode (Cyrillic, CJK, emoji, accented Latin, etc.) passes
+// through unchanged — a tape alphabet of Cyrillic or Brainfuck glyphs
+// stays readable in the emitted `.mmd`.
+//
+// Escape is applied at the leaf — to each user-supplied fragment BEFORE
+// it's composed into a label. Structural pieces this module emits (`<br>`
+// tag separator, ` ∪ ` bare-name join, `[`, `]`, `,`, `|`, `/`, ` → `,
+// the `callable subtree of `/`callable scope: ` prefixes) are NOT escaped;
+// only user-controlled content is. fromMermaid mirrors with
+// `unescapeMermaidLabel` on each extracted leaf AFTER structural parsing,
+// so a literal `<br>` inside a state name (encoded as `&lt;br&gt;`)
+// survives the tag-split and decodes back at the leaf.
+const MERMAID_LABEL_ESCAPE_RE = /[&"<>\n\r\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069\uD800-\uDFFF]/g;
+function escapeMermaidLabel(s: string): string {
+  return s.replace(MERMAID_LABEL_ESCAPE_RE, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;';
+      case '"': return '&quot;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '\n': return '&#10;';
+      case '\r': return '&#13;';
+      default: return `&#${ch.charCodeAt(0)};`;
+    }
+  });
+}
+
+// Inverse of escapeMermaidLabel. Decodes the four named entities the
+// encoder emits (`&amp;`, `&quot;`, `&lt;`, `&gt;`) plus arbitrary
+// numeric entities (`&#NN;`, `&#xHH;`) — the latter to round-trip the
+// control / bidi / lone-surrogate cases from encode. Other named entities
+// pass through unchanged: fromMermaid is strict to the dialect toMermaid
+// emits, and a future-proof full HTML-entity decoder would muddle that.
+//
+// Replacement is single-pass: each `&...;` match is consumed once with
+// no re-scanning of the substitution, so nested-looking inputs like
+// `&amp;quot;` (literal `&quot;` as user text) decode to `&quot;` not `"`.
+const MERMAID_LABEL_UNESCAPE_RE = /&(?:(amp|quot|lt|gt)|#(\d+)|#x([0-9a-fA-F]+));/g;
+function unescapeMermaidLabel(s: string): string {
+  return s.replace(MERMAID_LABEL_UNESCAPE_RE, (match, named, dec, hex) => {
+    switch (named) {
+      case 'amp': return '&';
+      case 'quot': return '"';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      default: {
+        // Code units up to U+FFFF decode via fromCharCode so lone
+        // surrogates we encoded by UTF-16 code unit round-trip exactly.
+        // Hand-edited supplementary code points (`&#x1F600;`) use
+        // fromCodePoint to produce the right surrogate pair — but only
+        // when we didn't emit them ourselves, since encode runs per code
+        // unit.
+        if (dec !== undefined) {
+          const n = Number.parseInt(dec, 10);
+          return n <= 0xFFFF ? String.fromCharCode(n) : String.fromCodePoint(n);
+        }
+        if (hex !== undefined) {
+          const n = Number.parseInt(hex, 16);
+          return n <= 0xFFFF ? String.fromCharCode(n) : String.fromCodePoint(n);
+        }
+        return match;
+      }
+    }
+  });
+}
+
 export function toMermaid(graph: Graph): string {
   const lines: string[] = [
     'flowchart TD',
@@ -89,9 +164,17 @@ export function toMermaid(graph: Graph): string {
   // Mermaid line-break that works across renderers without `classDef`-
   // pseudo-element hacks (#186).
   const labelOf = (node: GraphNode): string => {
-    if (node.tags.length === 0) return node.name;
-
-    return `${node.name}<br>${node.tags.join(', ')}`;
+    const name = escapeMermaidLabel(node.name);
+    if (node.tags.length === 0) return name;
+    // Per-tag escape that ALSO encodes `,` — tags are joined with `, ` and
+    // split on `,` in `splitLabelTags`, so a literal comma in user tag
+    // content would be mistaken for a separator on the way back. `,` isn't
+    // in the base escape set because it's structural in edge labels
+    // (between per-tape cells in `writes`/`moves`), where the encode pass
+    // happens after composition — different context, different escape.
+    const tagFragments = node.tags
+      .map((t) => escapeMermaidLabel(t).replace(/,/g, '&#44;'));
+    return `${name}<br>${tagFragments.join(', ')}`;
   };
 
   // 1. Emit top-level nodes (real halt, non-wrapper regulars outside any frame).
@@ -123,7 +206,7 @@ export function toMermaid(graph: Graph): string {
     const frameBareNames = frameBares
       .slice()
       .sort((a, b) => a.id - b.id)
-      .map((n) => n.name);
+      .map((n) => escapeMermaidLabel(n.name));
     const label = frameBareNames.length > 1
       ? `callable scope: ${frameBareNames.join(' ∪ ')}`
       : `callable subtree of ${frameBareNames[0] ?? frameId}`;
@@ -255,7 +338,12 @@ export function toMermaid(graph: Graph): string {
       const reads = alternatives.map((alt) => `[${alt}]`).join('|');
       const writes = `[${t.command.map((c) => c.symbol).join(',')}]`;
       const moves = `[${t.command.map((c) => c.movement).join(',')}]`;
-      const label = `${reads} → ${writes}/${moves}`;
+      // Escape the WHOLE composed label — structural separators ([, ], ,,
+      // |, /, ' → ') are all in our safe ASCII set and pass through
+      // unchanged; only embedded user alphabet symbols inside `'...'` get
+      // entity-encoded. fromMermaid unescapes the captured label as the
+      // first step before structural parsing.
+      const label = escapeMermaidLabel(`${reads} → ${writes}/${moves}`);
 
       lines.push(
         `  ${mermaidIdFor(node.id)} -- "${label}" --> ${mermaidIdFor(t.nextStateId)}`,
@@ -409,16 +497,25 @@ const classAssignTagRegex = /^class ([sc]\d+(?:,[sc]\d+)*) tag_([A-Za-z0-9_-]+)$
 // Labels without `<br>` have no tags. Tags are comma-joined; trimmed of
 // whitespace. The `<br>` is the single source of truth for tag-name parsing —
 // `class` lines are decorative-only and not consulted here.
+//
+// Mermaid-label entities (`&lt;`, `&quot;`, etc., #194) are decoded AFTER
+// structural splitting: the `<br>` separator and `,` tag delimiter survive
+// encode unchanged, and a user state name / tag containing a literal `<br>`
+// or `,` was encoded leaf-side so it can't be confused with the structural
+// form. Decode at the leaves recovers the original characters.
 function splitLabelTags(label: string): {name: string; tags: string[]} {
   const brIx = label.indexOf('<br>');
 
   if (brIx < 0) {
-    return {name: label, tags: []};
+    return {name: unescapeMermaidLabel(label), tags: []};
   }
 
-  const name = label.slice(0, brIx);
+  const name = unescapeMermaidLabel(label.slice(0, brIx));
   const tagsStr = label.slice(brIx + '<br>'.length);
-  const tags = tagsStr.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+  const tags = tagsStr
+    .split(',')
+    .map((t) => unescapeMermaidLabel(t.trim()))
+    .filter((t) => t.length > 0);
 
   return {name, tags};
 }
@@ -619,7 +716,12 @@ export function fromMermaid(text: string): Graph {
 
     if (tm) {
       const fromId = parseMermaidId(tm[1]);
-      const label = tm[2];
+      // Decode the WHOLE captured label up front (#194). Structural
+      // separators (`[`, `]`, `,`, `|`, `/`, ` → `) are all safe ASCII
+      // outside the escape set and pass through encode unchanged, so it's
+      // safe to decode before structural parsing; only embedded alphabet
+      // symbols inside `'...'` get reconstituted.
+      const label = unescapeMermaidLabel(tm[2]);
       const toId = parseMermaidId(tm[3]);
 
       const arrowIx = label.indexOf(' → ');
