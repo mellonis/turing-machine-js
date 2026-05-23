@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.3] - 2026-05-21
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.3 — first-class out-of-band State tags ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.2` → `^7.0.0-alpha.3`.
+
+## [7.0.0-alpha.2] - 2026-05-21
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.2 — `toMermaid` callable-subtree emit refinement ([#174](https://github.com/mellonis/turing-machine-js/issues/174)), `withOverriddenHaltState` memoization ([#175](https://github.com/mellonis/turing-machine-js/issues/175)), nested `.wohs()` chain collapse ([#176](https://github.com/mellonis/turing-machine-js/issues/176)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.1` → `^7.0.0-alpha.2`.
+
+## [7.0.0-alpha.1] - 2026-05-21
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.1 — composition-representation overhaul: `withOverrodeHaltState` → `withOverriddenHaltState` ([#149](https://github.com/mellonis/turing-machine-js/issues/149)), paren-based wrapped-state naming `A(B)` ([#148](https://github.com/mellonis/turing-machine-js/issues/148)), `toMermaid` callable-subtree emit alpha.1 collapsed-bare shape ([#138](https://github.com/mellonis/turing-machine-js/issues/138), [#139](https://github.com/mellonis/turing-machine-js/issues/139)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^6.0.0` → `^7.0.0-alpha.1`.
+
 ## [6.4.0] - 2026-05-19
 
 Released in lockstep with `@turing-machine-js/machine` 6.4.0. No source or behavior changes in this package.
