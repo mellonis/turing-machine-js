@@ -300,3 +300,133 @@ describe('TuringMachine constructor', () => {
     expect(() => new TuringMachine({} as never)).toThrow(/invalid tapeBlock/);
   });
 });
+
+// Regression tests for #196 — the halt-stack used to be an instance field on
+// TuringMachine that wasn't reset between `runStepByStep` calls, so a caller
+// that peeked at iter 1 via the generator (then disposed it with
+// `generator.return()`) would leave the wrapper's override on the stack;
+// the next `run()` would push it a second time and produce one extra
+// iteration on its way out of the call. Builds a wrapper whose bare halts
+// on blank and whose override also halts immediately — the minimal shape
+// that surfaces the bug.
+describe('halt-stack reset between calls (regression for #196)', () => {
+  // Helper: build a fresh scenario per call so each subtest has independent
+  // State/Tape/TapeBlock instances (the engine's symbol patterns are
+  // tapeBlock-scoped — sharing across scenarios would throw "invalid symbol").
+  function buildWrapperOverWalkToBlank() {
+    const wAlphabet = new Alphabet([' ', 'a', 'b', '*']);
+    const tape = new Tape({alphabet: wAlphabet, symbols: ['a', 'b', 'a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const walkToBlank = new State({
+      [symbol([wAlphabet.blankSymbol])]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+      [ifOtherSymbol]: {
+        command: [{movement: movements.right}],
+      },
+    }, 'walkToBlank');
+    const writeMarker = new State({
+      [ifOtherSymbol]: {
+        command: [{symbol: '*', movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'writeMarker');
+    const initialState = walkToBlank.withOverriddenHaltState(writeMarker);
+    return {machine, initialState, tape};
+  }
+
+  test('runStepByStep peek + return + run produces no extra iterations', async () => {
+    const {machine, initialState, tape} = buildWrapperOverWalkToBlank();
+
+    // Caller peeks at iter 1 then disposes the generator without draining —
+    // pre-#196 this left the override on `#stack`.
+    const gen = machine.runStepByStep({initialState});
+    gen.next();
+    gen.return(undefined);
+
+    const iters: Array<{step: number; name: string}> = [];
+    await machine.run({
+      initialState,
+      onIter: (m) => {
+        iters.push({step: m.step, name: m.state.name ?? ''});
+      },
+    });
+
+    expect(iters).toEqual([
+      {step: 1, name: 'walkToBlank(writeMarker)'},
+      {step: 2, name: 'walkToBlank'},
+      {step: 3, name: 'walkToBlank'},
+      {step: 4, name: 'walkToBlank'},
+      {step: 5, name: 'writeMarker'},
+    ]);
+    expect(tape.symbols).toEqual(['a', 'b', 'a', '*']);
+  });
+
+  test('runStepByStep and run produce identical iter sequences', async () => {
+    const a = buildWrapperOverWalkToBlank();
+    const fromGen: Array<{step: number; name: string}> = [];
+    for (const m of a.machine.runStepByStep({initialState: a.initialState})) {
+      fromGen.push({step: m.step, name: m.state.name ?? ''});
+    }
+
+    const b = buildWrapperOverWalkToBlank();
+    const fromRun: Array<{step: number; name: string}> = [];
+    await b.machine.run({
+      initialState: b.initialState,
+      onIter: (m) => {
+        fromRun.push({step: m.step, name: m.state.name ?? ''});
+      },
+    });
+
+    expect(fromRun).toEqual(fromGen);
+  });
+
+  test('two consecutive runs on the same machine produce identical iter sequences', async () => {
+    // A self-loop-free machine — both runs traverse the same iter shape
+    // because the input alphabet is wide enough that the head moves off the
+    // initial cells and the post-run tape doesn't influence the next run.
+    // The point of this test is the #stack accumulation, not tape state.
+    const wAlphabet = new Alphabet([' ', 'a', 'b']);
+    const tape = new Tape({alphabet: wAlphabet, symbols: ['a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    // A wrapper around a single-iter halt-on-anything bare. Each run pushes
+    // the override; if the pre-#196 leak existed, the second run would see
+    // a stale override and one extra iter.
+    const bare = new State({
+      [ifOtherSymbol]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'bare');
+    const continuation = new State({
+      [ifOtherSymbol]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'continuation');
+    const initialState = bare.withOverriddenHaltState(continuation);
+
+    const first: Array<{step: number; name: string}> = [];
+    await machine.run({
+      initialState,
+      onIter: (m) => {
+        first.push({step: m.step, name: m.state.name ?? ''});
+      },
+    });
+
+    const second: Array<{step: number; name: string}> = [];
+    await machine.run({
+      initialState,
+      onIter: (m) => {
+        second.push({step: m.step, name: m.state.name ?? ''});
+      },
+    });
+
+    expect(first.length).toBe(2); // wrapper-iter + continuation-iter
+    expect(second).toEqual(first);
+  });
+});
