@@ -492,6 +492,154 @@ export function fromGraph(graph: Graph): {
   };
 }
 
+/**
+ * One entry in the `StateMap` returned by `collectStates` (#195).
+ *
+ * - `state`: the live `State` instance for this Graph node. For the halt
+ *   singleton at id `0`, this is the engine-wide `haltState` — toggling
+ *   `state.debug` on that entry affects every machine in the process.
+ * - `transitionSymbols`: per-pattern Symbols in `#symbolToDataMap` insertion
+ *   order, aligned positionally with `GraphTransition.id` patternIx. For
+ *   wrappers and the halt singleton this is `[]` (no own transitions).
+ */
+export type StateMapEntry = {
+  state: State;
+  transitionSymbols: symbol[];
+};
+
+/**
+ * Numeric `GraphNode.id` → `StateMapEntry`. Returned by `collectStates`
+ * (#195). Halt markers (synthetic nodes with `id = -frameId`) are NOT
+ * included — they're visualization-only and all collapse to the
+ * `haltState` singleton already exposed at id `0`.
+ */
+export type StateMap = Map<number, StateMapEntry>;
+
+/**
+ * Returns a `Map<number, {state, transitionSymbols}>` keyed by engine
+ * `GraphNode.id`, giving downstream tooling direct access to the `State`
+ * instance + per-pattern Symbol references for breakpoint setup (#195).
+ *
+ * **Positional alignment contract.** For any `GraphTransition` whose id
+ * is `${N}-${K}`, `result.get(N)!.transitionSymbols[K]` is the Symbol
+ * the transition fires on (reference equality, not structural). The K-th
+ * entry is the K-th key from the source State's `#symbolToDataMap` in
+ * insertion order, including `ifOtherSymbol` when the user wrote one.
+ * Consumers filtering the catch-all path identity-compare against the
+ * engine-exported `ifOtherSymbol`.
+ *
+ * **Unbound-`Reference` slots.** `toGraph` increments `patternIx` even
+ * when a transition's `nextState` is an unresolved `Reference` (it
+ * `continue`s without pushing the GraphTransition). In that case
+ * `transitionSymbols[K]` is still set to the K-th Map key, but no
+ * `Graph.nodes[N].transitions` entry exists with id `${N}-${K}`. Sparse
+ * on the Graph side, dense on the `transitionSymbols` side — same
+ * indexing.
+ *
+ * **Coverage.** Map keys are the State-backed subset of `graph.nodes`:
+ * regulars + bares + wrappers + the halt singleton (id `0`). Synthetic
+ * halt markers (id `-frameId`) are excluded — they all reach the same
+ * `haltState` object at runtime, and the named consumer
+ * ([machines-demo#37](https://github.com/mellonis/machines-demo/issues/37))
+ * surfaces halt-pause via a separate UI control, not via clicks on
+ * halt glyphs. If a future consumer needs uniform-by-id lookup, the
+ * helper can be extended additively.
+ *
+ * **Halt-singleton warning.** `result.get(0)!.state === haltState` — the
+ * process-wide halt. Toggling `.debug` on that entry affects every
+ * machine in the runtime, not just the one this map was built from.
+ */
+export function collectStates(initialState: State, tapeBlock: TapeBlock): StateMap {
+  // Anchor on toGraph's authoritative id set — it knows the canonical
+  // ordering of wrapper/bare/regular emission and which nodes are
+  // synthetic halt markers we have to skip. Building our own BFS would
+  // duplicate that logic; reusing the Graph guarantees collectStates'
+  // id keys never drift from toGraph's GraphTransition ids.
+  const graph = toGraph(initialState, tapeBlock);
+
+  // Walk the State graph to associate each State instance with its
+  // engine id. The shape mirrors toGraph's Pass 1 — visit by id, branch
+  // on halt / wrapper / regular — but only collects the (id → State)
+  // mapping. Lighter than re-running the union-find passes; no
+  // GraphNode construction.
+  const stateById = new Map<number, State>();
+  const visited = new Set<number>();
+  const queue: State[] = [initialState];
+
+  while (queue.length > 0) {
+    const state = queue.shift()!;
+    const internal = state[STATE_INTERNAL]();
+
+    if (visited.has(internal.id)) continue;
+    visited.add(internal.id);
+
+    stateById.set(internal.id, state);
+
+    if (state.isHalt) continue;
+
+    if (internal.bareState !== null && internal.overriddenHaltState !== null) {
+      queue.push(internal.bareState);
+      queue.push(internal.overriddenHaltState);
+      continue;
+    }
+
+    for (const {nextState} of internal.symbolToDataMap.values()) {
+      let target: State;
+
+      try {
+        target = nextState instanceof State ? nextState : nextState.ref;
+      } catch {
+        continue; // unbound Reference — skip silently, matches toGraph
+      }
+
+      queue.push(target);
+    }
+  }
+
+  // Build the result by iterating graph.nodes — the authoritative id set
+  // minus halt markers — and dispatching on node kind. The halt singleton
+  // entry's `state` reads from `stateById` (the BFS visited haltState if
+  // any path reached it) but falls back to the module-level singleton
+  // for graphs whose only halt presence is the always-emitted sentinel.
+  const result: StateMap = new Map();
+
+  for (const idStr of Object.keys(graph.nodes)) {
+    const id = Number(idStr);
+    const node = graph.nodes[id];
+
+    if (node.isHaltMarker) continue; // synthetic; collapses to haltState at id 0
+
+    if (node.isHalt) {
+      // The real halt — always the engine-wide singleton. Prefer the
+      // BFS-visited instance for identity-equality with whatever the
+      // caller has; fall back to the module singleton when the BFS
+      // didn't reach haltState (toGraph emits id 0 unconditionally).
+      result.set(id, {
+        state: stateById.get(0) ?? haltState,
+        transitionSymbols: [],
+      });
+      continue;
+    }
+
+    if (node.isWrapper) {
+      result.set(id, {
+        state: stateById.get(id)!,
+        transitionSymbols: [],
+      });
+      continue;
+    }
+
+    // Regular or bare State — enumerate `#symbolToDataMap.keys()` for
+    // the patternIx alignment. The K-th key is the Symbol that
+    // `${id}-${K}` GraphTransition fires on (positional contract).
+    const state = stateById.get(id)!;
+    const transitionSymbols = [...state[STATE_INTERNAL]().symbolToDataMap.keys()];
+    result.set(id, {state, transitionSymbols});
+  }
+
+  return result;
+}
+
 // Note on the import cycle with `State.ts`: stateGraph.ts value-imports
 // `State`, `STATE_INTERNAL`, `haltState`, and `ifOtherSymbol`; State.ts
 // value-imports `toGraph` and `fromGraph` for its static-method delegates.

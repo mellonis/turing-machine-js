@@ -12,7 +12,12 @@ import {
 // import cycle with stateGraph.ts is resolved by ESM live bindings — see
 // the bottom-of-file note in that module. Aliased so the delegating
 // static methods can keep their canonical names without clashing.
-import {toGraph as toGraphImpl, fromGraph as fromGraphImpl} from '../utilities/stateGraph';
+import {
+  type StateMap,
+  collectStates as collectStatesImpl,
+  fromGraph as fromGraphImpl,
+  toGraph as toGraphImpl,
+} from '../utilities/stateGraph';
 
 export const ifOtherSymbol = Symbol('other symbol');
 
@@ -510,6 +515,19 @@ export default class State {
     states: Record<number, State>;
   } {
     return fromGraphImpl(graph);
+  }
+
+  /**
+   * Returns a `Map<number, {state, transitionSymbols}>` keyed by engine
+   * `GraphNode.id`, exposing the live `State` instance + per-pattern
+   * Symbol references for each node so downstream tooling can mutate
+   * `state.debug` by numeric id and set per-pattern breakpoints by
+   * `GraphTransition.id` (#195). Thin delegate to
+   * `utilities/stateGraph.ts`'s `collectStates`; see that module for
+   * the alignment contract, coverage rules, and halt-singleton warning.
+   */
+  static collectStates(initialState: State, tapeBlock: TapeBlock): StateMap {
+    return collectStatesImpl(initialState, tapeBlock);
   }
 }
 
