@@ -38,7 +38,6 @@ function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
 
 export default class TuringMachine {
   readonly #tapeBlock: TapeBlock;
-  readonly #stack: State[] = [];
 
   constructor({
                 tapeBlock,
@@ -148,7 +147,14 @@ export default class TuringMachine {
       this.#tapeBlock[lockSymbol].lock(executionSymbol);
 
 
-      const stack = this.#stack;
+      // Halt-stack is run-scoped, not machine-scoped (#196). Declaring it
+      // local makes that lifetime explicit and prevents leftover entries
+      // from a previous `runStepByStep` call (e.g. a build-time peek that
+      // never drained the generator) from being popped during a subsequent
+      // halt-bound transition. Before this change `#stack` was an instance
+      // field and accumulated one extra push per call when the same machine
+      // was reused.
+      const stack: State[] = [];
       let state = initialState;
 
       if (state.overriddenHaltState) {
