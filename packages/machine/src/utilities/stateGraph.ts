@@ -187,6 +187,9 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       // `nodes[id]` is always populated for `id` that the BFS reached, so
       // a defensive `!node` check would be dead. `isHalt` / `isWrapper`
       // are real boundaries — both stop reach-set expansion.
+      /* c8 ignore next 3 — defensive: the push site below already filters
+         halt/wrapper targets, and the initial push is always a bare, so
+         this branch is unreachable in practice. */
       if (node.isHalt || node.isWrapper) {
         continue;
       }

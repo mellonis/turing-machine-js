@@ -115,6 +115,8 @@ function unescapeMermaidLabel(s: string): string {
           const n = Number.parseInt(hex, 16);
           return n <= 0xFFFF ? String.fromCharCode(n) : String.fromCodePoint(n);
         }
+        /* c8 ignore next 2 — defensive: the regex shape guarantees one of
+           named / dec / hex is always set, so this fallback is unreachable. */
         return match;
       }
     }
