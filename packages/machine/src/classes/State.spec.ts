@@ -1,6 +1,6 @@
 import Alphabet from './Alphabet';
 import Reference from './Reference';
-import State, {haltState, ifOtherSymbol} from './State';
+import State, {STATE_INTERNAL, haltState, ifOtherSymbol} from './State';
 import TapeBlock from './TapeBlock';
 import {movements, symbolCommands} from './TapeCommand';
 
@@ -569,5 +569,97 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
     };
 
     expect(() => State.fromGraph(graph)).toThrow(/^override-halt cycle at state #/);
+  });
+});
+
+describe('STATE_INTERNAL accessor (#180)', () => {
+  test('exposes id, name, bareState, overriddenHaltState, symbolToDataMap, tags', () => {
+    const bare = new State({
+      [symbol(['0'])]: {nextState: haltState},
+    }, 'bare');
+    const wrapper = bare.withOverriddenHaltState(haltState);
+    wrapper.tag('hot');
+
+    const wrapperView = wrapper[STATE_INTERNAL]();
+
+    expect(wrapperView.id).toBe(wrapper.id);
+    expect(wrapperView.name).toBe(wrapper.name);
+    expect(wrapperView.bareState).toBe(bare);
+    expect(wrapperView.overriddenHaltState).toBe(haltState);
+    expect(wrapperView.symbolToDataMap).toBeInstanceOf(Map);
+    expect([...wrapperView.tags]).toEqual(['hot']);
+  });
+
+  test('read access is live — name setter is reflected by subsequent public reads', () => {
+    // The accessor closes over `this`, so reading via `state.name` after
+    // the setter mutates `#name` must see the new value. fromGraph relies
+    // on this when assigning graph-sourced composite names to freshly-
+    // constructed bares.
+    const s = new State({
+      [symbol(['0'])]: {nextState: haltState},
+    }, 'before');
+
+    expect(s.name).toBe('before');
+
+    s[STATE_INTERNAL]().name = 'after(set)';
+
+    expect(s.name).toBe('after(set)');
+  });
+
+  test('name setter bypasses the constructor\'s paren validation', () => {
+    // The constructor rejects `(` / `)` in names because those are
+    // reserved as wrapper-composition delimiters. The setter intentionally
+    // skips that check — wrappers' composite names round-tripped through
+    // a serialized graph legitimately contain parens, and fromGraph needs
+    // to restore them.
+    expect(() => new State(null, 'with(parens)')).toThrow(/must not contain/);
+
+    const s = new State(null, 'plain');
+    s[STATE_INTERNAL]().name = 'with(parens)';
+    expect(s.name).toBe('with(parens)');
+  });
+
+  test('symbolToDataMap exposes the live Map for sibling-module enumeration', () => {
+    // #195 will enumerate this Map's keys to expose per-transition
+    // pattern Symbols by patternIx. The accessor returns the same
+    // instance the State holds, in insertion order — not a copy.
+    const sym0 = symbol(['0']);
+    const sym1 = symbol(['1']);
+    const s = new State({
+      [sym0]: {nextState: haltState},
+      [sym1]: {nextState: haltState},
+    }, 's');
+
+    const view = s[STATE_INTERNAL]();
+    const keys = [...view.symbolToDataMap.keys()];
+
+    expect(keys).toContain(sym0);
+    expect(keys).toContain(sym1);
+    // Order matches construction order — the contract that #195's
+    // `transitionSymbols[patternIx]` will lean on.
+    expect(keys.indexOf(sym0)).toBeLessThan(keys.indexOf(sym1));
+  });
+
+  test('haltState accessor works (used by toGraph for halt-node tags)', () => {
+    // toGraph reads `haltState[STATE_INTERNAL]().tags` when emitting the
+    // halt node. The halt singleton is a regular State — its accessor
+    // must work the same as any other State's. Name is the default
+    // `id:0` from the no-name constructor at the bottom of State.ts;
+    // toGraph maps it to the literal `'halt'` separately in its halt-
+    // node emit path.
+    const view = haltState[STATE_INTERNAL]();
+
+    expect(view.id).toBe(0);
+    expect(view.name).toBe('id:0');
+    expect([...view.tags]).toEqual([]);
+  });
+
+  test('returns a fresh view object per call', () => {
+    // Not part of the documented contract — but worth pinning so we
+    // don't accidentally start sharing state across calls. Each
+    // invocation should produce an independent object literal; only the
+    // closed-over State instance is shared.
+    const s = new State(null, 's');
+    expect(s[STATE_INTERNAL]()).not.toBe(s[STATE_INTERNAL]());
   });
 });
