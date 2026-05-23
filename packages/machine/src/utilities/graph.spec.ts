@@ -1203,6 +1203,46 @@ describe('Mermaid label escaping (#194)', () => {
     expect((subgraphLine!.match(/"/g) ?? []).length).toBe(2);
   });
 
+  test('carriage return in alphabet symbol encodes as &#13;', () => {
+    // Sibling of the `\n` test above — pins the second statement-terminator
+    // branch in escapeMermaidLabel so coverage doesn't drift if someone
+    // adds another escape category and forgets the `\r` case.
+    const alphabet = new Alphabet([' ', 'a', '\r']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['a'])]: {
+        command: [{symbol: '\r', movement: movements.right}],
+        nextState: haltState,
+      },
+    }, 's');
+
+    const mermaid = toMermaid(State.toGraph(s, tapeBlock));
+    expect(mermaid).toContain('&#13;');
+
+    const reparsed = fromMermaid(mermaid);
+    expect(reparsed.nodes[s.id].transitions[0].command[0].symbol).toBe("'\r'");
+  });
+
+  test('hex numeric entity `&#xHH;` decodes (hand-edited Mermaid support)', () => {
+    // `toMermaid` only emits decimal numeric entities (`&#NN;`), but
+    // `fromMermaid` accepts hex too for hand-edited `.mmd` files where a
+    // user might write `&#x22;` instead of `&quot;`. Pin the hex-decode
+    // branch in unescapeMermaidLabel by constructing a minimal Mermaid
+    // graph that uses a hex entity in a node name.
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  s0(((halt)))',
+      '  s1["a&#x22;b"]',
+      '  idle([idle])',
+      '  idle -. enter .-> s1',
+      '  s1 -- "[\'0\'] → [K]/[S]" --> s0',
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+    expect(graph.nodes[1].name).toBe('a"b');
+  });
+
   test('ambiguous `&amp;quot;` decodes once, not twice', () => {
     // User content that looks like a doubly-encoded entity. Single-pass
     // decode should give back the literal `&quot;` text, not `"`.
