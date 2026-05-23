@@ -1053,3 +1053,167 @@ describe('fromMermaid: tags (#186)', () => {
     expect(reparsed.nodes[s.id].tags).toEqual(['alpha', 'beta']);
   });
 });
+
+describe('Mermaid label escaping (#194)', () => {
+  test('alphabet symbol containing literal " produces parseable output', () => {
+    // Repro from the issue: a write of `"` would land inside the
+    // `"..."`-wrapped edge label and terminate the string early on
+    // Mermaid's tokenizer.
+    const alphabet = new Alphabet([' ', 'a', '"']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['a'])]: {
+        command: [{symbol: '"', movement: movements.right}],
+        nextState: haltState,
+      },
+    }, 's');
+
+    const mermaid = toMermaid(State.toGraph(s, tapeBlock));
+
+    // No unescaped `"` inside the edge label between the outer wrappers.
+    expect(mermaid).toContain('&quot;');
+    expect(mermaid).not.toMatch(/-- "[^"]*"[^"]*"[^"]*" -->/);
+    // Round-trips back to a parseable graph that preserves the symbol.
+    const reparsed = fromMermaid(mermaid);
+    const reparsedTransitions = reparsed.nodes[s.id].transitions;
+    expect(reparsedTransitions).toHaveLength(1);
+    expect(reparsedTransitions[0].command[0].symbol).toBe("'\"'");
+  });
+
+  test('state name with grammar-significant chars survives round-trip', () => {
+    // <, >, &, " inside a State.name. Encoded as named entities; decoded
+    // verbatim on the way back.
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const name = 'A<&">B';
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, name);
+
+    const reparsed = fromMermaid(toMermaid(State.toGraph(s, tapeBlock)));
+    expect(reparsed.nodes[s.id].name).toBe(name);
+  });
+
+  test('tag name with grammar-significant chars survives round-trip', () => {
+    // Tag content is escaped per-fragment so a tag containing `<br>` or
+    // `,` doesn't get confused with the structural tag separators (which
+    // would split the tag wrong on the way back) or with HTML tag
+    // boundaries in the rendered SVG.
+    //
+    // The round-trip also picks up the `class tag_<sanitized>` line from
+    // the emit — that adds a second copy of each tag in its sanitized
+    // form (`has"quote` → `has_quote`). That's a known artifact of the
+    // #186 tag-emit design, not part of #194; this test only asserts
+    // that the ORIGINAL forms come back intact.
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 's').tag('a<br>b', 'has,comma', 'has"quote');
+
+    const reparsed = fromMermaid(toMermaid(State.toGraph(s, tapeBlock)));
+    expect(reparsed.nodes[s.id].tags).toEqual(
+      expect.arrayContaining(['a<br>b', 'has,comma', 'has"quote']),
+    );
+  });
+
+  test('newlines and C0 controls in alphabet symbols encode as numeric entities', () => {
+    const alphabet = new Alphabet([' ', 'a', '\n', '']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['a'])]: {
+        command: [{symbol: '\n', movement: movements.right}],
+        nextState: haltState,
+      },
+    }, 's');
+
+    const mermaid = toMermaid(State.toGraph(s, tapeBlock));
+
+    // No raw newline inside the emitted line (other than the inter-line
+    // separators between statements).
+    const transitionLine = mermaid
+      .split('\n')
+      .find((l) => l.includes('-- "') && l.includes('--> '));
+    expect(transitionLine).toBeDefined();
+    expect(transitionLine).toContain('&#10;');
+
+    const reparsed = fromMermaid(mermaid);
+    expect(reparsed.nodes[s.id].transitions[0].command[0].symbol).toBe("'\n'");
+  });
+
+  test('bidi control in state name encodes as numeric entity', () => {
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const name = 'left‮right';
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, name);
+
+    const mermaid = toMermaid(State.toGraph(s, tapeBlock));
+    expect(mermaid).toContain('&#8238;');
+    expect(mermaid).not.toContain('‮');
+
+    const reparsed = fromMermaid(mermaid);
+    expect(reparsed.nodes[s.id].name).toBe(name);
+  });
+
+  test('printable Unicode passes through unescaped (alphabet readability)', () => {
+    // Cyrillic + CJK glyphs in the alphabet and state name. Alphabet
+    // rejects multi-code-unit symbols (`.length === 1` check) so emoji
+    // outside the BMP can't be tested at this layer — that's fine,
+    // surrogate-pair handling is covered by the encoder's regex range
+    // and the round-trip decode-path tests above.
+    const alphabet = new Alphabet([' ', 'я', '中']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const s = new State({
+      [tapeBlock.symbol(['я'])]: {
+        command: [{symbol: '中', movement: movements.right}],
+        nextState: haltState,
+      },
+    }, 'имя');
+
+    const mermaid = toMermaid(State.toGraph(s, tapeBlock));
+    expect(mermaid).toContain('имя');
+    expect(mermaid).toContain('я');
+    expect(mermaid).toContain('中');
+    // No spurious numeric entities for printable Unicode.
+    expect(mermaid).not.toMatch(/&#\d+;/);
+  });
+
+  test('callable-subtree frame label escapes the bare name', () => {
+    // The frame label `callable subtree of NAME` interpolates the bare
+    // state's name. Quotes in the bare name would break the
+    // `subgraph w_N["..."]` declaration.
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const bare = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, 'b"are');
+    const wrapper = bare.withOverriddenHaltState(haltState);
+
+    const mermaid = toMermaid(State.toGraph(wrapper, tapeBlock));
+    expect(mermaid).toContain('callable subtree of b&quot;are');
+    // The subgraph declaration line itself has exactly two `"`s: the
+    // outer label wrappers. Any additional one would mean an unescaped
+    // user `"` slipped through.
+    const subgraphLine = mermaid
+      .split('\n')
+      .find((l) => l.trimStart().startsWith('subgraph w_'));
+    expect(subgraphLine).toBeDefined();
+    expect((subgraphLine!.match(/"/g) ?? []).length).toBe(2);
+  });
+
+  test('ambiguous `&amp;quot;` decodes once, not twice', () => {
+    // User content that looks like a doubly-encoded entity. Single-pass
+    // decode should give back the literal `&quot;` text, not `"`.
+    const alphabet = new Alphabet([' ', '0']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const name = '&quot;literal&quot;';
+    const s = new State({
+      [tapeBlock.symbol(['0'])]: {nextState: haltState},
+    }, name);
+
+    const reparsed = fromMermaid(toMermaid(State.toGraph(s, tapeBlock)));
+    expect(reparsed.nodes[s.id].name).toBe(name);
+  });
+});
