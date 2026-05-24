@@ -153,6 +153,62 @@ export default class TapeBlock {
     )) ?? false;
   }
 
+  /**
+   * For a Symbol returned by `this.symbol([...])` (or the catch-all
+   * `ifOtherSymbol`), returns the per-tape match kind for the
+   * **alternative that actually matched** given `currentSymbols`:
+   * `'wildcard'` if that tape position was `ifOtherSymbol` in the winning
+   * alternative, `'literal'` otherwise. Length always equals the tape
+   * count.
+   *
+   * Used by `TuringMachine.runStepByStep` to populate
+   * `MachineState.matchedTransition.matchKinds` for #205. The "winning
+   * alternative" disambiguation matters for alternations like
+   * `[[ifOtherSymbol, 'c'], ['a', 'b']]` — different alternatives can
+   * have different per-tape kinds, and only the alternative that matched
+   * the current head symbols is meaningful.
+   *
+   * - `ifOtherSymbol` (the State's catch-all transition fired): all
+   *   positions are `'wildcard'`.
+   * - Symbol with patternList: find the first alternative that matches
+   *   `currentSymbols` (same predicate as `isMatched`), return its
+   *   per-position kinds.
+   * - Symbol with no winning alternative under the given `currentSymbols`
+   *   (defensive — shouldn't happen if the caller resolved the Symbol via
+   *   the State's normal matching): fall back to all `'literal'`.
+   */
+  patternKinds(
+    symbol: symbol,
+    currentSymbols: string[] = this.currentSymbols,
+  ): ('wildcard' | 'literal')[] {
+    const tapeCount = this.#tapes.length;
+
+    if (symbol === ifOtherSymbol) {
+      return Array.from({length: tapeCount}, () => 'wildcard' as const);
+    }
+
+    const patternList = this.#symbolToPatternListMap.get(symbol);
+
+    if (patternList === undefined) {
+      return Array.from({length: tapeCount}, () => 'literal' as const);
+    }
+
+    const winning = patternList.find((pattern) => (
+      pattern.every((everySymbol, ix) => (
+        everySymbol === ifOtherSymbol
+        || everySymbol === currentSymbols[ix]
+      ))
+    ));
+
+    if (winning === undefined) {
+      return Array.from({length: tapeCount}, () => 'literal' as const);
+    }
+
+    return winning.map((everySymbol) => (
+      everySymbol === ifOtherSymbol ? 'wildcard' as const : 'literal' as const
+    ));
+  }
+
   replaceTape(tape: Tape, tapeIx = 0) {
     if (this.#tapes[tapeIx] == null) {
       throw new Error('invalid tapeIx');

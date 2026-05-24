@@ -1,4 +1,4 @@
-import State, {haltState, type DebugConfig} from './State';
+import State, {haltState, STATE_INTERNAL, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
@@ -25,6 +25,29 @@ export type MachineState = {
   debugBreak?: {
     before?: true;
     after?: true;
+  };
+  /**
+   * The transition the engine picked for this iter (#205). Always present
+   * — `runStepByStep` resolves it at the very start of every iter via
+   * `state.getMatchedTransition(symbol)`, well before any callback fires.
+   *
+   * - `id` — resolvable in `toGraph`'s output: `graph.nodes[…].transitions`
+   *   contains a `GraphTransition` whose `.id` equals this value. Format is
+   *   `${stateId}.${transitionIx}`. **For wrapper-entry iters (`state` is
+   *   produced by `withOverriddenHaltState`): the wrapper's own
+   *   `transitions` array in `toGraph` is empty because wrappers delegate
+   *   to the bare; this field carries the BARE's transition id, where the
+   *   pattern actually lives.** Consumers can detect this case by
+   *   comparing `id.split('.')[0]` against `state.id` — different = wrapper
+   *   delegation.
+   * - `matchKinds` — per-tape match kind for the picked transition's
+   *   pattern at each tape position. `'wildcard'` if the matched
+   *   alternative had `ifOtherSymbol` at that position, `'literal'`
+   *   otherwise. Length equals tape count.
+   */
+  matchedTransition: {
+    id: string;
+    matchKinds: ('wildcard' | 'literal')[];
   };
 };
 
@@ -172,7 +195,22 @@ export default class TuringMachine {
 
         const symbol = state.getSymbol(this.#tapeBlock);
         const command = state.getCommand(symbol);
-        let nextState = state.getNextState(symbol).ref;
+        const matched = state.getMatchedTransition(symbol);
+        let nextState = matched.nextState.ref;
+        // For wrapper-entry iters, the wrapper's transitions in `toGraph`
+        // are empty (wrappers delegate to the bare via shared
+        // `#symbolToDataMap`); the resolvable transition id lives under
+        // the bare's stateId. `bareState` is non-null only when `state`
+        // is a wrapper produced by `withOverriddenHaltState`. Accessed
+        // via the STATE_INTERNAL package-private view (same pattern
+        // `utilities/stateGraph.ts` uses) to avoid widening the public
+        // State API for this internal need.
+        const stateInternal = state[STATE_INTERNAL]();
+        const resolvableStateId = stateInternal.bareState?.id ?? state.id;
+        const matchedTransition: MachineState['matchedTransition'] = {
+          id: `${resolvableStateId}.${matched.ix}`,
+          matchKinds: this.#tapeBlock.patternKinds(matched.matchedSymbol),
+        };
 
         try {
           // Both before and after refer to THIS iter (#119 / v6.0.0).
@@ -206,6 +244,7 @@ export default class TuringMachine {
             }),
             movements: command.tapesCommands.map((tapeCommand) => tapeCommand.movement),
             nextState: nextStateForYield,
+            matchedTransition,
           };
 
           if (beforeMatch || afterMatch) {

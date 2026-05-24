@@ -327,6 +327,7 @@ Each yielded `step` (`MachineState`) has these fields:
 | `movements` | `symbol[]` | per-tape head moves (`movements.left/right/stay`) |
 | `nextState` | `State` | the state that will execute next |
 | `debugBreak?` | `{ before?: true, after?: true }` | only set when `state.debug` matched on this iter — see *Debugging breakpoints* below |
+| `matchedTransition` | `{ id: string, matchKinds: ('wildcard'\|'literal')[] }` | the transition the engine picked for this iter — see *Matched transition* below |
 
 `stepsLimit` (default `1e5`) guards against runaway loops — exceeding it throws.
 
@@ -345,6 +346,35 @@ Both APIs are first-class — `run()` is built on top of `runStepByStep()` (see 
 **Rule of thumb.** If your consumer reads `state.debug` and expects the engine to act on it (pause, fire callbacks), use `run()`. If you want pull-based iteration with full control over timing, use `runStepByStep()` — the `debugBreak` field is still on every yield, so you can inspect breakpoint metadata yourself.
 
 **Don't split one logical flow across both APIs.** A consumer that wants stepwise UI *and* hook-driven breakpoints should use `run({ onStep, onPause, debug })` exclusively. Routing some operations through `runStepByStep()` and others through `run()` means `state.debug` only flows through one of the two paths — a subtle footgun where breakpoints silently disappear on whichever code path uses the generator directly. For per-iter throttle / "wait between steps" UIs, see [Throttle pattern](#throttle-pattern).
+
+### Matched transition
+
+Every yielded `MachineState` carries a `matchedTransition` describing which transition the engine picked for that iter. The engine already resolves this via `state.getNextState(symbol)` internally; this field exposes the resolution to consumers so visualizations, log formatters, and coverage maps don't have to re-derive an ambiguous `(source, nextState)` pair (which collides when multiple transitions on the same source share a destination) or parse pattern strings from `toGraph`.
+
+```ts
+matchedTransition: {
+  id: string;                               // resolvable in toGraph
+  matchKinds: ('wildcard' | 'literal')[];   // per-tape, length = tape count
+}
+```
+
+- **`id`** — `${stateId}.${transitionIx}`. Resolvable in `toGraph`'s output: `graph.nodes[stateId].transitions` has an entry with the matching `id`. For wrapper-entry iters (source is a wrapper produced by `withOverriddenHaltState`), `id` references the **bare's** transition — the wrapper's own `transitions` array in `toGraph` is empty because wrappers delegate, and the pattern actually lives on the bare. Detect by comparing `id.split('.')[0]` against `state.id`: different → wrapper delegation.
+
+- **`matchKinds`** — per-tape match kind for the matched alternative's selector at each tape position. `'wildcard'` if the position held `ifOtherSymbol` (catch-all) in the winning alternative; `'literal'` if it held a specific symbol or symbol-list. Length always equals tape count.
+
+Example use:
+
+```javascript
+await machine.run({
+  initialState,
+  onStep: (m) => {
+    const wildcardPositions = m.matchedTransition.matchKinds  // per-tape, e.g. ['wildcard', 'literal']
+      .map((k, i) => k === 'wildcard' ? i : -1)
+      .filter((i) => i >= 0);
+    console.log(`step ${m.step}: fired transition ${m.matchedTransition.id} (wildcards at tapes: ${wildcardPositions.join(',') || 'none'})`);
+  },
+});
+```
 
 ## Subroutine composition with `withOverriddenHaltState`
 

@@ -30,7 +30,7 @@ describe('collectStates (#195)', () => {
     let assertions = 0;
     for (const node of Object.values(graph.nodes)) {
       for (const t of node.transitions) {
-        const [nStr, kStr] = t.id.split('-');
+        const [nStr, kStr] = t.id.split('.');
         const n = Number(nStr);
         const k = Number(kStr);
         const entry = stateMap.get(n);
@@ -178,12 +178,13 @@ describe('collectStates (#195)', () => {
     expect(entry.transitionSymbols[0]).toBe(sym0);
     expect(entry.transitionSymbols[1]).toBe(sym1);
 
-    // No GraphTransition with id `${s.id}-0` (the unbound-ref slot);
+    // No GraphTransition with id `${s.id}.0` (the unbound-ref slot);
     // the one for slot 1 (the bound transition) DOES exist.
+    // (#205 changed separator from `-` to `.`.)
     const node = graph.nodes[s.id];
     const ids = node.transitions.map((t) => t.id);
-    expect(ids).not.toContain(`${s.id}-0`);
-    expect(ids).toContain(`${s.id}-1`);
+    expect(ids).not.toContain(`${s.id}.0`);
+    expect(ids).toContain(`${s.id}.1`);
   });
 });
 

@@ -103,17 +103,26 @@ describe('State constructor — invalid inputs', () => {
   });
 });
 
-describe('State.getCommand / .getNextState — error paths', () => {
+describe('State.getCommand / .getNextState / .getMatchedTransition — error paths', () => {
   // Default-constructed State has an empty symbolToDataMap; any lookup throws.
+  // #206 unified the message across all three methods: the prior per-method
+  // wording ("No command for…" / "No nextState for…") conveyed the same root
+  // cause ("no transition for this symbol") and the public methods now share
+  // a single `#getEntry` helper.
 
-  test('getCommand on an unmapped symbol throws "No command for symbol at state named …"', () => {
+  test('getCommand on an unmapped symbol throws "No transition for symbol at state named …"', () => {
     expect(() => new State().getCommand(ifOtherSymbol))
-      .toThrow(/^No command for symbol at state named/);
+      .toThrow(/^No transition for symbol at state named/);
   });
 
-  test('getNextState on an unmapped symbol throws "No nextState for symbol at state named …"', () => {
+  test('getNextState on an unmapped symbol throws "No transition for symbol at state named …"', () => {
     expect(() => new State().getNextState(ifOtherSymbol))
-      .toThrow(/^No nextState for symbol at state named/);
+      .toThrow(/^No transition for symbol at state named/);
+  });
+
+  test('getMatchedTransition on an unmapped symbol throws "No transition for symbol at state named …"', () => {
+    expect(() => new State().getMatchedTransition(ifOtherSymbol))
+      .toThrow(/^No transition for symbol at state named/);
   });
 });
 
