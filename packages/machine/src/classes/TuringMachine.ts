@@ -216,9 +216,20 @@ export default class TuringMachine {
           // Both before and after refer to THIS iter (#119 / v6.0.0).
           // The halting iter's after-fire just rides along on the iter's
           // own yield — no post-loop drain needed.
-          const beforeMatch = matchFilter(state.debug?.before, symbol)
-            || (nextState.isHalt && nextState.debug?.before === true);
-          const afterMatch = matchFilter(state.debug?.after, symbol);
+          //
+          // #207: `haltState.debug` is now a boolean, and pauses on the
+          // halt-triggering iter's AFTER side (not before). The previous
+          // before-side check (`nextState.debug?.before === true`) was
+          // "early-warning" timing — the user paused before the halt-bound
+          // transition fired, then had to mentally re-derive what would
+          // happen. Now the pause anchors post-step (after the iter's own
+          // after-pause if armed), so consumers see the just-fired halt-
+          // bound transition + diagram cursor still on the triggering state.
+          const debug = state.debug;
+          const stateDebugConfig = typeof debug === 'boolean' ? null : debug;
+          const beforeMatch = matchFilter(stateDebugConfig?.before, symbol);
+          const afterMatch = matchFilter(stateDebugConfig?.after, symbol)
+            || (nextState === haltState && haltState.debug);
 
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]

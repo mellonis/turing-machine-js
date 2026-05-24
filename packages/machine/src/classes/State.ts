@@ -129,6 +129,15 @@ export default class State {
   // a runtime concern, not part of the structural graph.
   #debugRef: { current: DebugConfig | null } = {current: null};
 
+  // Storage for `haltState.debug` (#207). haltState is a singleton terminal
+  // state — it has no iter of its own, so the per-side `{ before, after }`
+  // DebugConfig shape doesn't model anything meaningful for it. Instead the
+  // halt breakpoint is a single boolean ("enabled / disabled"). The pause
+  // anchors on the iter whose transition LEADS to halt, fired at end-of-iter
+  // (after that iter's own after-pause if armed). Only used when `isHalt`;
+  // ignored on every other State (whose `#debugRef` flow is unchanged).
+  #haltDebug: boolean = false;
+
   // Out-of-band tags applied to this State (#186). Tags are visualization
   // and debugger-tooling metadata — they don't affect runtime transition
   // lookup or `equivalentOn` comparisons. Stored as a Set for de-duplication;
@@ -224,6 +233,18 @@ export default class State {
   }
 
   get debug(): DebugConfig {
+    // haltState (#207): the canonical access path is the `haltState` singleton
+    // export, which is typed `HaltState` — its `debug` getter is narrowed to
+    // `boolean`. Generic `State` references statically see `DebugConfig` and
+    // (in practice) never refer to haltState — the run loop's `state` is
+    // never haltState because halt is terminal and doesn't iterate. The cast
+    // below makes the runtime boolean return type-compatible with the
+    // declared `DebugConfig` for any rare caller that holds a State
+    // reference happening to be haltState.
+    if (this.isHalt) {
+      return this.#haltDebug as unknown as DebugConfig;
+    }
+
     // Lazy-init: `state.debug` is never null at read time, so chained writes
     // like `state.debug.before = true` work on a fresh state without a prior
     // whole-object assignment. The setter still accepts `null` to reset the
@@ -236,20 +257,58 @@ export default class State {
     return this.#debugRef.current;
   }
 
+  // TS signature: non-halt callers (generic `State` reference) get the
+  // `DebugConfig | object | null` surface; boolean is rejected statically.
+  // The `HaltState` typed alias on the singleton export overrides this to
+  // `boolean | null` for the canonical halt access path. Runtime checks
+  // below are defensive against type-bypass / mixed-source callers.
   set debug(
     value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
   ) {
-    if (value === null) {
+    // Defensive runtime cast: TS signature excludes boolean for the generic
+    // State surface, but haltState (via the HaltState alias) DOES accept
+    // boolean, and the runtime needs to handle it for the singleton path.
+    const v = value as DebugConfig | { before?: unknown; after?: unknown } | boolean | null;
+    // haltState (#207): only `boolean | null` is accepted. `null` aliases
+    // to `false` (reset). Any object-shaped write throws at write-time so
+    // misuse surfaces immediately rather than silently no-op'ing — the
+    // `{before, after}` shape doesn't model anything meaningful for halt
+    // (no own iter to anchor on; halt is terminal).
+    if (this.isHalt) {
+      if (v === null || typeof v === 'boolean') {
+        this.#haltDebug = v === true;
+        return;
+      }
+
+      throw new Error(
+        'haltState.debug only accepts boolean (or null to reset). Use '
+        + '`haltState.debug = true` to enable the halt breakpoint, false to '
+        + 'disable. The pause fires after the iter whose transition leads to '
+        + 'halt (post-iter, before halt processing).',
+      );
+    }
+
+    // Non-halt states: boolean writes are rejected — the per-side
+    // `{before, after}` granularity is the contract. A boolean shortcut
+    // would hide the asymmetry between before / after.
+    if (typeof v === 'boolean') {
+      throw new Error(
+        'state.debug only accepts a DebugConfig or `{ before, after }` object '
+        + '(or null to reset). Boolean assignment is reserved for `haltState`.',
+      );
+    }
+
+    if (v === null) {
       this.#debugRef.current = null;
       return;
     }
 
-    if (value instanceof DebugConfig) {
-      this.#debugRef.current = value;
+    if (v instanceof DebugConfig) {
+      this.#debugRef.current = v;
       return;
     }
 
-    this.#debugRef.current = new DebugConfig(this, value);
+    this.#debugRef.current = new DebugConfig(this, v as { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true });
   }
 
   /**
@@ -287,30 +346,17 @@ export default class State {
     return Object.freeze([...this.#tags]);
   }
 
-  /** @internal — invoked by DebugConfig setters via module-private symbol. */
+  /** @internal — invoked by DebugConfig setters via module-private symbol.
+   *  Per #207, haltState no longer flows through DebugConfig (its `debug`
+   *  setter rejects object writes before construction), so the validator
+   *  only sees non-halt states here. */
   [validateDebugFilter](
     fieldName: 'before' | 'after',
     filter: readonly symbol[] | true | undefined,
   ): void {
     if (filter === undefined) return;
 
-    // #108 part 2: `.after` on haltState has no semantic anchor — halt is
-    // terminal, so there is no iteration-after-halt for an after-fire to
-    // attach to. Reject any truthy assignment (true OR list) at write time
-    // so misuse surfaces immediately rather than silently no-op'ing.
-    if (this.isHalt && fieldName === 'after') {
-      throw new Error(
-        'haltState.debug.after is not supported: halt is terminal, so there is '
-        + 'no iteration-after-halt for an after-fire to anchor on. Use '
-        + '{ before: true } to pause on halt entry.',
-      );
-    }
-
     if (filter === true) return;
-
-    // haltState has no own transitions; symbol-list filters on `before` are
-    // silent no-ops at the engine level (spec §8.6), so accept any list shape.
-    if (this.isHalt) return;
 
     for (const sym of filter) {
       if (sym !== ifOtherSymbol && !this.#symbolToDataMap.has(sym)) {
@@ -576,4 +622,26 @@ export default class State {
   }
 }
 
-export const haltState = new State(null);
+/**
+ * Typed alias for the haltState singleton (#207). Narrows `debug` from
+ * the generic-State `DebugConfig | boolean` union to plain `boolean`,
+ * giving compile-time type-safety at the singleton's call sites:
+ *
+ * ```ts
+ * haltState.debug = true;            // ok
+ * haltState.debug = false;           // ok
+ * haltState.debug = { before: true } // TS error
+ * const isOn = haltState.debug;      // typed `boolean`
+ * ```
+ *
+ * Anyone holding a `State` reference that happens to BE the singleton (e.g.
+ * via `state.getNextState(sym).ref === haltState`) sees the wider `State`
+ * type; runtime throws guide them to the right shape. The singleton export
+ * is the canonical access path.
+ */
+export type HaltState = State & {
+  get debug(): boolean;
+  set debug(value: boolean | null);
+};
+
+export const haltState: HaltState = new State(null) as HaltState;
