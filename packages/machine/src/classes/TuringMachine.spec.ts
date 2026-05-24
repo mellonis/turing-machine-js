@@ -45,6 +45,21 @@ describe('run tests', () => {
       },
     });
 
+    // #205 matchedTransition. Transition declaration order on
+    // `initialState`:
+    //   ix 0 → `[symbol(symbolList)]` (specific symbol-list pattern)
+    //   ix 1 → `[ifOtherSymbol]` (catch-all)
+    // Iters 1-3 read concrete alphabet symbols matched by ix 0 (literal).
+    // Iter 4 reads blank, falls through to ix 1 (wildcard).
+    const transitionListMatch = {
+      id: `${initialState.id}.0`,
+      matchKinds: ['literal' as const],
+    };
+    const transitionWildcardMatch = {
+      id: `${initialState.id}.1`,
+      matchKinds: ['wildcard' as const],
+    };
+
     expectedSteps = [
       {
         step: 1,
@@ -53,6 +68,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 2,
@@ -61,6 +77,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 3,
@@ -69,6 +86,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 4,
@@ -77,6 +95,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.stay],
         nextState: haltState,
+        matchedTransition: transitionWildcardMatch,
       },
     ];
   });

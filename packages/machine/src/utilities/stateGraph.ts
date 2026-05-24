@@ -142,7 +142,14 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
           movement: decodeMovement((tc.movement as symbol).description),
         })),
         nextStateId: targetInternal.id,
-        id: `${stateInternal.id}-${patternIx}`,
+        // Transition id format: `${stateId}.${transitionIx}` (#205).
+        // Matches `TuringMachine.runStepByStep`'s `MachineState.
+        // matchedTransition.id` so consumers can do
+        // `graph.nodes[stateId].transitions.find(t => t.id === id)`.
+        // Was `${stateId}-${ix}` pre-#205 — the `.` separator avoids
+        // the hyphen reading as a minus sign next to negative halt-
+        // marker ids in adjacent contexts.
+        id: `${stateInternal.id}.${patternIx}`,
       });
 
       queue.push(target);
@@ -521,7 +528,8 @@ export type StateMap = Map<number, StateMapEntry>;
  * instance + per-pattern Symbol references for breakpoint setup (#195).
  *
  * **Positional alignment contract.** For any `GraphTransition` whose id
- * is `${N}-${K}`, `result.get(N)!.transitionSymbols[K]` is the Symbol
+ * is `${N}.${K}` (#205 changed the separator from `-` to `.`),
+ * `result.get(N)!.transitionSymbols[K]` is the Symbol
  * the transition fires on (reference equality, not structural). The K-th
  * entry is the K-th key from the source State's `#symbolToDataMap` in
  * insertion order, including `ifOtherSymbol` when the user wrote one.
@@ -532,7 +540,7 @@ export type StateMap = Map<number, StateMapEntry>;
  * when a transition's `nextState` is an unresolved `Reference` (it
  * `continue`s without pushing the GraphTransition). In that case
  * `transitionSymbols[K]` is still set to the K-th Map key, but no
- * `Graph.nodes[N].transitions` entry exists with id `${N}-${K}`. Sparse
+ * `Graph.nodes[N].transitions` entry exists with id `${N}.${K}`. Sparse
  * on the Graph side, dense on the `transitionSymbols` side — same
  * indexing.
  *
@@ -631,7 +639,7 @@ export function collectStates(initialState: State, tapeBlock: TapeBlock): StateM
 
     // Regular or bare State — enumerate `#symbolToDataMap.keys()` for
     // the patternIx alignment. The K-th key is the Symbol that
-    // `${id}-${K}` GraphTransition fires on (positional contract).
+    // `${id}.${K}` GraphTransition fires on (positional contract).
     const state = stateById.get(id)!;
     const transitionSymbols = [...state[STATE_INTERNAL]().symbolToDataMap.keys()];
     result.set(id, {state, transitionSymbols});

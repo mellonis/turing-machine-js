@@ -351,6 +351,47 @@ export default class State {
     throw new Error(`No nextState for symbol at state named ${this.#id}`);
   }
 
+  /**
+   * Like `getNextState`, but also returns the matched Symbol and its index
+   * in this State's transition declaration order (= the `K` in `toGraph`'s
+   * `${stateId}.${K}` transition ids). Used by `TuringMachine.runStepByStep`
+   * to populate `MachineState.matchedTransition` for #205 — exposes which
+   * transition fired so consumers (UIs, log tools, coverage maps) can
+   * resolve the firing edge without re-deriving from `(source, nextState)`,
+   * which is ambiguous when multiple transitions on the same source go to
+   * the same destination.
+   *
+   * Throws (matching `getNextState`) when no entry exists for the symbol.
+   * For wrappers (states produced by `withOverriddenHaltState`): the
+   * symbol-to-data map is shared with the bare via `bareState`, so the
+   * returned `ix` is a valid position into BOTH the wrapper's and the
+   * bare's transition iteration order — they're the same map.
+   */
+  getMatchedTransition(symbol: symbol): {
+    nextState: State | Reference,
+    matchedSymbol: symbol,
+    ix: number,
+  } {
+    const entry = this.#symbolToDataMap.get(symbol);
+
+    if (entry === undefined) {
+      throw new Error(`No nextState for symbol at state named ${this.#id}`);
+    }
+
+    // Iteration order on a Map is insertion order; index lookup is O(N),
+    // acceptable since this fires at most once per iter and N (transitions
+    // per state) is typically tiny. If hot-path measurement ever flags it,
+    // cache as `#symbolToIxMap` mirror.
+    let ix = 0;
+
+    for (const key of this.#symbolToDataMap.keys()) {
+      if (key === symbol) break;
+      ix += 1;
+    }
+
+    return {nextState: entry.nextState, matchedSymbol: symbol, ix};
+  }
+
   withOverriddenHaltState(overriddenHaltState: State) {
     // Unwrap `this` if it's itself a wrapper — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
