@@ -136,9 +136,9 @@ describe('README.md — Debugging breakpoints', () => {
     expect(order).toEqual(['before', 'after']);
   });
 
-  test('haltState.debug.before pauses on halt entry — fires once at the final visit', async () => {
+  test('haltState.debug = true pauses on halt entry — fires once at the final visit (#207)', async () => {
     const {machine, myState} = buildExampleMachine();
-    haltState.debug = {before: true};
+    haltState.debug = true;
     const haltPauses: Array<{atVisit: number}> = [];
     let visitIx = 0;
 
@@ -146,17 +146,20 @@ describe('README.md — Debugging breakpoints', () => {
       initialState: myState,
       onStep: () => { visitIx += 1; }, // increments before onPause for this visit
       onPause: (m) => {
-        if (m.nextState === haltState && m.debugBreak?.before) {
+        // #207: halt-imminent fires on AFTER side (post-iter, before halt
+        // processing). The triggering iter's `nextState` is haltState, and
+        // `debugBreak.after === true`.
+        if (m.nextState === haltState && m.debugBreak?.after) {
           haltPauses.push({atVisit: visitIx});
         }
       },
     });
 
     expect(haltPauses).toHaveLength(HALT_TRANSITION_COUNT);
-    // Note: per-iter dispatch order is `before → step → after` — onPause for
-    // before fires BEFORE onStep increments visitIx, so the recorded visit
-    // index is one less than the human-readable visit count.
-    expect(haltPauses[0].atVisit).toBe(VISIT_COUNT - 1);
+    // Per-iter dispatch order is `before → step → after` — onStep increments
+    // visitIx during step, then onPause for `after` reads it. The recorded
+    // visit index matches the human-readable visit count.
+    expect(haltPauses[0].atVisit).toBe(VISIT_COUNT);
   });
 
   test('Reset filters by assigning null', () => {

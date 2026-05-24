@@ -158,39 +158,45 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
   });
 });
 
-describe('TuringMachine — haltState.debug.before', () => {
+describe('TuringMachine — haltState.debug (boolean, #207)', () => {
   afterEach(() => {
     // haltState is a singleton — clear after each test to avoid cross-pollution.
-    haltState.debug = null;
+    haltState.debug = false;
   });
 
-  test('haltState.debug.before = true fires on program halt (last visit only)', async () => {
+  test('haltState.debug = true fires `debugBreak.after` on the halt-triggering iter (#207)', async () => {
     const {machine, state} = buildMachine();
-    haltState.debug = {before: true};
+    haltState.debug = true;
     const steps: MachineState[] = [];
 
     await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
-    // Only the visit that transitions to halt (the trailing blank) carries
-    // debugBreak.before from haltState.debug.before — the earlier visits
-    // transition self-loop, not to halt.
+    // Only the visit whose transition leads to halt (the trailing blank →
+    // ifOtherSymbol → haltState) carries `debugBreak.after`. The earlier
+    // visits self-loop within `state`, so their nextState is `state` itself,
+    // not haltState — no halt-imminent dispatch.
     for (let i = 0; i < VISIT_COUNT - 1; i++) {
       expect(steps[i]).not.toHaveProperty('debugBreak');
     }
     const last = steps[VISIT_COUNT - 1];
     expect(last.nextState).toBe(haltState);
-    expect(last.debugBreak).toEqual({before: true});
+    // #207 timing: fires on AFTER side (post-iter, before halt processing) —
+    // not BEFORE as the v6 API did. `m.state` is the TRIGGERING state (the
+    // one whose transition leads to halt), not haltState itself.
+    expect(last.state).toBe(state);
+    expect(last.debugBreak).toEqual({after: true});
   });
 
-  test('haltState.debug.before fires on subroutine return (halt-pop)', async () => {
+  test('haltState.debug = true fires on each halt entry — including subroutine return (halt-pop)', async () => {
     // Custom 1-cell tape + nested-state setup. Trajectory:
     //   visit 1: head 'A', state=wrapped → erase+right, transition to inner
     //   visit 2: head blank, state=inner → ifOtherSymbol → would halt;
     //            wrapped's override redirects to continuation. nextState=continuation.
-    //            haltState.debug.before fires (because original nextState was haltState).
+    //            #207: halt-imminent fires on AFTER side (transition's original
+    //            nextState was haltState before the pop redirect).
     //   visit 3: head blank, state=continuation → ifOtherSymbol → halt.
-    //            haltState.debug.before fires again.
+    //            #207: halt-imminent fires on AFTER side.
     const tape = new Tape({alphabet, symbols: ['A']});
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
@@ -209,7 +215,7 @@ describe('TuringMachine — haltState.debug.before', () => {
 
     const wrapped = inner.withOverriddenHaltState(continuation);
 
-    haltState.debug = {before: true};
+    haltState.debug = true;
     const steps: MachineState[] = [];
 
     await machine.run({initialState: wrapped, onStep: (s) => { steps.push(s); }});
@@ -219,32 +225,40 @@ describe('TuringMachine — haltState.debug.before', () => {
     // Visit 1: just self-loops into inner — no halt-related break.
     expect(steps[0]).not.toHaveProperty('debugBreak');
 
-    // Visit 2: transitions to continuation via halt-pop. debugBreak.before fires
-    // because nextState (pre-pop) was haltState.
+    // Visit 2: transitions to continuation via halt-pop. `debugBreak.after`
+    // fires because the transition's original nextState was haltState (the
+    // pop-redirect to continuation happens AFTER the engine's halt check).
     const popYield = steps.find((s) => s.nextState === continuation);
     expect(popYield).toBeDefined();
     expect(popYield).toBe(steps[1]);
-    expect(popYield!.debugBreak).toEqual({before: true});
+    expect(popYield!.debugBreak).toEqual({after: true});
 
-    // Visit 3: transitions to halt directly. debugBreak.before fires.
+    // Visit 3: transitions to halt directly. `debugBreak.after` fires.
     expect(steps[2].nextState).toBe(haltState);
-    expect(steps[2].debugBreak).toEqual({before: true});
+    expect(steps[2].debugBreak).toEqual({after: true});
   });
 
-  test('haltState.debug.before with symbol list NEVER matches (no head symbol at halt)', async () => {
-    const {machine, state, symbol} = buildMachine();
-    const symA = symbol(['A']);
-    haltState.debug = {before: [symA]};
+  test('haltState.debug = false / null suppresses dispatch on every iter', async () => {
+    const {machine, state} = buildMachine();
+    haltState.debug = false;
     const steps: MachineState[] = [];
 
     await machine.run({initialState: state, onStep: (s) => { steps.push(s); }});
 
     expect(steps).toHaveLength(VISIT_COUNT);
-    // Halt has no head symbol; list filter cannot match. No debug break should fire
-    // because of haltState.debug. (state.debug is null, so no other source.)
     for (const step of steps) {
       expect(step).not.toHaveProperty('debugBreak');
     }
+  });
+
+  test('haltState.debug getter returns boolean (typed `boolean` via HaltState alias)', () => {
+    haltState.debug = true;
+    expect(haltState.debug).toBe(true);
+    haltState.debug = false;
+    expect(haltState.debug).toBe(false);
+    haltState.debug = null;
+    // null aliases to false (reset).
+    expect(haltState.debug).toBe(false);
   });
 });
 
@@ -391,22 +405,41 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     expect(after).toHaveLength(VISIT_COUNT);
   });
 
-  test('haltState.debug.after = true throws on assignment (#108 part 2)', () => {
-    // Halt is terminal — no iteration-after-halt for an after-fire to anchor on.
-    // v5 rejects the assignment to surface the misuse rather than silently
-    // ignore it.
+  test('haltState.debug = {after: true} throws — boolean-only API (#207, supersedes #108 part 2)', () => {
+    // #207 collapsed haltState's debug to a single boolean — the {before, after}
+    // shape doesn't model anything meaningful for a terminal singleton. Any
+    // object write throws at write-time with a clear message.
     expect(() => {
+      // @ts-expect-error — HaltState typed alias narrows to `boolean`; the runtime throw
+      // is the secondary line of defense for callers reaching haltState through a
+      // generic `State` reference (e.g. `state.getNextState(sym).ref`).
       haltState.debug = {after: true};
-    }).toThrow();
+    }).toThrow(/haltState\.debug only accepts boolean/);
   });
 
-  test('haltState.debug with both flags throws (#108 part 2)', () => {
-    // Setting before+after symmetrically is the most likely user mistake; the
-    // .after part is meaningless and v5 rejects the whole assignment. Use
-    // { before: true } alone.
+  test('haltState.debug = {before: true} throws — boolean-only API (#207)', () => {
+    // The v6 API; under #207 this throws so callers migrate to `= true`.
     expect(() => {
+      // @ts-expect-error — see comment above.
+      haltState.debug = {before: true};
+    }).toThrow(/haltState\.debug only accepts boolean/);
+  });
+
+  test('haltState.debug = {before: true, after: true} throws — boolean-only API (#207)', () => {
+    expect(() => {
+      // @ts-expect-error — see comment above.
       haltState.debug = {before: true, after: true};
-    }).toThrow();
+    }).toThrow(/haltState\.debug only accepts boolean/);
+  });
+
+  test('non-halt state.debug = boolean throws — DebugConfig-only on non-halt (#207)', () => {
+    // Symmetric guard: only haltState accepts boolean. Non-halt states must
+    // use the DebugConfig shape so the per-side granularity stays explicit.
+    const s = new State();
+    expect(() => {
+      // @ts-expect-error — non-halt State's debug setter narrows to DebugConfig.
+      s.debug = true;
+    }).toThrow(/Boolean assignment is reserved for `haltState`/);
   });
 });
 

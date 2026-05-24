@@ -497,14 +497,18 @@ myState.debug = { before: true };
 myState.debug = { before: [symA] };
 myState.debug = { before: [symA], after: [symA] };
 
-// Pause when the engine is about to enter halt (program exit OR subroutine pop):
-haltState.debug = { before: true };
+// Pause when the engine is about to enter halt (program exit OR subroutine pop).
+// haltState.debug is a `boolean` (#207) — halt is terminal, so there's only
+// one meaningful pause moment (post-triggering-iter, before halt processing).
+haltState.debug = true;
+haltState.debug = false;        // turn off
+haltState.debug = null;         // alias of false (reset)
 
-// Reset filters later — next read returns a fresh empty DebugConfig:
+// Reset filters later on a regular state — next read returns a fresh empty DebugConfig:
 myState.debug = null;
 ```
 
-> ⚠️ **`haltState.debug.after` throws.** Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Assigning a truthy `.after` to `haltState.debug` (including `{ before: true, after: true }`) throws at write time. Symbol-list filters on `haltState.debug.before` are silent no-ops, since halt has no head symbol; only the wildcard `true` activates.
+> ⚠️ **`haltState.debug` is `boolean`-only.** Any object-shaped write (`{ before: true }`, `{ after: true }`, `{ before: true, after: true }`) throws at write time. The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.debugBreak.after === true`. Diagram + log narratives read naturally: the halt-bound transition has already fired when the pause lands, and halt is the next thing.
 
 The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverriddenHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input (`state.debug = { before: true }`) is wrapped in a fresh `DebugConfig` automatically. The instance itself is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property. Per-property setters validate and freeze the stored array, so `state.debug.before.push(...)` also throws `TypeError`.
 
@@ -738,7 +742,7 @@ Reading `['0',*] → [K,'0']/[R,R]`:
 API surface changes since v3, in past tense so the timing of each piece is explicit:
 
 - **v4** — `run()` became async (`Promise<void>`). Per-state runtime breakpoints landed (`state.debug.before` / `state.debug.after`); `run()` accepted an `onDebugBreak` hook. `MachineState` exposed on each yield.
-- **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on).
+- **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on). *Superseded in v7 by #207: `haltState.debug` is now `boolean`, all object-shaped writes throw.*
 - **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. The `MachineState.debugBreak` field shape is unchanged across all three versions.
 - **v6.1** — `state.debug` ergonomics: the field is now always a non-null `DebugConfig` instance (lazy-initialized on first read), so chained field writes like `state.debug.before = true` work on a fresh state without a prior whole-object assignment. The `DebugConfig` instance is `Object.seal`-ed, so typos like `state.debug.bofore = true` throw `TypeError` at write time instead of silently creating a useless property. `state.debug = null` continues to work but semantically means "reset filters" — the next read returns a fresh empty `DebugConfig` (#150).
 - **v6.2** *(superseded by v6.3.0)* — widened `onStep`'s signature to `(m) => void | Promise<void>` and added an inline `await onStep(...)` in the run loop, enabling throttle-in-`onStep` patterns. This overturned the docstring-stated contract that `onStep` is sync (microtask-free); the right place for per-iter throttling is `onPause` with self-rearm (see [Throttle pattern](#throttle-pattern)). Restored in v6.3.0.
