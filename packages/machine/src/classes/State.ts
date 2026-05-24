@@ -335,20 +335,28 @@ export default class State {
     return ifOtherSymbol;
   }
 
-  getCommand(symbol: symbol) {
-    if (this.#symbolToDataMap.has(symbol)) {
-      return this.#symbolToDataMap.get(symbol)!.command;
+  // Single lookup + throw site shared by `getCommand`, `getNextState`, and
+  // `getMatchedTransition`. Returns the symbol's entry `{command, nextState}`
+  // (one map-get, no `.has()` pre-check); throws a unified message when no
+  // entry exists. Before #206, each public method did its own `.has() + .get()!`
+  // double-lookup with a slightly different error string — same root cause
+  // ("no transition for this symbol"), so the message is unified.
+  #getEntry(symbol: symbol) {
+    const entry = this.#symbolToDataMap.get(symbol);
+
+    if (entry === undefined) {
+      throw new Error(`No transition for symbol at state named ${this.#name}`);
     }
 
-    throw new Error(`No command for symbol at state named ${this.#name}`);
+    return entry;
+  }
+
+  getCommand(symbol: symbol) {
+    return this.#getEntry(symbol).command;
   }
 
   getNextState(symbol: symbol) {
-    if (this.#symbolToDataMap.has(symbol)) {
-      return this.#symbolToDataMap.get(symbol)!.nextState;
-    }
-
-    throw new Error(`No nextState for symbol at state named ${this.#id}`);
+    return this.#getEntry(symbol).nextState;
   }
 
   /**
@@ -361,9 +369,9 @@ export default class State {
    * which is ambiguous when multiple transitions on the same source go to
    * the same destination.
    *
-   * Throws (matching `getNextState`) when no entry exists for the symbol.
-   * For wrappers (states produced by `withOverriddenHaltState`): the
-   * symbol-to-data map is shared with the bare via `bareState`, so the
+   * Throws (matching `getNextState` / `getCommand`) when no entry exists for
+   * the symbol. For wrappers (states produced by `withOverriddenHaltState`):
+   * the symbol-to-data map is shared with the bare via `bareState`, so the
    * returned `ix` is a valid position into BOTH the wrapper's and the
    * bare's transition iteration order — they're the same map.
    */
@@ -372,11 +380,7 @@ export default class State {
     matchedSymbol: symbol,
     ix: number,
   } {
-    const entry = this.#symbolToDataMap.get(symbol);
-
-    if (entry === undefined) {
-      throw new Error(`No nextState for symbol at state named ${this.#id}`);
-    }
+    const entry = this.#getEntry(symbol);
 
     // Iteration order on a Map is insertion order; index lookup is O(N),
     // acceptable since this fires at most once per iter and N (transitions
