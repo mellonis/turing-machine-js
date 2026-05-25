@@ -210,6 +210,57 @@ describe('README.md — Debugging breakpoints', () => {
   });
 });
 
+describe('README.md — Matched transition', () => {
+  test('onStep logs transition id and per-tape wildcard positions (#205)', async () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'c', '*']);
+    const tape = new Tape({alphabet, symbols: ['a', 'b', 'c', 'b', 'a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+
+    // Same fixture as "An example" — patterns declared in this order:
+    //   ix 0: literal 'b'  → write '*', right
+    //   ix 1: literal ' '  → left, halt
+    //   ix 2: ifOtherSymbol → right
+    // Tape walk: a, b, c, b, a, blank → 6 iters total.
+    const initialState = new State({
+      [tapeBlock.symbol(['b'])]: {
+        command: [{symbol: '*', movement: movements.right}],
+      },
+      [tapeBlock.symbol([tape.alphabet.blankSymbol])]: {
+        command: [{movement: movements.left}],
+        nextState: haltState,
+      },
+      [ifOtherSymbol]: {
+        command: [{movement: movements.right}],
+      },
+    });
+
+    const logged: string[] = [];
+
+    // Verbatim from README's "Matched transition" section, with console.log
+    // replaced by capture for assertion.
+    await machine.run({
+      initialState,
+      onStep: (m) => {
+        const wildcardPositions = m.matchedTransition.matchKinds
+          .map((k, i) => k === 'wildcard' ? i : -1)
+          .filter((i) => i >= 0);
+        logged.push(`step ${m.step}: fired transition ${m.matchedTransition.id} (wildcards at tapes: ${wildcardPositions.join(',') || 'none'})`);
+      },
+    });
+
+    const sid = initialState.id;
+    expect(logged).toEqual([
+      `step 1: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'a' → ifOther
+      `step 2: fired transition ${sid}.0 (wildcards at tapes: none)`, // 'b' → literal
+      `step 3: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'c' → ifOther
+      `step 4: fired transition ${sid}.0 (wildcards at tapes: none)`, // 'b' → literal
+      `step 5: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'a' → ifOther
+      `step 6: fired transition ${sid}.1 (wildcards at tapes: none)`, // blank → halt
+    ]);
+  });
+});
+
 // Pin the inline `buildFromTable` helper shown in
 // packages/machine/README.md ("Building from a state table"). The helper is
 // reproduced here verbatim — if it stops compiling or producing the
