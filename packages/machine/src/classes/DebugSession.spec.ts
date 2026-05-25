@@ -117,7 +117,7 @@ describe('DebugSession: step event', () => {
     const {machine, state} = buildWalker(['A', 'A', 'A']);
     const session = new DebugSession(machine, {initialState: state});
     const steps: number[] = [];
-    session.on('step', (m) => steps.push(m.step));
+    session.on('step', (m) => { steps.push(m.step); });
     await session.start();
     expect(steps).toEqual([1, 2, 3, 4]);  // 3 A-iters + 1 blank-halt iter
   });
@@ -126,7 +126,7 @@ describe('DebugSession: step event', () => {
     const {machine, state} = buildWalker(['A']);
     const session = new DebugSession(machine, {initialState: state});
     const seen: State[] = [];
-    session.on('step', (m) => seen.push(m.state));
+    session.on('step', (m) => { seen.push(m.state); });
     await session.start();
     expect(seen.length).toBe(2);
     expect(seen[0]).toBe(state);  // iter 1
@@ -209,6 +209,39 @@ describe('DebugSession: pause event + continue()', () => {
     });
     await session.start();
     expect(resumeCalledSync).toBe(true);
+  });
+
+  it('stepIn() forces a pause on the next iter with cause: step', async () => {
+    // Walker has 'A' symbols that loop; final iter sees blank and halts.
+    // We arm a breakpoint that matches ONLY iter 1, then stepIn from there;
+    // iter 2's pause should fire even though no filter matches.
+    const alphabet = new Alphabet(' AB'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A', 'B']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const state = new State({
+      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+      [symbol(['B'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+      [symbol([' '])]: {nextState: haltState},
+    });
+    state.debug = {before: [symbol(['A'])]};  // matches iter 1 only (sees 'A' on first iter)
+
+    const session = new DebugSession(machine, {initialState: state});
+    const causes: Array<{step: number; cause: string}> = [];
+    let firstHandled = false;
+    session.on('pause', (m) => {
+      causes.push({step: m.step, cause: m.debugBreak!.cause});
+      if (!firstHandled) {
+        firstHandled = true;
+        session.stepIn();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    expect(causes[0]).toEqual({step: 1, cause: 'breakpoint'});
+    expect(causes[1]).toEqual({step: 2, cause: 'step'});
   });
 
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {

@@ -1,5 +1,5 @@
 import State from './State';
-import TuringMachine, {type DebugBreak, type MachineState} from './TuringMachine';
+import TuringMachine, {type DebugBreak, type MachineState, type ResumeDirective} from './TuringMachine';
 
 /**
  * Parameters mirror `TuringMachine.runStepByStep` / `run`. DebugSession passes
@@ -64,6 +64,7 @@ export default class DebugSession {
   #started = false;
   #stopped = false;
   #pauseResolver: (() => void) | null = null;
+  #activeStepMode: ResumeDirective | null = null;
 
   constructor(machine: TuringMachine, parameter: DebugSessionParameter) {
     this.#machine = machine;
@@ -93,6 +94,19 @@ export default class DebugSession {
    * state.
    */
   continue(): void {
+    this.#activeStepMode = null;
+    this.#releasePause();
+  }
+
+  /**
+   * Resume and force a pause on the next iter regardless of whether that
+   * iter's `state.debug` filter matches. Step-mode is one-shot: any
+   * subsequent pause dispatch (this step-in's endpoint, an inner
+   * breakpoint, or a manual pause) drops it. To keep stepping, call
+   * stepIn() again from the new pause.
+   */
+  stepIn(): void {
+    this.#activeStepMode = 'step-in';
     this.#releasePause();
   }
 
@@ -112,8 +126,13 @@ export default class DebugSession {
    * resume signal. Resolver is installed BEFORE listeners fire so a listener
    * that synchronously calls `session.continue()` (or any other resume method)
    * sees a live resolver to drop.
+   *
+   * One-shot rule: any pause dispatch (step-mode endpoint, inner breakpoint,
+   * manual pause) drops the active step-mode BEFORE listeners fire. Listeners
+   * that want to keep stepping must call stepIn/Over/Out from the new pause.
    */
   async #dispatchPause(machineState: MachineState, debugBreak: DebugBreak): Promise<void> {
+    this.#activeStepMode = null;
     const paused: MachineState = {...machineState, debugBreak};
     const pausePromise = new Promise<void>((resolve) => {
       this.#pauseResolver = resolve;
@@ -135,9 +154,14 @@ export default class DebugSession {
 
       const hasBeforeBreakpoint = machineState.debugBreak?.before === true;
       const hasAfterBreakpoint = machineState.debugBreak?.after === true;
+      const stepInForcesPause = this.#activeStepMode === 'step-in';
 
-      if (hasBeforeBreakpoint) {
-        await this.#dispatchPause(machineState, {before: true, cause: 'breakpoint'});
+      // Before-side pause: fires if a breakpoint matched OR a step-mode endpoint
+      // is reached. Breakpoint wins on cause when both fire on the same iter.
+      const fireBeforePause = hasBeforeBreakpoint || stepInForcesPause;
+      if (fireBeforePause) {
+        const cause: DebugBreak['cause'] = hasBeforeBreakpoint ? 'breakpoint' : 'step';
+        await this.#dispatchPause(machineState, {before: true, cause});
         if (this.#stopped) return;
       }
 
