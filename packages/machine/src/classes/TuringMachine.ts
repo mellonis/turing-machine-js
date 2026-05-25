@@ -29,6 +29,25 @@ export type DebugBreak = {
  */
 export type ResumeDirective = 'continue' | 'step-in' | 'step-over' | 'step-out';
 
+/**
+ * @internal — package-private accessor key for `MachineState` instances yielded
+ * by `runStepByStep`. Calling `machineState[MACHINE_STATE_INTERNAL]()` returns a
+ * frozen snapshot of the engine's halt-stack at yield time (BEFORE this iter's
+ * applyCommand / pop / push). Consumed by `DebugSession` for step-over /
+ * step-out endpoint detection without exposing the stack to public API.
+ *
+ * Re-exported from this module so the sibling `DebugSession` module can import
+ * it; intentionally NOT re-exported from the package's public `index.ts` —
+ * downstream consumers shouldn't reach for the stack. Same pattern as
+ * `STATE_INTERNAL` (#180).
+ */
+export const MACHINE_STATE_INTERNAL = Symbol('MachineState.internal');
+
+export type MachineStateInternal = {
+  /** Frozen pre-iter halt-stack snapshot. Consumers must not mutate. */
+  stack: readonly State[];
+};
+
 export type MachineState = {
   step: number;
   state: State;
@@ -269,6 +288,16 @@ export default class TuringMachine {
             if (afterMatch) dbg.after = true;
             yielded.debugBreak = dbg;
           }
+
+          // #102: expose the pre-iter halt-stack to DebugSession via a
+          // Symbol-keyed accessor (non-enumerable so it doesn't leak into
+          // serialization / spread / toEqual). The snapshot is frozen so a
+          // consumer holding a reference can't mutate the engine's stack.
+          const stackSnapshot: readonly State[] = Object.freeze(stack.slice());
+          Object.defineProperty(yielded, MACHINE_STATE_INTERNAL, {
+            value: (): MachineStateInternal => ({stack: stackSnapshot}),
+            enumerable: false,
+          });
 
           yield yielded;
 
