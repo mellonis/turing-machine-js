@@ -140,9 +140,8 @@ describe('toMermaid', () => {
   });
 
   test('renders wrapper-to-override solid arrow when overriddenHaltStateId is set', () => {
-    // Under the v7 callable-subtree model, wrapper → override is a regular
-    // solid `-->` (the new convention reserves bold/dotted for `call`/`return`/
-    // `halt`). The retired `-. onHalt .->` keyword no longer appears.
+    // Wrapper → override is a regular solid `-->` arrow; bold/dotted styles
+    // are reserved for `call` / `return` / `halt`.
     const out = toMermaid({
       initialId: 1,
       alphabets: [[' ', '0']],

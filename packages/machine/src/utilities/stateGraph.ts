@@ -14,16 +14,11 @@ import {
   parseWriteSymbolLabel,
 } from './graph';
 
-// Graph serialization/reconstruction for State graphs. Extracted from
-// `classes/State.ts` (#180) so the State class stays focused on the runtime
-// machinery (transitions, debug, halt-stack composition). Sibling-module
-// private access to State's internals goes through the `STATE_INTERNAL`
+// Graph serialization/reconstruction + state collection for State graphs.
+// Sibling-module access to State's internals uses the `STATE_INTERNAL`
 // Symbol re-exported from State.ts — see the @internal JSDoc there.
-//
-// Public surface is preserved: `State.toGraph` and `State.fromGraph` static
-// methods continue to exist as thin delegates to the functions in this
-// module. New consumers (e.g. #195's planned `collectStates`) will live
-// here too and share the BFS-walk shape with `toGraph`.
+// `State.toGraph` / `.fromGraph` / `.collectStates` static methods on
+// State are thin delegates to functions in this module.
 
 /**
  * Walks the reachable graph from `initialState` and returns a serializable
@@ -142,13 +137,11 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
           movement: decodeMovement((tc.movement as symbol).description),
         })),
         nextStateId: targetInternal.id,
-        // Transition id format: `${stateId}.${transitionIx}` (#205).
-        // Matches `TuringMachine.runStepByStep`'s `MachineState.
-        // matchedTransition.id` so consumers can do
+        // `${stateId}.${transitionIx}` — matches
+        // `MachineState.matchedTransition.id` so consumers can do
         // `graph.nodes[stateId].transitions.find(t => t.id === id)`.
-        // Was `${stateId}-${ix}` pre-#205 — the `.` separator avoids
-        // the hyphen reading as a minus sign next to negative halt-
-        // marker ids in adjacent contexts.
+        // `.` separator (vs `-`) avoids collision with negative
+        // halt-marker ids.
         id: `${stateInternal.id}.${patternIx}`,
       });
 

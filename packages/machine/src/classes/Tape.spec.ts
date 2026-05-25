@@ -10,7 +10,6 @@ describe('Tape constructor', () => {
   });
 
   test('honors the position parameter', () => {
-    // Pinned position (was Math.random — non-deterministic).
     const alphabet = new Alphabet(['0', '1']);
     const tape = new Tape({alphabet, position: 42});
 

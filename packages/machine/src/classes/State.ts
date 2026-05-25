@@ -8,10 +8,9 @@ import {
   decodeMovement,
   decodeWriteSymbol,
 } from '../utilities/graph';
-// Delegate targets for `State.toGraph` / `State.fromGraph` (#180). The
-// import cycle with stateGraph.ts is resolved by ESM live bindings — see
-// the bottom-of-file note in that module. Aliased so the delegating
-// static methods can keep their canonical names without clashing.
+// Aliased so the delegating static methods can keep their canonical names
+// without clashing. The import cycle with stateGraph.ts is resolved by
+// ESM live bindings — see the bottom-of-file note in that module.
 import {
   type StateMap,
   collectStates as collectStatesImpl,
@@ -117,8 +116,8 @@ export default class State {
 
   // For wrapper states (produced by `withOverriddenHaltState`), points at the
   // State whose transition map was wrapped. `null` on bare/atomic states.
-  // Used by `toGraph` to collapse the wrapper-and-its-bare pair into a single
-  // "wrapped bare" graph node — see the v7 emit redesign for #138.
+  // `toGraph` reads this to render wrapper and bare as separate nodes linked
+  // by a `==> call` arrow.
   #bareState: State | null = null;
 
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
@@ -347,9 +346,8 @@ export default class State {
   }
 
   /** @internal — invoked by DebugConfig setters via module-private symbol.
-   *  Per #207, haltState no longer flows through DebugConfig (its `debug`
-   *  setter rejects object writes before construction), so the validator
-   *  only sees non-halt states here. */
+   *  haltState's `debug` setter rejects object writes before reaching
+   *  DebugConfig, so this validator only sees non-halt states. */
   [validateDebugFilter](
     fieldName: 'before' | 'after',
     filter: readonly symbol[] | true | undefined,
@@ -384,9 +382,7 @@ export default class State {
   // Single lookup + throw site shared by `getCommand`, `getNextState`, and
   // `getMatchedTransition`. Returns the symbol's entry `{command, nextState}`
   // (one map-get, no `.has()` pre-check); throws a unified message when no
-  // entry exists. Before #206, each public method did its own `.has() + .get()!`
-  // double-lookup with a slightly different error string — same root cause
-  // ("no transition for this symbol"), so the message is unified.
+  // entry exists.
   #getEntry(symbol: symbol) {
     const entry = this.#symbolToDataMap.get(symbol);
 

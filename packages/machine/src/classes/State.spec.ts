@@ -105,10 +105,7 @@ describe('State constructor — invalid inputs', () => {
 
 describe('State.getCommand / .getNextState / .getMatchedTransition — error paths', () => {
   // Default-constructed State has an empty symbolToDataMap; any lookup throws.
-  // #206 unified the message across all three methods: the prior per-method
-  // wording ("No command for…" / "No nextState for…") conveyed the same root
-  // cause ("no transition for this symbol") and the public methods now share
-  // a single `#getEntry` helper.
+  // All three accessors share `#getEntry` and so share the unified message.
 
   test('getCommand on an unmapped symbol throws "No transition for symbol at state named …"', () => {
     expect(() => new State().getCommand(ifOtherSymbol))
@@ -140,8 +137,7 @@ describe('State.getSymbol — head resolution', () => {
 
 describe('State.withOverriddenHaltState', () => {
   // The wrapper shares the original's symbolToDataMap and debugRef but adds
-  // an overriddenHaltState. Audit-flagged: the previous test only checked the
-  // name pattern; these tests pin the actual wrapping contract.
+  // an overriddenHaltState. These tests pin the wrapping contract.
 
   test('wrapper exposes the override target', () => {
     const original = new State({[ifOtherSymbol]: {nextState: haltState}});

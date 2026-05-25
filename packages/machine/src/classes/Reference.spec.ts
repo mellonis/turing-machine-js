@@ -48,10 +48,8 @@ describe('Reference', () => {
     });
 
     test('second bind() returns the EXISTING binding, not the passed argument', () => {
-      // This was the subtle case the previous "Reference bind return the passed
-      // parameter" test under-asserted. The first bind happens to satisfy that
-      // claim, but it's not the contract — the contract is "return the current
-      // binding."
+      // Contract: bind() returns the current binding (set by first bind), not
+      // whatever is passed to subsequent calls.
       const reference = new Reference();
       const first = new State();
       const second = new State();

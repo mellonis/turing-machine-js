@@ -115,10 +115,8 @@ describe('equivalentOn', () => {
   });
 
   test('compareSnapshots: null skips mid-run divergence detection on same alphabet', () => {
-    // Audit gap: the `compareSnapshots: null` branch was exercised only in
-    // cross-alphabet tests. This test pins the same-alphabet contract:
-    // when outputs disagree but compareSnapshots is null, firstDivergenceStep
-    // is null (the engine doesn't probe step-by-step).
+    // When outputs disagree but compareSnapshots is null,
+    // firstDivergenceStep is null (no step-by-step probe).
     const report = equivalentOn(
       {state: binaryNumbers.states.plusOne, getTapeBlock: binaryNumbers.getTapeBlock},
       {state: binaryNumbers.states.minusOne, getTapeBlock: binaryNumbers.getTapeBlock},

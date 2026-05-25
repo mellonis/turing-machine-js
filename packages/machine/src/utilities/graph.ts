@@ -6,10 +6,9 @@ export type GraphTransition = {
   pattern: string;
   command: GraphCommand[];
   nextStateId: number;
-  // Stable, deterministic per-edge identifier. Format: `${fromNodeId}-${patternIx}`
-  // where `patternIx` is the transition's position in the source state's symbol
-  // map. Let's downstream rendering (machines-demo #10) target a specific edge in
-  // the rendered Mermaid SVG to highlight "the edge that will fire next."
+  // Stable per-edge identifier: `${fromNodeId}.${patternIx}` where patternIx
+  // is the transition's position in the source state's symbol map. Lets
+  // downstream rendering target a specific edge in the Mermaid SVG.
   id: string;
 };
 

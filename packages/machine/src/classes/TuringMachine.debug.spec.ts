@@ -110,9 +110,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 });
 
 describe('TuringMachine — debug.after filter (loop yields)', () => {
-  // v6.0.0 (#119): both `before` and `after` refer to THIS iter, dispatched
-  // on the same yield. Previously `after` was on the NEXT yield with a
-  // substituted source-state payload — see #109/#119 for the rationale.
+  // Both `before` and `after` refer to THIS iter, dispatched on the same yield.
 
   test('debug.after = true tags every yield with debugBreak.after', async () => {
     const {machine, state} = buildMachine();
@@ -181,9 +179,9 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     }
     const last = steps[VISIT_COUNT - 1];
     expect(last.nextState).toBe(haltState);
-    // #207 timing: fires on AFTER side (post-iter, before halt processing) —
-    // not BEFORE as the v6 API did. `m.state` is the TRIGGERING state (the
-    // one whose transition leads to halt), not haltState itself.
+    // #207 spec: fires on AFTER side (post-iter, before halt processing).
+    // `m.state` is the TRIGGERING state (whose transition leads to halt),
+    // not haltState itself.
     expect(last.state).toBe(state);
     expect(last.debugBreak).toEqual({after: true});
   });
@@ -315,9 +313,8 @@ describe('TuringMachine — run() with onPause', () => {
     });
 
     expect(seen).toHaveLength(VISIT_COUNT);
-    // v6.0.0: the after-call's `m.state` is the iter that armed the after
-    // (no substitution dance — `before` and `after` for the SAME iter both
-    // fire on that iter's own yield).
+    // The after-call's `m.state` is the iter that armed the after; `before`
+    // and `after` for the SAME iter both fire on that iter's own yield.
     for (const entry of seen) {
       expect(entry.state).toBe(state);
       expect(entry.debugBreak).toEqual({after: true});
@@ -337,9 +334,8 @@ describe('TuringMachine — run() with onPause', () => {
       },
     });
 
-    // v6.0.0 per-iter lifecycle: before → step → after. Every yield (including
-    // the first) dispatches both hooks in this order.
-    // For VISIT_COUNT visits, expect: [before, after, before, after, …]
+    // Per-iter lifecycle: before → step → after. Every yield dispatches both
+    // hooks in this order. For VISIT_COUNT visits: [before, after, before, …]
     expect(calls).toHaveLength(VISIT_COUNT * 2);
     for (let i = 0; i < calls.length; i++) {
       expect(calls[i]).toBe(i % 2 === 0 ? 'before' : 'after');
@@ -389,10 +385,8 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   afterEach(() => { haltState.debug = null; });
 
   test('halting iter still fires its after (#108 part 1)', async () => {
-    // debug.after = true matches every visit. v6.0.0 (#119) dispatches the
-    // halting iter's after directly on its own yield, so all VISIT_COUNT
-    // visits fire (previously only VISIT_COUNT - 1 because the halting iter's
-    // after had no anchor yield).
+    // debug.after = true matches every visit. The halting iter's after
+    // dispatches on its own yield, so all VISIT_COUNT visits fire.
     const {machine, state} = buildMachine();
     state.debug = {after: true};
     const after: MachineState[] = [];
@@ -418,7 +412,6 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   });
 
   test('haltState.debug = {before: true} throws — boolean-only API (#207)', () => {
-    // The v6 API; under #207 this throws so callers migrate to `= true`.
     expect(() => {
       // @ts-expect-error — see comment above.
       haltState.debug = {before: true};
