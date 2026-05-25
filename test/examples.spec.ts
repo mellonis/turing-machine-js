@@ -1,5 +1,6 @@
 import {
   Alphabet,
+  DebugSession,
   haltState,
   ifOtherSymbol,
   movements,
@@ -95,7 +96,9 @@ describe('README.md — Debugging breakpoints', () => {
     myState.debug = {before: true};
     let breakCount = 0;
 
-    await machine.run({initialState: myState, onPause: () => { breakCount += 1; }});
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', () => { breakCount += 1; session.continue(); });
+    await session.start();
 
     expect(breakCount).toBe(VISIT_COUNT);
   });
@@ -106,13 +109,13 @@ describe('README.md — Debugging breakpoints', () => {
     let symASeen = 0;
     let nonASeen = 0;
 
-    await machine.run({
-      initialState: myState,
-      onPause: (m) => {
-        if (m.currentSymbols[0] === 'A') symASeen += 1;
-        else nonASeen += 1;
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', (m) => {
+      if (m.currentSymbols[0] === 'A') symASeen += 1;
+      else nonASeen += 1;
+      session.continue();
     });
+    await session.start();
 
     expect(symASeen).toBe(A_VISIT_COUNT);
     expect(nonASeen).toBe(0);
@@ -123,13 +126,13 @@ describe('README.md — Debugging breakpoints', () => {
     myState.debug = {before: [symA], after: [symA]};
     const order: Array<'before' | 'after'> = [];
 
-    await machine.run({
-      initialState: myState,
-      onPause: (m) => {
-        if (m.debugBreak?.before) order.push('before');
-        if (m.debugBreak?.after) order.push('after');
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', (m) => {
+      if (m.debugBreak?.before) order.push('before');
+      if (m.debugBreak?.after) order.push('after');
+      session.continue();
     });
+    await session.start();
 
     // Only visit 1 (head=A) matches; per-iter lifecycle is before → after.
     // Visit 2 (head=B) doesn't match, no fires.
@@ -142,23 +145,20 @@ describe('README.md — Debugging breakpoints', () => {
     const haltPauses: Array<{atVisit: number}> = [];
     let visitIx = 0;
 
-    await machine.run({
-      initialState: myState,
-      onStep: () => { visitIx += 1; }, // increments before onPause for this visit
-      onPause: (m) => {
-        // #207: halt-imminent fires on AFTER side (post-iter, before halt
-        // processing). The triggering iter's `nextState` is haltState, and
-        // `debugBreak.after === true`.
-        if (m.nextState === haltState && m.debugBreak?.after) {
-          haltPauses.push({atVisit: visitIx});
-        }
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('step', () => { visitIx += 1; });
+    session.on('pause', (m) => {
+      if (m.nextState === haltState && m.debugBreak?.after) {
+        haltPauses.push({atVisit: visitIx});
+      }
+      session.continue();
     });
+    await session.start();
 
     expect(haltPauses).toHaveLength(HALT_TRANSITION_COUNT);
-    // Per-iter dispatch order is `before → step → after` — onStep increments
-    // visitIx during step, then onPause for `after` reads it. The recorded
-    // visit index matches the human-readable visit count.
+    // Per-iter dispatch order: pause(before) → step → pause(after) → iter.
+    // step increments visitIx; pause for after reads the just-incremented
+    // value, matching the human-readable visit count.
     expect(haltPauses[0].atVisit).toBe(VISIT_COUNT);
   });
 
@@ -199,11 +199,10 @@ describe('README.md — Debugging breakpoints', () => {
     let stepCount = 0;
     let breakCount = 0;
 
-    await machine.run({
-      initialState: myState,
-      onStep: () => { stepCount += 1; },
-      onPause: () => { breakCount += 1; },
-    });
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('step', () => { stepCount += 1; });
+    session.on('pause', () => { breakCount += 1; session.continue(); });
+    await session.start();
 
     expect(stepCount).toBe(VISIT_COUNT);
     expect(breakCount).toBe(VISIT_COUNT);
@@ -239,15 +238,12 @@ describe('README.md — Matched transition', () => {
 
     // Verbatim from README's "Matched transition" section, with console.log
     // replaced by capture for assertion.
-    await machine.run({
-      initialState,
-      onStep: (m) => {
-        const wildcardPositions = m.matchedTransition.matchKinds
-          .map((k, i) => k === 'wildcard' ? i : -1)
-          .filter((i) => i >= 0);
-        logged.push(`step ${m.step}: fired transition ${m.matchedTransition.id} (wildcards at tapes: ${wildcardPositions.join(',') || 'none'})`);
-      },
-    });
+    for (const m of machine.runStepByStep({initialState})) {
+      const wildcardPositions = m.matchedTransition.matchKinds
+        .map((k, i) => k === 'wildcard' ? i : -1)
+        .filter((i) => i >= 0);
+      logged.push(`step ${m.step}: fired transition ${m.matchedTransition.id} (wildcards at tapes: ${wildcardPositions.join(',') || 'none'})`);
+    }
 
     const sid = initialState.id;
     expect(logged).toEqual([

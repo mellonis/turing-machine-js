@@ -1,4 +1,4 @@
-import {haltState, Tape} from '@turing-machine-js/machine';
+import {DebugSession, haltState, Tape} from '@turing-machine-js/machine';
 import buildMachine, {States} from './index';
 
 describe('buildMachine', () => {
@@ -113,10 +113,12 @@ describe('buildMachine — debug config (#101)', () => {
     }));
 
     const pausedSymbols: string[] = [];
-    await machine.run({
-      initialState: init,
-      onPause: (m) => { pausedSymbols.push(m.currentSymbols[0]); },
+    const session = new DebugSession(machine, {initialState: init});
+    session.on('pause', (m) => {
+      pausedSymbols.push(m.currentSymbols[0]);
+      session.continue();
     });
+    await session.start();
 
     // Trajectory: A (pause) → A (pause) → B (no pause; B not in filter) → halt.
     expect(pausedSymbols).toEqual(['A', 'A']);
@@ -132,10 +134,12 @@ describe('buildMachine — debug config (#101)', () => {
     }));
 
     let afterCount = 0;
-    await machine.run({
-      initialState: init,
-      onPause: (m) => { if (m.debugBreak?.after) afterCount += 1; },
+    const session = new DebugSession(machine, {initialState: init});
+    session.on('pause', (m) => {
+      if (m.debugBreak?.after) afterCount += 1;
+      session.continue();
     });
+    await session.start();
 
     expect(afterCount).toBe(1);
   });
@@ -152,13 +156,13 @@ describe('buildMachine — debug config (#101)', () => {
 
     let beforeCount = 0;
     let afterCount = 0;
-    await machine.run({
-      initialState: init,
-      onPause: (m) => {
-        if (m.debugBreak?.before) beforeCount += 1;
-        if (m.debugBreak?.after) afterCount += 1;
-      },
+    const session = new DebugSession(machine, {initialState: init});
+    session.on('pause', (m) => {
+      if (m.debugBreak?.before) beforeCount += 1;
+      if (m.debugBreak?.after) afterCount += 1;
+      session.continue();
     });
+    await session.start();
 
     expect(beforeCount).toBeGreaterThan(0);
     expect(afterCount).toBeGreaterThan(0);

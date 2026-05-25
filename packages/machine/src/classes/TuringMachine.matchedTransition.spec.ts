@@ -42,7 +42,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields).toHaveLength(1);
     expect(yields[0].matchedTransition).toEqual({
@@ -63,7 +63,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields).toHaveLength(1);
     expect(yields[0].matchedTransition).toEqual({
@@ -89,7 +89,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields).toHaveLength(1);
     expect(yields[0].matchedTransition.matchKinds).toEqual(['wildcard', 'literal']);
@@ -111,7 +111,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields[0].matchedTransition.matchKinds).toEqual(['literal', 'literal']);
     expect(yields[0].matchedTransition.matchKinds).toHaveLength(2);
@@ -138,7 +138,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: wrapper, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: wrapper})) { yields.push(m); }
 
     // Iter 1 source = wrapper (delegates to bare's transitions).
     expect(yields[0].state).toBe(wrapper);
@@ -159,7 +159,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields).toHaveLength(1);
     expect(yields[0].matchedTransition).toEqual({
@@ -181,7 +181,7 @@ describe('MachineState.matchedTransition (#205)', () => {
 
     const machine = new TuringMachine({tapeBlock});
     const yields: MachineState[] = [];
-    await machine.run({initialState: state, onStep: (m) => { yields.push(m); }});
+    for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     const graph = toGraph(state, tapeBlock);
 

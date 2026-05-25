@@ -111,83 +111,27 @@ export default class TuringMachine {
     return this.#tapeBlock;
   }
 
-  async run({
-    initialState,
-    stepsLimit = 1e5,
-    onStep,
-    onPause,
-    onIter,
-    debug = true,
-  }: RunParameter & {
-    /**
-     * Sync, ~free hook fired on every iteration. Use for logging/tracing —
-     * the hot loop runs this without a microtask boundary, so it must not
-     * be async.
-     *
-     * For per-iter throttle / coordination ("wait between iters" UIs):
-     * use `onIter` (v6.4.0+, awaited at end-of-iter).
-     */
-    onStep?: (machineState: MachineState) => void;
-    /**
-     * Async hook fired when `state.debug[when]` matches at the current
-     * iteration. The promise is awaited inline, so the consumer can suspend
-     * execution by deferring its resolution. Use for pause-capable inspection
-     * (debugger UIs, conditional breakpoints in tests). Per-iter lifecycle:
-     * `before` and `after` for the same iter fire on the same yield.
-     */
-    onPause?: (machineState: MachineState) => void | Promise<void>;
-    /**
-     * Awaited hook fired ONCE at the end of every iteration (v6.4.0+), AFTER
-     * any `onPause(after, K)` dispatch on the same yield. Use for per-iter
-     * coordination that needs to suspend the run loop — throttling between
-     * iters (interactive debugger UIs), prev-state bookkeeping that must
-     * observe iter K's final state once all `onPause` hooks have read their
-     * own snapshots, yield-to-other-work in batched runs.
-     *
-     * Three-hook contract recap:
-     * - `onStep`: sync, microtask-free — tracing/logging during the iter
-     * - `onPause`: awaited, conditional on `state.debug[when]` match — user
-     *   breakpoints with iter-correct payload
-     * - `onIter`: awaited, unconditional — once per iter, at end-of-iter
-     *
-     * `onIter` is unaffected by the `debug` master switch — it fires on
-     * every iter regardless. Sync consumers should prefer `onStep` to avoid
-     * the per-iter microtask boundary `onIter` carries.
-     */
-    onIter?: (machineState: MachineState) => void | Promise<void>;
-    /**
-     * Master switch for `onPause` dispatch. When `false`, suppresses all
-     * pause-fires (before and after) regardless of `state.debug` assignments.
-     * `onStep` is unaffected. Defaults to `true`.
-     *
-     * The `m.debugBreak` field is still populated on yields by the underlying
-     * generator (it's a property of the iteration, not of the consumer); only
-     * `run()`'s hook dispatch is gated. Direct `runStepByStep` consumers see
-     * the metadata regardless.
-     */
-    debug?: boolean;
-  }): Promise<void> {
-    const generator = this.runStepByStep({initialState, stepsLimit});
-
-    for (const machineState of generator) {
-      // Per-iter lifecycle: before → step → after. All three operate on the
-      // same yielded MachineState, so the consumer sees a coherent ordering
-      // within each iteration without cross-tick coordination.
-      if (debug && machineState.debugBreak?.before && onPause) {
-        await onPause({...machineState, debugBreak: {before: true, cause: 'breakpoint'}});
-      }
-
-      if (onStep) {
-        onStep(machineState);
-      }
-
-      if (debug && machineState.debugBreak?.after && onPause) {
-        await onPause({...machineState, debugBreak: {after: true, cause: 'breakpoint'}});
-      }
-
-      if (onIter) {
-        await onIter(machineState);
-      }
+  /**
+   * Run the machine to halt. Pure execution — synchronous, no observation
+   * callbacks, no debug overhead. For breakpoint-driven interactive debugging
+   * use `DebugSession`; for per-iter tracing use `runStepByStep`'s generator
+   * directly.
+   *
+   * Breakpoint metadata (`state.debug` / `haltState.debug` matches) is still
+   * resolved and attached to each yielded MachineState by the underlying
+   * generator — `run()` simply doesn't dispatch on it. A consumer that wants
+   * to dispatch on it constructs a `DebugSession` instead.
+   *
+   * Symmetric reversal of v4's `run` → `async run` change: v4 made the method
+   * async to support awaited `onPause`; with callbacks moved to `DebugSession`
+   * there's no async work left, so the method returns `void` again.
+   */
+  run({initialState, stepsLimit = 1e5}: RunParameter): void {
+    // Drain the generator. We don't care about the yielded values — the
+    // generator's job is to advance the tape; only side effects matter here.
+    // Casting to unknown so eslint doesn't flag the unused `_` variable.
+    for (const machineState of this.runStepByStep({initialState, stepsLimit})) {
+      void machineState;
     }
   }
 
