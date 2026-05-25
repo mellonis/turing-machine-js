@@ -244,6 +244,74 @@ describe('DebugSession: pause event + continue()', () => {
     expect(causes[1]).toEqual({step: 2, cause: 'step'});
   });
 
+  it('stepOver() pauses at the first iter after click-time top-frame is no longer on the stack', async () => {
+    // Setup: outer wrapper around an inner state. Click-time stack at iter 1
+    // (inside outer's bare) contains the wrapper's overriddenHaltState (= halt).
+    // stepOver should run until that frame is gone — which happens at iter 2,
+    // when the inner halts → halt-pop → state advances to halt; iter 2's pause
+    // fires because the stack is now empty.
+    const alphabet = new Alphabet(' A'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const halt = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
+    const inner = new State({[symbol(['A'])]: {nextState: halt}, [symbol([' '])]: {nextState: halt}});
+    const outer = inner.withOverriddenHaltState(halt);
+    inner.debug = {before: true};
+
+    const session = new DebugSession(machine, {initialState: outer});
+    const pauses: Array<{step: number; cause: string}> = [];
+    let firstHandled = false;
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, cause: m.debugBreak!.cause});
+      if (!firstHandled) {
+        firstHandled = true;
+        session.stepOver();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    // First pause: iter 1 breakpoint inside outer. Second pause: step endpoint
+    // after the wrapper's frame popped. cause: 'step' confirms it's the
+    // stepOver endpoint, not a stray breakpoint.
+    expect(pauses[0]).toMatchObject({cause: 'breakpoint'});
+    expect(pauses[1]).toMatchObject({cause: 'step'});
+    expect(pauses[1].step).toBeGreaterThan(pauses[0].step);
+  });
+
+  it('stepOver() with empty click-time stack collapses to stepIn (next-iter pause)', async () => {
+    // Top-level walker — no wrappers, no halt-stack entries at iter 1.
+    const alphabet = new Alphabet(' AB'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A', 'B']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const state = new State({
+      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+      [symbol(['B'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+      [symbol([' '])]: {nextState: haltState},
+    });
+    state.debug = {before: [symbol(['A'])]};  // iter 1 only
+
+    const session = new DebugSession(machine, {initialState: state});
+    const pauseSteps: number[] = [];
+    let firstHandled = false;
+    session.on('pause', (m) => {
+      pauseSteps.push(m.step);
+      if (!firstHandled) {
+        firstHandled = true;
+        session.stepOver();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    expect(pauseSteps[0]).toBe(1);
+    expect(pauseSteps[1]).toBe(2);  // next iter — exactly stepIn semantics
+  });
+
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
     const {machine, state} = buildWalker(['A']);
     haltState.debug = true;

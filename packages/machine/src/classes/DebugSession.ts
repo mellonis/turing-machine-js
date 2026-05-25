@@ -1,5 +1,5 @@
 import State from './State';
-import TuringMachine, {type DebugBreak, type MachineState, type ResumeDirective} from './TuringMachine';
+import TuringMachine, {MACHINE_STATE_INTERNAL, type DebugBreak, type MachineState, type MachineStateInternal, type ResumeDirective} from './TuringMachine';
 
 /**
  * Parameters mirror `TuringMachine.runStepByStep` / `run`. DebugSession passes
@@ -65,6 +65,19 @@ export default class DebugSession {
   #stopped = false;
   #pauseResolver: (() => void) | null = null;
   #activeStepMode: ResumeDirective | null = null;
+  /**
+   * Top of the halt-stack snapshotted at the most recent pause dispatch. Used by
+   * stepOver / stepOut to recognize their natural endpoint (the click-time
+   * frame is no longer on the stack). `null` when the click-time stack was
+   * empty.
+   */
+  #capturedTopFrame: State | null = null;
+  /**
+   * The click-time top-frame frozen at the moment a step-over / step-out
+   * directive was issued. Distinct from `#capturedTopFrame` (which tracks
+   * EVERY pause); this one only updates when stepOver / stepOut accepts.
+   */
+  #clickTimeTopFrame: State | null = null;
 
   constructor(machine: TuringMachine, parameter: DebugSessionParameter) {
     this.#machine = machine;
@@ -107,6 +120,21 @@ export default class DebugSession {
    */
   stepIn(): void {
     this.#activeStepMode = 'step-in';
+    this.#clickTimeTopFrame = null;
+    this.#releasePause();
+  }
+
+  /**
+   * Resume and run until the click-time top halt-frame is no longer on the
+   * stack, then pause at the first iter past that point. With an empty
+   * click-time stack, collapses to `stepIn` (pause at next iter).
+   *
+   * One-shot: an inner breakpoint or any other pause drops the step-over
+   * intent. The endpoint pause carries `cause: 'step'`.
+   */
+  stepOver(): void {
+    this.#activeStepMode = 'step-over';
+    this.#clickTimeTopFrame = this.#capturedTopFrame;
     this.#releasePause();
   }
 
@@ -130,9 +158,17 @@ export default class DebugSession {
    * One-shot rule: any pause dispatch (step-mode endpoint, inner breakpoint,
    * manual pause) drops the active step-mode BEFORE listeners fire. Listeners
    * that want to keep stepping must call stepIn/Over/Out from the new pause.
+   *
+   * The pre-iter halt-stack top is snapshotted into `#capturedTopFrame` so a
+   * `stepOver` / `stepOut` issued from inside the listener can freeze it as
+   * the click-time frame.
    */
   async #dispatchPause(machineState: MachineState, debugBreak: DebugBreak): Promise<void> {
     this.#activeStepMode = null;
+    this.#clickTimeTopFrame = null;
+    const stack = this.#readStack(machineState);
+    this.#capturedTopFrame = stack.length > 0 ? stack[stack.length - 1] : null;
+
     const paused: MachineState = {...machineState, debugBreak};
     const pausePromise = new Promise<void>((resolve) => {
       this.#pauseResolver = resolve;
@@ -141,6 +177,15 @@ export default class DebugSession {
       void fn(paused);
     }
     await pausePromise;
+  }
+
+  // Reads the pre-iter halt-stack snapshot installed by `runStepByStep`.
+  // Returns empty if the accessor is missing (defensive — shouldn't happen
+  // with the engine on this branch).
+  #readStack(machineState: MachineState): readonly State[] {
+    const fn = (machineState as unknown as Record<symbol, () => MachineStateInternal>)[MACHINE_STATE_INTERNAL];
+    if (typeof fn !== 'function') return [];
+    return fn().stack;
   }
 
   async start(): Promise<void> {
@@ -155,10 +200,16 @@ export default class DebugSession {
       const hasBeforeBreakpoint = machineState.debugBreak?.before === true;
       const hasAfterBreakpoint = machineState.debugBreak?.after === true;
       const stepInForcesPause = this.#activeStepMode === 'step-in';
+      const stepOverEndpointReached =
+        this.#activeStepMode === 'step-over'
+        && (
+          this.#clickTimeTopFrame === null  // empty click-time stack — collapse to stepIn
+          || !this.#readStack(machineState).includes(this.#clickTimeTopFrame)
+        );
 
       // Before-side pause: fires if a breakpoint matched OR a step-mode endpoint
       // is reached. Breakpoint wins on cause when both fire on the same iter.
-      const fireBeforePause = hasBeforeBreakpoint || stepInForcesPause;
+      const fireBeforePause = hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached;
       if (fireBeforePause) {
         const cause: DebugBreak['cause'] = hasBeforeBreakpoint ? 'breakpoint' : 'step';
         await this.#dispatchPause(machineState, {before: true, cause});
