@@ -78,6 +78,7 @@ export default class DebugSession {
    * EVERY pause); this one only updates when stepOver / stepOut accepts.
    */
   #clickTimeTopFrame: State | null = null;
+  #runIntervalMs = 0;
 
   constructor(machine: TuringMachine, parameter: DebugSessionParameter) {
     this.#machine = machine;
@@ -99,6 +100,22 @@ export default class DebugSession {
   stop(): void {
     this.#stopped = true;
     this.#releasePause();
+  }
+
+  /**
+   * Set the per-iter throttle delay in milliseconds. After each iter (including
+   * any pause + step + iter listeners on that iter), the loop awaits
+   * `setTimeout(ms)` before proceeding to the next iter. `0` disables the
+   * throttle.
+   *
+   * Useful for visualization UIs that want to animate execution at a fixed
+   * pace. Updates take effect on the next iter.
+   */
+  setRunInterval(ms: number): void {
+    if (!Number.isFinite(ms) || ms < 0) {
+      throw new Error(`DebugSession.setRunInterval(${ms}): expected a non-negative finite number.`);
+    }
+    this.#runIntervalMs = ms;
   }
 
   /**
@@ -249,6 +266,16 @@ export default class DebugSession {
 
       if (hasAfterBreakpoint) {
         await this.#dispatchPause(machineState, {after: true, cause: 'breakpoint'});
+        if (this.#stopped) return;
+      }
+
+      // iter: end-of-iter, after both before- and after-pause have fired.
+      for (const fn of this.#listeners.iter) {
+        void fn(machineState);
+      }
+
+      if (this.#runIntervalMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, this.#runIntervalMs));
         if (this.#stopped) return;
       }
     }

@@ -412,6 +412,41 @@ describe('DebugSession: pause event + continue()', () => {
     expect(causes.every((c) => c === 'breakpoint')).toBe(true);
   });
 
+  it('iter event fires once at end of every iter, after step + after-pause', async () => {
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {after: true};
+    const session = new DebugSession(machine, {initialState: state});
+    const order: string[] = [];
+    session.on('step', (m) => { order.push(`step-${m.step}`); });
+    session.on('pause', (m) => {
+      order.push(`pause-${m.step}-${m.debugBreak!.after ? 'after' : 'before'}`);
+      session.continue();
+    });
+    session.on('iter', (m) => { order.push(`iter-${m.step}`); });
+    await session.start();
+    // Iter 1 (A): step, then after-pause, then iter.
+    expect(order.slice(0, 3)).toEqual(['step-1', 'pause-1-after', 'iter-1']);
+  });
+
+  it('setRunInterval(ms) inserts a delay at end of each iter', async () => {
+    const {machine, state} = buildWalker(['A', 'A']);
+    const session = new DebugSession(machine, {initialState: state});
+    session.setRunInterval(5);
+    const start = Date.now();
+    await session.start();
+    const elapsed = Date.now() - start;
+    // 3 iters total (2 A's + 1 blank-halt); 3 throttle waits of 5ms each ≥ 15ms.
+    expect(elapsed).toBeGreaterThanOrEqual(10);
+  });
+
+  it('setRunInterval rejects negative / NaN / Infinity', () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    expect(() => session.setRunInterval(-1)).toThrow();
+    expect(() => session.setRunInterval(NaN)).toThrow();
+    expect(() => session.setRunInterval(Infinity)).toThrow();
+  });
+
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
     const {machine, state} = buildWalker(['A']);
     haltState.debug = true;
