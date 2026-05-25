@@ -484,6 +484,37 @@ describe('DebugSession: pause event + continue()', () => {
     expect(iters).toEqual([1, 2]);  // stop took effect at end of iter 2
   });
 
+  it('stop() called between an after-pause and the iter event terminates without iter fire', async () => {
+    // Arms after-pause; stop() called inside pause listener should terminate
+    // the loop before the iter event fires for that iter.
+    const {machine, state} = buildWalker(['A']);
+    state.debug = {after: true};
+    const session = new DebugSession(machine, {initialState: state});
+    let iterFired = false;
+    session.on('pause', () => {
+      session.stop();
+    });
+    session.on('iter', () => { iterFired = true; });
+    await session.start();
+    expect(iterFired).toBe(false);
+  });
+
+  it('stop() called during a throttle wait terminates without further iters', async () => {
+    // Throttle inserts a setTimeout between iters. stop() called from inside
+    // an iter listener (the throttle hasn't started yet) takes effect when the
+    // loop re-checks the flag at the next iter's top.
+    const {machine, state} = buildWalker(['A', 'A', 'A']);
+    const session = new DebugSession(machine, {initialState: state});
+    session.setRunInterval(2);
+    const iters: number[] = [];
+    session.on('iter', (m) => {
+      iters.push(m.step);
+      if (m.step === 1) session.stop();
+    });
+    await session.start();
+    expect(iters).toEqual([1]);
+  });
+
   it('stop() called from inside a pause listener terminates immediately', async () => {
     const {machine, state} = buildWalker(['A', 'A']);
     state.debug = {before: true};

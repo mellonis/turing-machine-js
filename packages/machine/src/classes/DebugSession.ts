@@ -222,6 +222,11 @@ export default class DebugSession {
     const stack = this.#readStack(machineState);
     this.#capturedTopFrame = stack.length > 0 ? stack[stack.length - 1] : null;
 
+    // Note: the spread drops the non-enumerable MACHINE_STATE_INTERNAL Symbol
+    // accessor — that's intentional. Pause listeners are public API; the
+    // Symbol accessor is package-private and only consumed by the session's
+    // OWN endpoint detection (which reads the original `machineState`,
+    // not `paused`, via #readStack above).
     const paused: MachineState = {...machineState, debugBreak};
     const pausePromise = new Promise<void>((resolve) => {
       this.#pauseResolver = resolve;
