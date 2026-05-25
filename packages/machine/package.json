@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/machine",
-  "version": "7.0.0-alpha.4",
+  "version": "7.0.0-alpha.5",
   "description": "A convenient Turing machine",
   "engines": {
     "npm": ">=7.0.0"
