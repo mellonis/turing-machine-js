@@ -312,6 +312,63 @@ describe('DebugSession: pause event + continue()', () => {
     expect(pauseSteps[1]).toBe(2);  // next iter — exactly stepIn semantics
   });
 
+  it('stepOut() pauses at the first iter after the click-time top-frame is popped', async () => {
+    const alphabet = new Alphabet(' A'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const halt = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
+    const inner = new State({[symbol(['A'])]: {nextState: halt}, [symbol([' '])]: {nextState: halt}});
+    const outer = inner.withOverriddenHaltState(halt);
+    inner.debug = {before: true};
+
+    const session = new DebugSession(machine, {initialState: outer});
+    const pauses: Array<{step: number; cause: string}> = [];
+    let firstHandled = false;
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, cause: m.debugBreak!.cause});
+      if (!firstHandled) {
+        firstHandled = true;
+        session.stepOut();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    expect(pauses[0]).toMatchObject({cause: 'breakpoint'});
+    expect(pauses[1]).toMatchObject({cause: 'step'});
+    expect(pauses[1].step).toBeGreaterThan(pauses[0].step);
+  });
+
+  it('stepOut() with empty click-time stack throws', async () => {
+    // Top-level machine, no wrappers — paused state has empty halt-stack.
+    const alphabet = new Alphabet(' A'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const state = new State({
+      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+      [symbol([' '])]: {nextState: haltState},
+    });
+    state.debug = {before: true};
+
+    const session = new DebugSession(machine, {initialState: state});
+    const errors: unknown[] = [];
+    session.on('pause', () => {
+      try {
+        session.stepOut();
+      } catch (e) {
+        errors.push(e);
+        session.continue();
+      }
+    });
+    await session.start();
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect((errors[0] as Error).message).toMatch(/stepOut.*empty/);
+  });
+
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
     const {machine, state} = buildWalker(['A']);
     haltState.debug = true;

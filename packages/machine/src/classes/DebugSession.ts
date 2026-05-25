@@ -138,6 +138,27 @@ export default class DebugSession {
     this.#releasePause();
   }
 
+  /**
+   * Resume and run until the click-time top halt-frame is popped, then pause
+   * at the next iter. Endpoint predicate is the same as stepOver; the
+   * difference is the empty-stack contract:
+   *   - stepOver: empty click-time stack → collapse to stepIn.
+   *   - stepOut: empty click-time stack → throw (no enclosing frame to exit).
+   *
+   * Matches IDE convention: "step out of nothing" is a programming error,
+   * not a silent no-op.
+   */
+  stepOut(): void {
+    if (this.#capturedTopFrame === null) {
+      throw new Error(
+        'DebugSession.stepOut() called with an empty click-time halt-stack — there is no enclosing frame to exit.',
+      );
+    }
+    this.#activeStepMode = 'step-out';
+    this.#clickTimeTopFrame = this.#capturedTopFrame;
+    this.#releasePause();
+  }
+
   // Release the internal pause-promise. Set #pauseResolver to null BEFORE
   // calling so a re-entrant resume from inside another listener doesn't
   // double-fire.
@@ -206,10 +227,15 @@ export default class DebugSession {
           this.#clickTimeTopFrame === null  // empty click-time stack — collapse to stepIn
           || !this.#readStack(machineState).includes(this.#clickTimeTopFrame)
         );
+      const stepOutEndpointReached =
+        this.#activeStepMode === 'step-out'
+        && this.#clickTimeTopFrame !== null
+        && !this.#readStack(machineState).includes(this.#clickTimeTopFrame);
 
       // Before-side pause: fires if a breakpoint matched OR a step-mode endpoint
       // is reached. Breakpoint wins on cause when both fire on the same iter.
-      const fireBeforePause = hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached;
+      const fireBeforePause =
+        hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached;
       if (fireBeforePause) {
         const cause: DebugBreak['cause'] = hasBeforeBreakpoint ? 'breakpoint' : 'step';
         await this.#dispatchPause(machineState, {before: true, cause});
