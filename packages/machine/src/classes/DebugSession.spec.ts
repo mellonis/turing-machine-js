@@ -133,3 +133,103 @@ describe('DebugSession: step event', () => {
     expect(seen[1]).toBe(state);  // iter 2 (blank → halt)
   });
 });
+
+describe('DebugSession: pause event + continue()', () => {
+  it('emits pause on debugBreak.before match with cause: breakpoint', async () => {
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {before: true};
+    const session = new DebugSession(machine, {initialState: state});
+    const pauses: Array<{step: number; before?: true; after?: true; cause: string}> = [];
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, ...m.debugBreak!});
+      session.continue();
+    });
+    await session.start();
+    // Three iters total (iter 1 = A, iter 2 = A, iter 3 = blank → halt);
+    // {before: true} matches every symbol so all three pause.
+    expect(pauses).toEqual([
+      {step: 1, before: true, cause: 'breakpoint'},
+      {step: 2, before: true, cause: 'breakpoint'},
+      {step: 3, before: true, cause: 'breakpoint'},
+    ]);
+  });
+
+  it('emits pause on debugBreak.after match too', async () => {
+    const {machine, state} = buildWalker(['A']);
+    state.debug = {after: true};
+    const session = new DebugSession(machine, {initialState: state});
+    const causes: Array<{side: string; cause: string}> = [];
+    session.on('pause', (m) => {
+      causes.push({
+        side: m.debugBreak!.before ? 'before' : 'after',
+        cause: m.debugBreak!.cause,
+      });
+      session.continue();
+    });
+    await session.start();
+    // Two iters (iter 1 = A, iter 2 = blank → halt); both match after-side filter.
+    expect(causes).toEqual([
+      {side: 'after', cause: 'breakpoint'},
+      {side: 'after', cause: 'breakpoint'},
+    ]);
+  });
+
+  it('blocks the loop until continue() is called (no step fires during a held pause)', async () => {
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {before: true};
+    const session = new DebugSession(machine, {initialState: state});
+
+    let firstPauseFired = false;
+    let firstPauseResumed = false;
+    let stepsDuringFirstHold = 0;
+
+    session.on('step', () => {
+      if (firstPauseFired && !firstPauseResumed) stepsDuringFirstHold += 1;
+    });
+    session.on('pause', async () => {
+      if (!firstPauseFired) {
+        firstPauseFired = true;
+        await new Promise((r) => setTimeout(r, 10));
+        firstPauseResumed = true;
+      }
+      session.continue();
+    });
+    await session.start();
+    expect(stepsDuringFirstHold).toBe(0);  // pause genuinely blocks the loop
+  });
+
+  it('a synchronous continue() inside the listener releases the pause immediately', async () => {
+    const {machine, state} = buildWalker(['A']);
+    state.debug = {before: true};
+    const session = new DebugSession(machine, {initialState: state});
+    let resumeCalledSync = false;
+    session.on('pause', () => {
+      session.continue();
+      resumeCalledSync = true;
+    });
+    await session.start();
+    expect(resumeCalledSync).toBe(true);
+  });
+
+  it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
+    const {machine, state} = buildWalker(['A']);
+    haltState.debug = true;
+    try {
+      const session = new DebugSession(machine, {initialState: state});
+      const pauses: Array<{step: number; side: string; cause: string}> = [];
+      session.on('pause', (m) => {
+        pauses.push({
+          step: m.step,
+          side: m.debugBreak!.after ? 'after' : 'before',
+          cause: m.debugBreak!.cause,
+        });
+        session.continue();
+      });
+      await session.start();
+      // Two iters: iter 1 (A), iter 2 (blank → halt). Halt-debug fires on iter 2's after.
+      expect(pauses).toEqual([{step: 2, side: 'after', cause: 'breakpoint'}]);
+    } finally {
+      haltState.debug = false;
+    }
+  });
+});

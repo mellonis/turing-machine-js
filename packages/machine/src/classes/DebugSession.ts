@@ -1,5 +1,5 @@
 import State from './State';
-import TuringMachine, {type MachineState} from './TuringMachine';
+import TuringMachine, {type DebugBreak, type MachineState} from './TuringMachine';
 
 /**
  * Parameters mirror `TuringMachine.runStepByStep` / `run`. DebugSession passes
@@ -63,6 +63,7 @@ export default class DebugSession {
   };
   #started = false;
   #stopped = false;
+  #pauseResolver: (() => void) | null = null;
 
   constructor(machine: TuringMachine, parameter: DebugSessionParameter) {
     this.#machine = machine;
@@ -83,6 +84,44 @@ export default class DebugSession {
 
   stop(): void {
     this.#stopped = true;
+    this.#releasePause();
+  }
+
+  /**
+   * Resume from the current pause, returning to normal execution until the
+   * next breakpoint or natural halt. No-op when called outside of a paused
+   * state.
+   */
+  continue(): void {
+    this.#releasePause();
+  }
+
+  // Release the internal pause-promise. Set #pauseResolver to null BEFORE
+  // calling so a re-entrant resume from inside another listener doesn't
+  // double-fire.
+  #releasePause(): void {
+    const resolver = this.#pauseResolver;
+    if (resolver) {
+      this.#pauseResolver = null;
+      resolver();
+    }
+  }
+
+  /**
+   * Emit a `pause` event with the synthesized debugBreak and await the consumer's
+   * resume signal. Resolver is installed BEFORE listeners fire so a listener
+   * that synchronously calls `session.continue()` (or any other resume method)
+   * sees a live resolver to drop.
+   */
+  async #dispatchPause(machineState: MachineState, debugBreak: DebugBreak): Promise<void> {
+    const paused: MachineState = {...machineState, debugBreak};
+    const pausePromise = new Promise<void>((resolve) => {
+      this.#pauseResolver = resolve;
+    });
+    for (const fn of this.#listeners.pause) {
+      void fn(paused);
+    }
+    await pausePromise;
   }
 
   async start(): Promise<void> {
@@ -93,10 +132,23 @@ export default class DebugSession {
 
     for (const machineState of this.#machine.runStepByStep(this.#parameter)) {
       if (this.#stopped) return;
+
+      const hasBeforeBreakpoint = machineState.debugBreak?.before === true;
+      const hasAfterBreakpoint = machineState.debugBreak?.after === true;
+
+      if (hasBeforeBreakpoint) {
+        await this.#dispatchPause(machineState, {before: true, cause: 'breakpoint'});
+        if (this.#stopped) return;
+      }
+
       // step: fires once per iter, after any before-pause and before any after-pause.
-      // Pause / iter dispatch wire in here in subsequent tasks.
       for (const fn of this.#listeners.step) {
         void fn(machineState);
+      }
+
+      if (hasAfterBreakpoint) {
+        await this.#dispatchPause(machineState, {after: true, cause: 'breakpoint'});
+        if (this.#stopped) return;
       }
     }
 
