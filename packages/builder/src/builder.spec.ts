@@ -124,7 +124,7 @@ describe('buildMachine — debug config (#101)', () => {
 
   test('debug.after symbol-list fires on the halting iter\'s own yield', async () => {
     // 'B' triggers the halting transition; the after-fire for B reaches
-    // onPause on B's own yield (post-#119 dispatch model).
+    // onPause on B's own yield.
     const [machine, init] = buildLoopMachine({Q0: {after: ['B']}});
     machine.tapeBlock.replaceTape(new Tape({
       alphabet: machine.tapeBlock.alphabets[0],

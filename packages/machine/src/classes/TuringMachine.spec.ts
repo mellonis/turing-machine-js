@@ -320,14 +320,10 @@ describe('TuringMachine constructor', () => {
   });
 });
 
-// Regression tests for #196 — the halt-stack used to be an instance field on
-// TuringMachine that wasn't reset between `runStepByStep` calls, so a caller
-// that peeked at iter 1 via the generator (then disposed it with
-// `generator.return()`) would leave the wrapper's override on the stack;
-// the next `run()` would push it a second time and produce one extra
-// iteration on its way out of the call. Builds a wrapper whose bare halts
-// on blank and whose override also halts immediately — the minimal shape
-// that surfaces the bug.
+// Regression for #196: halt-stack must be run-scoped, not machine-scoped, so
+// a peeked-then-disposed generator doesn't leak a stack entry into the next
+// run. Builds a wrapper whose bare halts on blank and whose override also
+// halts immediately — the minimal shape that surfaces the bug.
 describe('halt-stack reset between calls (regression for #196)', () => {
   // Helper: build a fresh scenario per call so each subtest has independent
   // State/Tape/TapeBlock instances (the engine's symbol patterns are
@@ -360,8 +356,7 @@ describe('halt-stack reset between calls (regression for #196)', () => {
   test('runStepByStep peek + return + run produces no extra iterations', async () => {
     const {machine, initialState, tape} = buildWrapperOverWalkToBlank();
 
-    // Caller peeks at iter 1 then disposes the generator without draining —
-    // pre-#196 this left the override on `#stack`.
+    // Caller peeks at iter 1 then disposes the generator without draining.
     const gen = machine.runStepByStep({initialState});
     gen.next();
     gen.return(undefined);
@@ -413,8 +408,8 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
     // A wrapper around a single-iter halt-on-anything bare. Each run pushes
-    // the override; if the pre-#196 leak existed, the second run would see
-    // a stale override and one extra iter.
+    // its own override; a leaking machine-scoped stack would see a stale
+    // override on the second run and produce one extra iter.
     const bare = new State({
       [ifOtherSymbol]: {
         command: [{movement: movements.stay}],

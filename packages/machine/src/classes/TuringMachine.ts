@@ -97,14 +97,8 @@ export default class TuringMachine {
      * Async hook fired when `state.debug[when]` matches at the current
      * iteration. The promise is awaited inline, so the consumer can suspend
      * execution by deferring its resolution. Use for pause-capable inspection
-     * (debugger UIs, conditional breakpoints in tests).
-     *
-     * Renamed from `onDebugBreak` in v5.0.0. In v6.0.0 the dispatch order
-     * was changed so that `before` and `after` for the SAME iter fire on the
-     * same yield (per-iter lifecycle: before → step → after); previously the
-     * `after` of iter K fired on iter K+1's tick with a substituted source
-     * view. The `m.debugBreak` payload field keeps its name (it describes the
-     * engine's reason for pausing).
+     * (debugger UIs, conditional breakpoints in tests). Per-iter lifecycle:
+     * `before` and `after` for the same iter fire on the same yield.
      */
     onPause?: (machineState: MachineState) => void | Promise<void>;
     /**
@@ -170,13 +164,10 @@ export default class TuringMachine {
       this.#tapeBlock[lockSymbol].lock(executionSymbol);
 
 
-      // Halt-stack is run-scoped, not machine-scoped (#196). Declaring it
-      // local makes that lifetime explicit and prevents leftover entries
-      // from a previous `runStepByStep` call (e.g. a build-time peek that
-      // never drained the generator) from being popped during a subsequent
-      // halt-bound transition. Before this change `#stack` was an instance
-      // field and accumulated one extra push per call when the same machine
-      // was reused.
+      // Halt-stack is run-scoped, not machine-scoped (#196) — local
+      // declaration prevents leftover entries from a previous
+      // `runStepByStep` call (e.g. a build-time peek that never drained
+      // the generator) from leaking into a subsequent halt-bound transition.
       const stack: State[] = [];
       let state = initialState;
 
@@ -217,19 +208,14 @@ export default class TuringMachine {
           // The halting iter's after-fire just rides along on the iter's
           // own yield — no post-loop drain needed.
           //
-          // #207: `haltState.debug` is now a boolean, and pauses on the
-          // halt-triggering iter's AFTER side (not before). The previous
-          // before-side check (`nextState.debug?.before === true`) was
-          // "early-warning" timing — the user paused before the halt-bound
-          // transition fired, then had to mentally re-derive what would
-          // happen. Now the pause anchors post-step (after the iter's own
-          // after-pause if armed), so consumers see the just-fired halt-
-          // bound transition + diagram cursor still on the triggering state.
+          // #207 spec: `haltState.debug` is a boolean; the pause anchors on
+          // the AFTER side of the halt-triggering iter so consumers see the
+          // just-fired transition with the diagram cursor still on the
+          // triggering state.
           //
-          // `state` here is always non-halt (halt is terminal — the run
-          // loop never iterates with state === haltState), so `state.debug`
-          // is always `DebugConfig` at runtime. The public getter's return
-          // type matches that.
+          // `state` here is always non-halt (halt is terminal — the run loop
+          // never iterates with state === haltState), so `state.debug` is
+          // always `DebugConfig` at runtime.
           const beforeMatch = matchFilter(state.debug?.before, symbol);
           const afterMatch = matchFilter(state.debug?.after, symbol)
             || (nextState === haltState && haltState.debug);
