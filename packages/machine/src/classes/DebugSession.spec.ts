@@ -4,6 +4,7 @@ import State, {haltState} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MACHINE_STATE_INTERNAL, type MachineStateInternal} from './TuringMachine';
+import DebugSession from './DebugSession';
 
 // Shared helper: builds a 1-state machine that halts on the first A.
 const buildSimple = () => {
@@ -54,5 +55,44 @@ describe('MACHINE_STATE_INTERNAL accessor on yielded MachineState', () => {
     // Iter 1 is inside the wrapper — the wrapper's overriddenHaltState (halt) is on the stack.
     expect(internal.stack.length).toBe(1);
     expect(internal.stack[0]).toBe(halt);
+  });
+});
+
+describe('DebugSession skeleton', () => {
+  it('runs to natural halt and fires the halt listener', async () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    let halted = false;
+    session.on('halt', () => { halted = true; });
+    await session.start();
+    expect(halted).toBe(true);
+  });
+
+  it("doesn't fire halt when stop() is called", async () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    let halted = false;
+    session.on('halt', () => { halted = true; });
+    session.stop();
+    await session.start();
+    expect(halted).toBe(false);
+  });
+
+  it('throws on a second start() call', async () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    await session.start();
+    await expect(session.start()).rejects.toThrow(/already been called/);
+  });
+
+  it('off() removes a previously registered listener', async () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    let fired = 0;
+    const handler = () => { fired += 1; };
+    session.on('halt', handler);
+    session.off('halt', handler);
+    await session.start();
+    expect(fired).toBe(0);
   });
 });
