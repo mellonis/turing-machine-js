@@ -13,13 +13,21 @@ export type DebugSessionParameter = {
 export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt';
 
 /**
- * Listener signatures by event. Listeners may return `void` or `Promise<void>` —
- * the session calls them fire-and-forget, matching Node's `EventEmitter`
- * contract: async listeners run to completion on their own, but the session
- * does NOT await them. Async control flow (pause/resume) is gated by the
- * session's own resume methods (continue / stepIn / stepOver / stepOut / stop)
- * rather than listener return values, because the resume signal is fundamentally
- * external to the listener's call site (UI click, postMessage, timer, etc.).
+ * Listener signatures and dispatch contract by event:
+ *
+ * - `step` — fire-and-forget. Sync hot-loop tracing; listener Promise (if any)
+ *   is not awaited. Matches the v6 `onStep` contract.
+ * - `iter` — **AWAITED** (sequenced, blocks the engine). For per-iter
+ *   throttle / coordination / step-boundary synthesis where the engine
+ *   genuinely needs to wait for the listener's work before advancing.
+ *   Matches the v6 `onIter` contract.
+ * - `pause` — implicitly awaited via the session's internal `#pauseResolver`:
+ *   the engine pauses on the pause-promise, listeners fire (their Promises
+ *   are NOT awaited individually), and resume is signaled by an explicit
+ *   call to `session.continue()` / `stepIn` / `stepOver` / `stepOut` /
+ *   `stop` — fundamentally external to the listener's call site (UI click,
+ *   postMessage, timer, etc.).
+ * - `halt` — fire-and-forget. Terminal notification.
  */
 export type DebugSessionListener<E extends DebugSessionEvent> =
   E extends 'halt'
@@ -298,9 +306,13 @@ export default class DebugSession {
       }
 
       // iter: end-of-iter, after both before- and after-pause have fired.
+      // Listeners are AWAITED (sequenced, blocking the engine) — matches the
+      // v6 `onIter` contract that downstream consumers rely on for
+      // throttle / per-iter coordination / step-boundary synthesis.
       for (const fn of this.#listeners.iter) {
-        void fn(machineState);
+        await fn(machineState);
       }
+      if (this.#stopped) return;
 
       if (this.#runIntervalMs > 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, this.#runIntervalMs));

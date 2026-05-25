@@ -551,16 +551,16 @@ The `debug` field is mutable — toggle breakpoints at runtime without rebuildin
 | `pause()` | Request a pause from outside the loop. Fires on the next iter with `cause: 'manual'`. If a breakpoint matches that same iter, the breakpoint wins (single pause, `cause: 'breakpoint'`). |
 | `stop()` | Terminate immediately. `halt` event does NOT fire. |
 | `setRunInterval(ms)` | Insert an awaited `setTimeout(ms)` at the end of each iter. `0` disables. Useful for visualization UIs. |
-| `on(event, listener) / off(event, listener)` | Register / unregister listeners. Multiple listeners per event are supported. Listeners may return `void` or `Promise<void>` — the session fires them and continues without awaiting (Node `EventEmitter` semantics). |
+| `on(event, listener) / off(event, listener)` | Register / unregister listeners. Multiple listeners per event are supported. Listener dispatch differs by event — see *Events* below. |
 
 ### Events
 
-| Event | Argument | Fires |
-|---|---|---|
-| `pause` | `MachineState` (with `debugBreak.cause`) | A breakpoint matched, a step-mode endpoint was reached, or `session.pause()` was requested. Loop blocks until a resume method (`continue / stepIn / stepOver / stepOut / stop`) is called. |
-| `step` | `MachineState` | Once per iter, between any before-pause and after-pause. Fire-and-forget. |
-| `iter` | `MachineState` | Once per iter, at end. After any after-pause. |
-| `halt` | (none) | Once, on natural halt. Does NOT fire when `stop()` was called. |
+| Event | Argument | Dispatch | Fires |
+|---|---|---|---|
+| `pause` | `MachineState` (with `debugBreak.cause`) | Implicitly awaited via internal pause-promise — engine blocks until `continue / stepIn / stepOver / stepOut / stop` is called. Listener Promise itself is fire-and-forget. | A breakpoint matched, a step-mode endpoint was reached, or `session.pause()` was requested. |
+| `step` | `MachineState` | Fire-and-forget (sync hot-loop tracing). | Once per iter, between any before-pause and after-pause. |
+| `iter` | `MachineState` | **Awaited** (sequenced, blocks the engine). Use for throttle / per-iter coordination / step-boundary synthesis. | Once per iter, at end. After any after-pause. |
+| `halt` | (none) | Fire-and-forget. | Once, on natural halt. Does NOT fire when `stop()` was called. |
 
 ### `MachineState.debugBreak.cause`
 
