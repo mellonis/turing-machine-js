@@ -369,6 +369,49 @@ describe('DebugSession: pause event + continue()', () => {
     expect((errors[0] as Error).message).toMatch(/stepOut.*empty/);
   });
 
+  it('one-shot rule: an inner breakpoint dropped the active step-mode (no phantom endpoint)', async () => {
+    // Scenario: wrapper around inner with one breakpoint on the WRAPPER's bare
+    // and another on the inner state's halt path. User issues stepOver from
+    // the wrapper's bare pause; the inner breakpoint fires next as a
+    // 'breakpoint' cause, not as a 'step' endpoint.
+    const alphabet = new Alphabet(' AB'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A', 'B']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+
+    const halt = new State({
+      [symbol(['A'])]: {nextState: haltState},
+      [symbol(['B'])]: {nextState: haltState},
+      [symbol([' '])]: {nextState: haltState},
+    });
+    const inner = new State({
+      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: halt},
+      [symbol(['B'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: halt},
+      [symbol([' '])]: {nextState: halt},
+    });
+    const outer = inner.withOverriddenHaltState(halt);
+    inner.debug = {before: [symbol(['A'])]};   // matches iter 1
+    halt.debug = {before: true};               // matches when control reaches halt's pre-iter
+
+    const session = new DebugSession(machine, {initialState: outer});
+    const causes: string[] = [];
+    let firstHandled = false;
+    session.on('pause', (m) => {
+      causes.push(m.debugBreak!.cause);
+      if (!firstHandled) {
+        firstHandled = true;
+        session.stepOver();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    expect(causes[0]).toBe('breakpoint');
+    expect(causes[1]).toBe('breakpoint');  // NOT 'step' — the inner breakpoint dropped stepOver
+    expect(causes.every((c) => c === 'breakpoint')).toBe(true);
+  });
+
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
     const {machine, state} = buildWalker(['A']);
     haltState.debug = true;
