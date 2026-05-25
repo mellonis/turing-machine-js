@@ -59,7 +59,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
-      expect(step.debugBreak).toEqual({before: true});
+      expect(step.debugBreak).toEqual({before: true, cause: 'breakpoint'});
     }
   });
 
@@ -76,7 +76,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
 
     expect(aVisits).toHaveLength(A_VISIT_COUNT);
     expect(nonAVisits).toHaveLength(VISIT_COUNT - A_VISIT_COUNT);
-    for (const v of aVisits) expect(v.debugBreak).toEqual({before: true});
+    for (const v of aVisits) expect(v.debugBreak).toEqual({before: true, cause: 'breakpoint'});
     for (const v of nonAVisits) expect(v).not.toHaveProperty('debugBreak');
   });
 
@@ -104,7 +104,7 @@ describe('TuringMachine — debug.before filter (loop yields)', () => {
     const nonBlankVisits = steps.filter((s) => s.currentSymbols[0] !== alphabet.blankSymbol);
 
     expect(blankVisits).toHaveLength(HALT_VISIT_COUNT);
-    expect(blankVisits[0].debugBreak).toEqual({before: true});
+    expect(blankVisits[0].debugBreak).toEqual({before: true, cause: 'breakpoint'});
     for (const v of nonBlankVisits) expect(v).not.toHaveProperty('debugBreak');
   });
 });
@@ -121,7 +121,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
-      expect(step.debugBreak).toEqual({after: true});
+      expect(step.debugBreak).toEqual({after: true, cause: 'breakpoint'});
     }
   });
 
@@ -134,7 +134,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
-      expect(step.debugBreak).toEqual({before: true, after: true});
+      expect(step.debugBreak).toEqual({before: true, after: true, cause: 'breakpoint'});
     }
   });
 
@@ -151,7 +151,7 @@ describe('TuringMachine — debug.after filter (loop yields)', () => {
     const nonAHits = steps.filter((s) => s.currentSymbols[0] !== 'A');
     expect(aHits).toHaveLength(A_VISIT_COUNT);
 
-    for (const step of aHits) expect(step.debugBreak).toEqual({after: true});
+    for (const step of aHits) expect(step.debugBreak).toEqual({after: true, cause: 'breakpoint'});
     for (const step of nonAHits) expect(step).not.toHaveProperty('debugBreak');
   });
 });
@@ -183,7 +183,7 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     // `m.state` is the TRIGGERING state (whose transition leads to halt),
     // not haltState itself.
     expect(last.state).toBe(state);
-    expect(last.debugBreak).toEqual({after: true});
+    expect(last.debugBreak).toEqual({after: true, cause: 'breakpoint'});
   });
 
   test('haltState.debug = true fires on each halt entry — including subroutine return (halt-pop)', async () => {
@@ -229,11 +229,11 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     const popYield = steps.find((s) => s.nextState === continuation);
     expect(popYield).toBeDefined();
     expect(popYield).toBe(steps[1]);
-    expect(popYield!.debugBreak).toEqual({after: true});
+    expect(popYield!.debugBreak).toEqual({after: true, cause: 'breakpoint'});
 
     // Visit 3: transitions to halt directly. `debugBreak.after` fires.
     expect(steps[2].nextState).toBe(haltState);
-    expect(steps[2].debugBreak).toEqual({after: true});
+    expect(steps[2].debugBreak).toEqual({after: true, cause: 'breakpoint'});
   });
 
   test('haltState.debug = false / null suppresses dispatch on every iter', async () => {
@@ -296,7 +296,7 @@ describe('TuringMachine — run() with onPause', () => {
     expect(seen).toHaveLength(VISIT_COUNT);
     for (const entry of seen) {
       expect(entry.state).toBe(state);
-      expect(entry.debugBreak).toEqual({before: true});
+      expect(entry.debugBreak).toEqual({before: true, cause: 'breakpoint'});
     }
   });
 
@@ -317,7 +317,7 @@ describe('TuringMachine — run() with onPause', () => {
     // and `after` for the SAME iter both fire on that iter's own yield.
     for (const entry of seen) {
       expect(entry.state).toBe(state);
-      expect(entry.debugBreak).toEqual({after: true});
+      expect(entry.debugBreak).toEqual({after: true, cause: 'breakpoint'});
     }
   });
 
@@ -520,7 +520,7 @@ describe('TuringMachine — run({debug}) flag (#106)', () => {
     // EVERY yield carries the metadata (wildcard before-filter), even though
     // no onPause fires.
     for (const y of yields) {
-      expect(y.debugBreak).toEqual({before: true});
+      expect(y.debugBreak).toEqual({before: true, cause: 'breakpoint'});
     }
   });
 });

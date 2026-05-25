@@ -4,6 +4,31 @@ import {symbolCommands} from './TapeCommand';
 
 type RunParameter = { initialState: State, stepsLimit?: number };
 
+/**
+ * Set only on iterations whose `MachineState` represents a pause point.
+ * - Side flags: at least one of `before` / `after` is `true`.
+ * - `cause` identifies the pause origin:
+ *   - `'breakpoint'` — a `state.debug[when]` filter or `haltState.debug === true` matched.
+ *   - `'step'` — a DebugSession step-mode endpoint fired (stepIn / stepOver / stepOut).
+ *   - `'manual'` — a `DebugSession.pause()` call fired.
+ *
+ * On `runStepByStep` yields, `cause` is always `'breakpoint'` (the generator only
+ * knows about engine-level breakpoint filters). DebugSession synthesizes `'step'`
+ * and `'manual'` causes when dispatching its `pause` event.
+ */
+export type DebugBreak = {
+  before?: true;
+  after?: true;
+  cause: 'breakpoint' | 'step' | 'manual';
+};
+
+/**
+ * @internal — directive returned from a DebugSession's internal pause coordination
+ * to drive step-mode bookkeeping. NOT part of the public API; exported only for
+ * sibling-module use inside `packages/machine/src/classes/DebugSession.ts`.
+ */
+export type ResumeDirective = 'continue' | 'step-in' | 'step-over' | 'step-out';
+
 export type MachineState = {
   step: number;
   state: State;
@@ -14,18 +39,9 @@ export type MachineState = {
   /**
    * Set only when this iteration is a debug break point.
    * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
-   * At least one of `before` / `after` is `true` when the field is present.
-   *
-   * Both flags refer to THIS iter — `before` means the iter's `state.debug.before`
-   * matched, `after` means the iter's `state.debug.after` matched. `run()`
-   * dispatches the two timings as separate `onPause` calls (before-call has
-   * `debugBreak: {before: true}` only; after-call has `debugBreak: {after: true}`
-   * only) so consumers can distinguish without ambiguity.
+   * See `DebugBreak` for the field's shape and `cause` semantics.
    */
-  debugBreak?: {
-    before?: true;
-    after?: true;
-  };
+  debugBreak?: DebugBreak;
   /**
    * The transition the engine picked for this iter (#205). Always present
    * — `runStepByStep` resolves it at the very start of every iter via
@@ -139,7 +155,7 @@ export default class TuringMachine {
       // same yielded MachineState, so the consumer sees a coherent ordering
       // within each iteration without cross-tick coordination.
       if (debug && machineState.debugBreak?.before && onPause) {
-        await onPause({...machineState, debugBreak: {before: true}});
+        await onPause({...machineState, debugBreak: {before: true, cause: 'breakpoint'}});
       }
 
       if (onStep) {
@@ -147,7 +163,7 @@ export default class TuringMachine {
       }
 
       if (debug && machineState.debugBreak?.after && onPause) {
-        await onPause({...machineState, debugBreak: {after: true}});
+        await onPause({...machineState, debugBreak: {after: true, cause: 'breakpoint'}});
       }
 
       if (onIter) {
@@ -248,7 +264,7 @@ export default class TuringMachine {
           };
 
           if (beforeMatch || afterMatch) {
-            const dbg: { before?: true; after?: true } = {};
+            const dbg: DebugBreak = {cause: 'breakpoint'};
             if (beforeMatch) dbg.before = true;
             if (afterMatch) dbg.after = true;
             yielded.debugBreak = dbg;
