@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.5] - 2026-05-25
+
+Fifth v7 pre-release. Adds per-iter `matchedTransition` to `MachineState` so consumers can resolve the firing transition by graph id without re-deriving from `(source, nextState)` ambiguous pairs ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` and moves the halt-imminent pause to the AFTER side of the halt-triggering iter so the wording + diagram cursor agree with the just-fired transition ([#207](https://github.com/mellonis/turing-machine-js/issues/207)), and renames the `GraphTransition.id` separator from `-` to `.` for parser-friendly splitting. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.5`.
+
+### Added
+
+- **`MachineState.matchedTransition`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — every yielded `MachineState` from `run` / `runStepByStep` now carries `{ id: string, matchKinds: ('wildcard' | 'literal')[] }`. `id` is `${stateId}.${transitionIx}` and resolves directly in `toGraph`'s output via `graph.nodes[stateId].transitions.find(t => t.id === ...)`. For wrapper-entry iters, `id` references the BARE's transition (wrappers delegate via `bareState`). `matchKinds` is per-tape, length = tape count; `'wildcard'` iff the winning alternative held `ifOtherSymbol` at that position. Eliminates `(source, nextState)` resolution ambiguity for tools doing exact-edge highlighting, per-transition coverage maps, or wildcard-aware log formatting.
+
+- **`State.getMatchedTransition(symbol)`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — public method returning `{ nextState, matchedSymbol, ix }` for the symbol's transition. Same lookup `getNextState` does, plus the index — exposes the K used by `MachineState.matchedTransition.id` so callers needing both don't pay for the lookup twice.
+
+- **`TapeBlock.patternKinds(symbol, currentSymbols?)`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — public method returning per-tape `'wildcard' | 'literal'` for the matched alternative's selector. The engine uses it internally to populate `matchedTransition.matchKinds`; exposed for consumers wiring custom dispatch.
+
+- **`HaltState` typed alias** ([#207](https://github.com/mellonis/turing-machine-js/issues/207)) — the exported `haltState` singleton now carries a narrower TypeScript type (`State & { debug: boolean; ... }`) so `haltState.debug = true` is type-safe at the call site. Generic `State` references still see `DebugConfig` — runtime branches on `this.isHalt`.
+
+### Changed
+
+- **`GraphTransition.id` separator: `-` → `.`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)). Was `${stateId}-${patternIx}`, now `${stateId}.${patternIx}`. Aligns with `matchedTransition.id` and makes the id splittable without colliding with user-defined state names that may contain `-`. **Breaking** for any consumer parsing the old separator; alpha-channel only.
+
+- **`haltState.debug` is `boolean`** ([#207](https://github.com/mellonis/turing-machine-js/issues/207)). Was `DebugConfig` with per-side `{ before?, after? }` filters; under v7 it's a single `boolean` flag. `haltState.debug = true` enables; `false` / `null` disables. **Object-shaped writes throw** (`{ before: true }`, `{ after: true }`, etc.). The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.debugBreak.after === true`. Diagram + log narratives read naturally: the halt-bound transition has fired when the pause lands, and halt is the next thing. **Breaking** — pre-alpha.5 consumers using `haltState.debug = { before: true }` must switch to `haltState.debug = true`.
+
+  ⚠️ **Chained-form `haltState.debug.before = true` silently no-ops in non-strict mode.** The getter returns the boolean; assigning `.before` to a primitive is a JS no-op outside strict mode (`TypeError` in strict). The engine setter never sees the write. Use the whole-object form (`haltState.debug = true` / `= false` / `= null`).
+
+- **`State` internal: single `#getEntry` helper for `getCommand` / `getNextState` / `getMatchedTransition`** ([#206](https://github.com/mellonis/turing-machine-js/pull/206)). Internal refactor — no public API change. All three accessors now share one `.get()` lookup + unified throw message (`"No transition for symbol at state named ..."` — was per-method messages).
+
+- **Internal: dead-code typeof check on `state.debug` in `runStepByStep` removed; `patternKinds` defensive paths now have dedicated test coverage** ([#210](https://github.com/mellonis/turing-machine-js/pull/210)). Engine-internal cleanup that bumps overall coverage to 99.35% statements / 96.58% branches / 100% functions / 99.48% lines.
+
+### Docs
+
+- ⚠️ **README + CLAUDE.md** ([#209](https://github.com/mellonis/turing-machine-js/pull/209)) — warn that chained-form `haltState.debug.before = true` silently no-ops in non-strict mode (`new Function(...)`, `<script>` without `"use strict"`). Engine can't intercept (the write happens on a primitive after the getter returned); doc steers users to the whole-object form.
+
 ## [7.0.0-alpha.4] - 2026-05-23
 
 Fourth v7 pre-release. Adds an id-keyed lookup helper for the State graph ([#195](https://github.com/mellonis/turing-machine-js/issues/195)), fixes two upstream issues surfaced while wiring the new helper into downstream tooling — a `toMermaid` label-grammar bug ([#194](https://github.com/mellonis/turing-machine-js/issues/194)) and a halt-stack lifetime bug in `runStepByStep` ([#196](https://github.com/mellonis/turing-machine-js/issues/196)) — and extracts graph serialization into its own module without API change ([#180](https://github.com/mellonis/turing-machine-js/issues/180)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.5] - 2026-05-25
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.5 — adds per-iter `MachineState.matchedTransition` + renames `GraphTransition.id` separator `-` → `.` ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` with halt-imminent pause on the AFTER side of the halt-triggering iter ([#207](https://github.com/mellonis/turing-machine-js/issues/207)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.4` → `^7.0.0-alpha.5`.
+
 ## [7.0.0-alpha.4] - 2026-05-23
 
 Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.4 — adds `State.collectStates` ([#195](https://github.com/mellonis/turing-machine-js/issues/195)), extracts graph serialization into `utilities/stateGraph.ts` ([#180](https://github.com/mellonis/turing-machine-js/issues/180)), fixes `toMermaid` label escape ([#194](https://github.com/mellonis/turing-machine-js/issues/194)) and `runStepByStep` halt-stack scope ([#196](https://github.com/mellonis/turing-machine-js/issues/196)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.3` → `^7.0.0-alpha.4`.
