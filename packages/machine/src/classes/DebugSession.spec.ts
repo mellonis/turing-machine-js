@@ -447,6 +447,45 @@ describe('DebugSession: pause event + continue()', () => {
     expect(() => session.setRunInterval(Infinity)).toThrow();
   });
 
+  it('external pause() fires a pause on next iter with cause: manual', async () => {
+    const {machine, state} = buildWalker(['A', 'A', 'A']);
+    const session = new DebugSession(machine, {initialState: state});
+    session.setRunInterval(2);  // slow enough that we can pause externally
+
+    let pauseRequestedOnce = false;
+    const causes: string[] = [];
+    session.on('iter', (m) => {
+      // Trigger pause from outside on iter 1 (before iter 2 runs).
+      if (m.step === 1 && !pauseRequestedOnce) {
+        pauseRequestedOnce = true;
+        session.pause();
+      }
+    });
+    session.on('pause', (m) => {
+      causes.push(m.debugBreak!.cause);
+      session.continue();
+    });
+    await session.start();
+    expect(causes).toEqual(['manual']);
+  });
+
+  it('breakpoint takes precedence over manual when both pending on same iter', async () => {
+    const {machine, state} = buildWalker(['A']);
+    state.debug = {before: true};
+    const session = new DebugSession(machine, {initialState: state});
+
+    let observedCause: string | undefined;
+    // Set pause request BEFORE starting; iter 1 has both a breakpoint match
+    // and a pending manual request. The breakpoint cause wins.
+    session.pause();
+    session.on('pause', (m) => {
+      observedCause = observedCause ?? m.debugBreak!.cause;
+      session.continue();
+    });
+    await session.start();
+    expect(observedCause).toBe('breakpoint');
+  });
+
   it('haltState.debug = true fires pause with after-side breakpoint cause', async () => {
     const {machine, state} = buildWalker(['A']);
     haltState.debug = true;

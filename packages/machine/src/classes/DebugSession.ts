@@ -79,6 +79,7 @@ export default class DebugSession {
    */
   #clickTimeTopFrame: State | null = null;
   #runIntervalMs = 0;
+  #pauseRequested = false;
 
   constructor(machine: TuringMachine, parameter: DebugSessionParameter) {
     this.#machine = machine;
@@ -100,6 +101,20 @@ export default class DebugSession {
   stop(): void {
     this.#stopped = true;
     this.#releasePause();
+  }
+
+  /**
+   * Request a pause from outside the run loop. The pause fires on the next
+   * iter's before-side with `cause: 'manual'`. If a breakpoint matches that
+   * same iter, the breakpoint takes precedence and the request is consumed
+   * silently (one pause, cause: 'breakpoint').
+   *
+   * No-op if the session is already paused — the next `continue` / step call
+   * resumes normal execution, then the flag fires on the iter AFTER that.
+   * Equivalent to a debouncing one-shot.
+   */
+  pause(): void {
+    this.#pauseRequested = true;
   }
 
   /**
@@ -248,13 +263,21 @@ export default class DebugSession {
         this.#activeStepMode === 'step-out'
         && this.#clickTimeTopFrame !== null
         && !this.#readStack(machineState).includes(this.#clickTimeTopFrame);
+      // Consume the manual-pause flag at iter start. If a breakpoint also
+      // matches this iter, the request is silently consumed by the
+      // breakpoint dispatch (one pause, cause: 'breakpoint').
+      const manualPauseFires = this.#pauseRequested;
+      if (manualPauseFires) this.#pauseRequested = false;
 
-      // Before-side pause: fires if a breakpoint matched OR a step-mode endpoint
-      // is reached. Breakpoint wins on cause when both fire on the same iter.
+      // Before-side pause: fires if any of breakpoint / step-mode endpoint /
+      // manual request is true. Precedence: breakpoint > step > manual.
       const fireBeforePause =
-        hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached;
+        hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached || manualPauseFires;
       if (fireBeforePause) {
-        const cause: DebugBreak['cause'] = hasBeforeBreakpoint ? 'breakpoint' : 'step';
+        const cause: DebugBreak['cause'] =
+          hasBeforeBreakpoint ? 'breakpoint'
+            : (stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached) ? 'step'
+              : 'manual';
         await this.#dispatchPause(machineState, {before: true, cause});
         if (this.#stopped) return;
       }
