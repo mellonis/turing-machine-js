@@ -225,10 +225,13 @@ export default class TuringMachine {
           // happen. Now the pause anchors post-step (after the iter's own
           // after-pause if armed), so consumers see the just-fired halt-
           // bound transition + diagram cursor still on the triggering state.
-          const debug = state.debug;
-          const stateDebugConfig = typeof debug === 'boolean' ? null : debug;
-          const beforeMatch = matchFilter(stateDebugConfig?.before, symbol);
-          const afterMatch = matchFilter(stateDebugConfig?.after, symbol)
+          //
+          // `state` here is always non-halt (halt is terminal — the run
+          // loop never iterates with state === haltState), so `state.debug`
+          // is always `DebugConfig` at runtime. The public getter's return
+          // type matches that.
+          const beforeMatch = matchFilter(state.debug?.before, symbol);
+          const afterMatch = matchFilter(state.debug?.after, symbol)
             || (nextState === haltState && haltState.debug);
 
           const nextStateForYield = nextState.isHalt && stack.length
