@@ -469,6 +469,58 @@ describe('DebugSession: pause event + continue()', () => {
     expect(causes).toEqual(['manual']);
   });
 
+  it('stop() called from inside an iter listener terminates without firing halt', async () => {
+    const {machine, state} = buildWalker(['A', 'A', 'A', 'A']);
+    const session = new DebugSession(machine, {initialState: state});
+    let haltFired = false;
+    const iters: number[] = [];
+    session.on('iter', (m) => {
+      iters.push(m.step);
+      if (m.step === 2) session.stop();
+    });
+    session.on('halt', () => { haltFired = true; });
+    await session.start();
+    expect(haltFired).toBe(false);
+    expect(iters).toEqual([1, 2]);  // stop took effect at end of iter 2
+  });
+
+  it('stop() called from inside a pause listener terminates immediately', async () => {
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {before: true};
+    const session = new DebugSession(machine, {initialState: state});
+    let haltFired = false;
+    let pauseCount = 0;
+    session.on('pause', () => {
+      pauseCount += 1;
+      session.stop();
+    });
+    session.on('halt', () => { haltFired = true; });
+    await session.start();
+    expect(haltFired).toBe(false);
+    expect(pauseCount).toBe(1);
+  });
+
+  it('multiple listeners on the same event all fire', async () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    let countA = 0;
+    let countB = 0;
+    session.on('step', () => { countA += 1; });
+    session.on('step', () => { countB += 1; });
+    await session.start();
+    expect(countA).toBe(1);
+    expect(countB).toBe(1);
+  });
+
+  it('continue() / stepIn() / stepOver() are no-op when no pause is active', () => {
+    const {machine, halt} = buildSimple();
+    const session = new DebugSession(machine, {initialState: halt});
+    // No pause active — these must not throw.
+    expect(() => session.continue()).not.toThrow();
+    expect(() => session.stepIn()).not.toThrow();
+    expect(() => session.stepOver()).not.toThrow();
+  });
+
   it('breakpoint takes precedence over manual when both pending on same iter', async () => {
     const {machine, state} = buildWalker(['A']);
     state.debug = {before: true};
