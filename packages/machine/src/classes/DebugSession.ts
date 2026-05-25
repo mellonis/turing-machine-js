@@ -93,8 +93,11 @@ export default class DebugSession {
 
     for (const machineState of this.#machine.runStepByStep(this.#parameter)) {
       if (this.#stopped) return;
-      // Hooks (step / pause / iter dispatch) wire in here in subsequent tasks.
-      void machineState;
+      // step: fires once per iter, after any before-pause and before any after-pause.
+      // Pause / iter dispatch wire in here in subsequent tasks.
+      for (const fn of this.#listeners.step) {
+        void fn(machineState);
+      }
     }
 
     if (!this.#stopped) {

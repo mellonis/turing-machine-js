@@ -4,6 +4,7 @@ import State, {haltState} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MACHINE_STATE_INTERNAL, type MachineStateInternal} from './TuringMachine';
+import {movements, symbolCommands} from './TapeCommand';
 import DebugSession from './DebugSession';
 
 // Shared helper: builds a 1-state machine that halts on the first A.
@@ -94,5 +95,41 @@ describe('DebugSession skeleton', () => {
     session.off('halt', handler);
     await session.start();
     expect(fired).toBe(0);
+  });
+});
+
+// Builds a many-step machine that walks right across the tape until blank.
+const buildWalker = (symbols: string[]) => {
+  const alphabet = new Alphabet(' A'.split(''));
+  const tape = new Tape({alphabet, symbols});
+  const tapeBlock = TapeBlock.fromTapes([tape]);
+  const machine = new TuringMachine({tapeBlock});
+  const {symbol} = tapeBlock;
+  const state: State = new State({
+    [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}]},
+    [symbol([' '])]: {nextState: haltState},
+  });
+  return {machine, state};
+};
+
+describe('DebugSession: step event', () => {
+  it('emits step once per iter, in iter order', async () => {
+    const {machine, state} = buildWalker(['A', 'A', 'A']);
+    const session = new DebugSession(machine, {initialState: state});
+    const steps: number[] = [];
+    session.on('step', (m) => steps.push(m.step));
+    await session.start();
+    expect(steps).toEqual([1, 2, 3, 4]);  // 3 A-iters + 1 blank-halt iter
+  });
+
+  it('passes the live MachineState to listeners (state field is the current State)', async () => {
+    const {machine, state} = buildWalker(['A']);
+    const session = new DebugSession(machine, {initialState: state});
+    const seen: State[] = [];
+    session.on('step', (m) => seen.push(m.state));
+    await session.start();
+    expect(seen.length).toBe(2);
+    expect(seen[0]).toBe(state);  // iter 1
+    expect(seen[1]).toBe(state);  // iter 2 (blank → halt)
   });
 });
