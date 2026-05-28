@@ -329,7 +329,6 @@ Each yielded `step` (`MachineState`) has these fields:
 | `nextSymbols` | `string[]` | per-tape symbols that will be written |
 | `movements` | `symbol[]` | per-tape head moves (`movements.left/right/stay`) |
 | `nextState` | `State` | the state that will execute next |
-| `debugBreak?` | `{ before?: true, after?: true, cause: 'breakpoint' \| 'step' \| 'manual' }` | only set when this iter is a pause point. `cause` identifies the origin (engine breakpoint vs DebugSession step / manual). See *Debugging* below. |
 | `matchedTransition` | `{ id: string, matchKinds: ('wildcard'\|'literal')[] }` | the transition the engine picked for this iter — see *Matched transition* below |
 
 `stepsLimit` (default `1e5`) guards against runaway loops — exceeding it throws.
@@ -344,12 +343,12 @@ Three non-overlapping entry points, picked by the consumer's actual need:
 | Observation | none | per-iter via `.next()` | event-based (`pause`, `step`, `iter`, `halt`) |
 | Step controls | — | — | `continue / stepIn / stepOver / stepOut / pause / stop` |
 | Throttle | — | — | `setRunInterval(ms)` |
-| Breakpoint dispatch | breakpoints fire-and-resume invisibly | `debugBreak` field on each yield; consumer reads it | `pause` event fires with `cause: 'breakpoint'` |
+| Breakpoint handling | not consulted — runs straight to halt | not consulted — yields every iter; `state.debug` is ignored | the only mode that *reacts* — fires a `pause` event |
 | Best for | run-to-halt with no observation overhead | tracing, snapshots, test harnesses, custom batching | UI debuggers, IDE extensions, educational demos |
 
 **Rule of thumb.** No observation → `run()`. Sync per-iter observation → iterate `runStepByStep()`. Anything interactive (breakpoints, step controls, throttle, click-pause) → construct a `DebugSession`.
 
-The `debugBreak` metadata is on every yielded `MachineState` regardless of which entry point you used — `runStepByStep` consumers can read it directly, `DebugSession` consumers see it on the `pause` event payload.
+**Breakpoint detection lives only in `DebugSession`.** `runStepByStep` is the pure-iteration primitive — it advances the machine and reports a minimal `MachineState` with no pause/debug field, ignoring `state.debug` entirely. `DebugSession` is what evaluates the filters and turns a match into a `pause` event. (A consumer that wants its own breakpoint behavior on the raw generator can read `state.debug` itself.)
 
 ### Matched transition
 
@@ -489,7 +488,7 @@ import { DebugSession } from '@turing-machine-js/machine';
 const session = new DebugSession(machine, { initialState });
 
 session.on('pause', (m) => {
-  console.log(`paused at ${m.state.name}, cause: ${m.debugBreak.cause}`);
+  console.log(`paused at ${m.state.name}, ${m.pause.side} side, cause: ${m.pause.cause}`);
   session.stepIn();              // or stepOver(), stepOut(), continue(), stop()
 });
 session.on('step', (m) => { /* fires once per iter, mid-iter */ });
@@ -529,7 +528,7 @@ haltState.debug = null;         // alias of false (reset)
 myState.debug = null;
 ```
 
-> ⚠️ **`haltState.debug` is `boolean`-only.** Any object-shaped write (`{ before: true }`, `{ after: true }`, `{ before: true, after: true }`) throws at write time. The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.debugBreak.after === true`.
+> ⚠️ **`haltState.debug` is `boolean`-only.** Any object-shaped write (`{ before: true }`, `{ after: true }`, `{ before: true, after: true }`) throws at write time. The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.pause.side === 'after'`.
 
 > ⚠️ **Chained-form `haltState.debug.before = true` doesn't throw in non-strict mode** — this is a JavaScript primitive quirk, not engine behavior. The getter returns the boolean `false`; assigning `.before` to that boolean is a no-op in non-strict mode (silent), a `TypeError` in strict mode. The engine setter only sees whole-object writes (`haltState.debug = X`). **Always use the whole-object form: `haltState.debug = true` / `= false` / `= null`.**
 
@@ -557,18 +556,20 @@ The `debug` field is mutable — toggle breakpoints at runtime without rebuildin
 
 | Event | Argument | Dispatch | Fires |
 |---|---|---|---|
-| `pause` | `MachineState` (with `debugBreak.cause`) | Implicitly awaited via internal pause-promise — engine blocks until `continue / stepIn / stepOver / stepOut / stop` is called. Listener Promise itself is fire-and-forget. | A breakpoint matched, a step-mode endpoint was reached, or `session.pause()` was requested. |
+| `pause` | `PausedMachineState` (`MachineState` + `pause: {side, cause}`) | Implicitly awaited via internal pause-promise — engine blocks until `continue / stepIn / stepOver / stepOut / stop` is called. Listener Promise itself is fire-and-forget. | A breakpoint matched, a step-mode endpoint was reached, or `session.pause()` was requested. |
 | `step` | `MachineState` | Fire-and-forget (sync hot-loop tracing). | Once per iter, between any before-pause and after-pause. |
 | `iter` | `MachineState` | **Awaited** (sequenced, blocks the engine). Use for throttle / per-iter coordination / step-boundary synthesis. | Once per iter, at end. After any after-pause. |
 | `halt` | (none) | Fire-and-forget. | Once, on natural halt. Does NOT fire when `stop()` was called. |
 
-### `MachineState.debugBreak.cause`
+### The pause descriptor: `m.pause`
 
-When the `pause` event fires, `m.debugBreak.cause` distinguishes the origin:
+`pause` listeners receive a `PausedMachineState` — a plain `MachineState` plus a `pause: { side, cause }` descriptor (raw `runStepByStep` yields have no such field).
 
-- `'breakpoint'` — a `state.debug` filter matched, or `haltState.debug === true` triggered.
-- `'step'` — a `stepIn` / `stepOver` / `stepOut` directive's natural endpoint was reached.
-- `'manual'` — `session.pause()` was called from outside.
+- **`side`** — `'before'` or `'after'`. Exactly one: DebugSession dispatches the two timings as separate `pause` events, so a descriptor is always one-sided. (`'step'` / `'manual'` causes only ever fire on the `'before'` side.)
+- **`cause`** — distinguishes the origin:
+  - `'breakpoint'` — a `state.debug` filter matched, or `haltState.debug === true` triggered.
+  - `'step'` — a `stepIn` / `stepOver` / `stepOut` directive's natural endpoint was reached.
+  - `'manual'` — `session.pause()` was called from outside.
 
 **When an iter satisfies more than one trigger**, exactly **one** `pause` event fires — never two at the same iter — and `cause` is chosen by precedence:
 
@@ -669,7 +670,7 @@ for (const m of machine.runStepByStep({ initialState })) {
 }
 ```
 
-The `debug: false` master switch is gone — in v7 the session is the only consumer of breakpoints; if you don't register a `pause` listener, breakpoints fire-and-resume invisibly (the session's `start()` still resolves cleanly), or you can use `runStepByStep` directly and ignore the `debugBreak` field.
+The `debug: false` master switch is gone — in v7 the session is the only consumer of breakpoints; if you don't register a `pause` listener, breakpoints fire-and-resume invisibly (the session's `start()` still resolves cleanly), or you can use `runStepByStep` directly, which ignores `state.debug` altogether (its yields carry no pause field).
 
 (History: v6.2.0 briefly widened `onStep` to `void | Promise<void>` and added an inline `await`, motivated by this same throttle use case. That was a mistake — restored to sync in v6.3.0. v6.3.0 documented a workaround using `onPause` self-rearm on `state.debug.after = true`; that workaround is superseded by `onIter` in v6.4.0+.)
 
@@ -828,7 +829,7 @@ API surface changes since v3, in past tense so the timing of each piece is expli
 
 - **v4** — `run()` became async (`Promise<void>`). Per-state runtime breakpoints landed (`state.debug.before` / `state.debug.after`); `run()` accepted an `onDebugBreak` hook. `MachineState` exposed on each yield.
 - **v5** — `onDebugBreak` renamed to `onPause`. New `run({ debug: boolean })` master switch suppresses all `onPause` dispatches without unsetting `state.debug` assignments. Assigning a truthy `.after` to `haltState.debug` now throws at write time (halt is terminal — no iteration-after-halt to anchor on). *Superseded in v7 by #207: `haltState.debug` is now `boolean`, all object-shaped writes throw.*
-- **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. The `MachineState.debugBreak` field shape is unchanged across all three versions.
+- **v6** — Per-iter lifecycle reordered to `before → step → after`, all firing on the same yield. Previously `after` fired on iter K+1's tick with a `prevYield` substitution dance; that substitution is gone. (The `MachineState.debugBreak` field shape held through v6; **v7 removes it** — breakpoint detection moved into `DebugSession`, and the pause descriptor is now `m.pause: {side, cause}` on the `pause` event only.)
 - **v6.1** — `state.debug` ergonomics: the field is now always a non-null `DebugConfig` instance (lazy-initialized on first read), so chained field writes like `state.debug.before = true` work on a fresh state without a prior whole-object assignment. The `DebugConfig` instance is `Object.seal`-ed, so typos like `state.debug.bofore = true` throw `TypeError` at write time instead of silently creating a useless property. `state.debug = null` continues to work but semantically means "reset filters" — the next read returns a fresh empty `DebugConfig` (#150).
 - **v6.2** *(superseded by v6.3.0)* — widened `onStep`'s signature to `(m) => void | Promise<void>` and added an inline `await onStep(...)` in the run loop, enabling throttle-in-`onStep` patterns. This overturned the docstring-stated contract that `onStep` is sync (microtask-free); the right place for per-iter throttling is `onPause` with self-rearm (see [Throttle pattern](#throttle-pattern)). Restored in v6.3.0.
 - **v6.3** — `onStep` reverted to its v6.0–v6.1 sync contract — `(m) => void`, called synchronously inside the run loop. The Throttle pattern section documents the engine-native shape for per-iter throttle / "wait between iters" UIs. No other API changes.

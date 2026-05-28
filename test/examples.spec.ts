@@ -128,8 +128,8 @@ describe('README.md — Debugging breakpoints', () => {
 
     const session = new DebugSession(machine, {initialState: myState});
     session.on('pause', (m) => {
-      if (m.debugBreak?.before) order.push('before');
-      if (m.debugBreak?.after) order.push('after');
+      if (m.pause.side === 'before') order.push('before');
+      if (m.pause.side === 'after') order.push('after');
       session.continue();
     });
     await session.start();
@@ -148,7 +148,7 @@ describe('README.md — Debugging breakpoints', () => {
     const session = new DebugSession(machine, {initialState: myState});
     session.on('step', () => { visitIx += 1; });
     session.on('pause', (m) => {
-      if (m.nextState === haltState && m.debugBreak?.after) {
+      if (m.nextState === haltState && m.pause.side === 'after') {
         haltPauses.push({atVisit: visitIx});
       }
       session.continue();

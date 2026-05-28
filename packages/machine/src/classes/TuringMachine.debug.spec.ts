@@ -38,122 +38,102 @@ const buildMachine = () => {
   return {machine, state, symbol};
 };
 
-describe('TuringMachine — debug.before filter (loop yields)', () => {
-  test('without debug, no debugBreak field on yields', async () => {
-    const {machine, state} = buildMachine();
-    const steps: MachineState[] = [];
+// Drive a DebugSession to completion, collecting one record per pause event.
+// Detection now lives in DebugSession (not in runStepByStep), so filter
+// semantics are asserted through the pause stream.
+type PauseRecord = {step: number; side: 'before' | 'after'; cause: string; symbol: string};
+async function collectPauses(machine: TuringMachine, state: State): Promise<PauseRecord[]> {
+  const session = new DebugSession(machine, {initialState: state});
+  const pauses: PauseRecord[] = [];
+  session.on('pause', (m) => {
+    pauses.push({step: m.step, side: m.pause.side, cause: m.pause.cause, symbol: m.currentSymbols[0]});
+    session.continue();
+  });
+  await session.start();
+  return pauses;
+}
 
+describe('runStepByStep — no debug metadata on yields', () => {
+  test('raw yields never carry a pause/debugBreak field, regardless of state.debug', () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true, after: true};  // even with filters armed…
+    const steps: MachineState[] = [];
     for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
 
     expect(steps).toHaveLength(VISIT_COUNT);
     for (const step of steps) {
       expect(step).not.toHaveProperty('debugBreak');
+      expect(step).not.toHaveProperty('pause');
     }
-  });
-
-  test('debug.before = true tags every visit with debugBreak.before', async () => {
-    const {machine, state} = buildMachine();
-    state.debug = {before: true};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    for (const step of steps) {
-      expect(step.debugBreak).toEqual({before: true, cause: 'breakpoint'});
-    }
-  });
-
-  test('debug.before with symbol list matches only listed symbols', async () => {
-    const {machine, state, symbol} = buildMachine();
-    const symA = symbol(['A']);
-    state.debug = {before: [symA]};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    const aVisits = steps.filter((s) => s.currentSymbols[0] === 'A');
-    const nonAVisits = steps.filter((s) => s.currentSymbols[0] !== 'A');
-
-    expect(aVisits).toHaveLength(A_VISIT_COUNT);
-    expect(nonAVisits).toHaveLength(VISIT_COUNT - A_VISIT_COUNT);
-    for (const v of aVisits) expect(v.debugBreak).toEqual({before: true, cause: 'breakpoint'});
-    for (const v of nonAVisits) expect(v).not.toHaveProperty('debugBreak');
-  });
-
-  test('debug.before with empty list never matches', async () => {
-    const {machine, state} = buildMachine();
-    state.debug = {before: []};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    for (const step of steps) {
-      expect(step).not.toHaveProperty('debugBreak');
-    }
-  });
-
-  test('debug.before with [ifOtherSymbol] matches only the catch-all visit', async () => {
-    const {machine, state} = buildMachine();
-    state.debug = {before: [ifOtherSymbol]};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    const blankVisits = steps.filter((s) => s.currentSymbols[0] === alphabet.blankSymbol);
-    const nonBlankVisits = steps.filter((s) => s.currentSymbols[0] !== alphabet.blankSymbol);
-
-    expect(blankVisits).toHaveLength(HALT_VISIT_COUNT);
-    expect(blankVisits[0].debugBreak).toEqual({before: true, cause: 'breakpoint'});
-    for (const v of nonBlankVisits) expect(v).not.toHaveProperty('debugBreak');
   });
 });
 
-describe('TuringMachine — debug.after filter (loop yields)', () => {
-  // Both `before` and `after` refer to THIS iter, dispatched on the same yield.
+describe('DebugSession — before-side detection', () => {
+  test('no state.debug → no pauses', async () => {
+    const {machine, state} = buildMachine();
+    expect(await collectPauses(machine, state)).toEqual([]);
+  });
 
-  test('debug.after = true tags every yield with debugBreak.after', async () => {
+  test('before = true pauses on every visit, side before', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: true};
+    const pauses = await collectPauses(machine, state);
+    expect(pauses).toHaveLength(VISIT_COUNT);
+    for (const p of pauses) expect({side: p.side, cause: p.cause}).toEqual({side: 'before', cause: 'breakpoint'});
+  });
+
+  test('before with symbol list pauses only on listed symbols', async () => {
+    const {machine, state, symbol} = buildMachine();
+    state.debug = {before: [symbol(['A'])]};
+    const pauses = await collectPauses(machine, state);
+    expect(pauses).toHaveLength(A_VISIT_COUNT);
+    for (const p of pauses) expect({side: p.side, symbol: p.symbol}).toEqual({side: 'before', symbol: 'A'});
+  });
+
+  test('before with empty list never pauses', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: []};
+    expect(await collectPauses(machine, state)).toEqual([]);
+  });
+
+  test('before with [ifOtherSymbol] pauses only on the catch-all (blank) visit', async () => {
+    const {machine, state} = buildMachine();
+    state.debug = {before: [ifOtherSymbol]};
+    const pauses = await collectPauses(machine, state);
+    expect(pauses).toHaveLength(HALT_VISIT_COUNT);
+    expect(pauses[0].symbol).toBe(alphabet.blankSymbol);
+    expect({side: pauses[0].side, cause: pauses[0].cause}).toEqual({side: 'before', cause: 'breakpoint'});
+  });
+});
+
+describe('DebugSession — after-side detection', () => {
+  test('after = true pauses on every visit, side after', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    for (const step of steps) {
-      expect(step.debugBreak).toEqual({after: true, cause: 'breakpoint'});
-    }
+    const pauses = await collectPauses(machine, state);
+    expect(pauses).toHaveLength(VISIT_COUNT);
+    for (const p of pauses) expect({side: p.side, cause: p.cause}).toEqual({side: 'after', cause: 'breakpoint'});
   });
 
-  test('before AND after on same visit produce both flags on every yield', async () => {
+  test('before AND after on same visit → two pause events per iter, before then after', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true, after: true};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    for (const step of steps) {
-      expect(step.debugBreak).toEqual({before: true, after: true, cause: 'breakpoint'});
+    const pauses = await collectPauses(machine, state);
+    // Each visit now produces TWO pause events (split), in before→after order.
+    expect(pauses).toHaveLength(VISIT_COUNT * 2);
+    for (let i = 0; i < pauses.length; i += 2) {
+      expect(pauses[i].side).toBe('before');
+      expect(pauses[i + 1].side).toBe('after');
+      expect(pauses[i].step).toBe(pauses[i + 1].step);
     }
   });
 
-  test('after with symbol list matches only listed symbols', async () => {
+  test('after with symbol list pauses only on listed symbols', async () => {
     const {machine, state, symbol} = buildMachine();
-    const symA = symbol(['A']);
-    state.debug = {after: [symA]};
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    const aHits = steps.filter((s) => s.currentSymbols[0] === 'A');
-    const nonAHits = steps.filter((s) => s.currentSymbols[0] !== 'A');
-    expect(aHits).toHaveLength(A_VISIT_COUNT);
-
-    for (const step of aHits) expect(step.debugBreak).toEqual({after: true, cause: 'breakpoint'});
-    for (const step of nonAHits) expect(step).not.toHaveProperty('debugBreak');
+    state.debug = {after: [symbol(['A'])]};
+    const pauses = await collectPauses(machine, state);
+    expect(pauses).toHaveLength(A_VISIT_COUNT);
+    for (const p of pauses) expect({side: p.side, symbol: p.symbol}).toEqual({side: 'after', symbol: 'A'});
   });
 });
 
@@ -163,39 +143,38 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     haltState.debug = false;
   });
 
-  test('haltState.debug = true fires `debugBreak.after` on the halt-triggering iter (#207)', async () => {
+  test('haltState.debug = true pauses (after-side) on the halt-triggering iter (#207)', async () => {
     const {machine, state} = buildMachine();
     haltState.debug = true;
-    const steps: MachineState[] = [];
 
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
+    const session = new DebugSession(machine, {initialState: state});
+    const pauses: Array<{step: number; side: string; cause: string; pausedState: State; nextState: State}> = [];
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, side: m.pause.side, cause: m.pause.cause, pausedState: m.state, nextState: m.nextState});
+      session.continue();
+    });
+    await session.start();
 
-    expect(steps).toHaveLength(VISIT_COUNT);
-    // Only the visit whose transition leads to halt (the trailing blank →
-    // ifOtherSymbol → haltState) carries `debugBreak.after`. The earlier
-    // visits self-loop within `state`, so their nextState is `state` itself,
-    // not haltState — no halt-imminent dispatch.
-    for (let i = 0; i < VISIT_COUNT - 1; i++) {
-      expect(steps[i]).not.toHaveProperty('debugBreak');
-    }
-    const last = steps[VISIT_COUNT - 1];
-    expect(last.nextState).toBe(haltState);
-    // #207 spec: fires on AFTER side (post-iter, before halt processing).
-    // `m.state` is the TRIGGERING state (whose transition leads to halt),
-    // not haltState itself.
-    expect(last.state).toBe(state);
-    expect(last.debugBreak).toEqual({after: true, cause: 'breakpoint'});
+    // Only the visit whose transition leads to halt (trailing blank →
+    // ifOtherSymbol → haltState) pauses. Earlier visits self-loop within
+    // `state` — their nextState is `state`, not haltState.
+    expect(pauses).toHaveLength(1);
+    const p = pauses[0];
+    expect(p.step).toBe(VISIT_COUNT);
+    // #207: after-side; m.state is the TRIGGERING state, not haltState.
+    expect(p.side).toBe('after');
+    expect(p.cause).toBe('breakpoint');
+    expect(p.pausedState).toBe(state);
+    expect(p.nextState).toBe(haltState);
   });
 
-  test('haltState.debug = true fires on each halt entry — including subroutine return (halt-pop)', async () => {
-    // Custom 1-cell tape + nested-state setup. Trajectory:
+  test('haltState.debug = true pauses on each halt entry — including subroutine return (halt-pop)', async () => {
+    // Trajectory:
     //   visit 1: head 'A', state=wrapped → erase+right, transition to inner
     //   visit 2: head blank, state=inner → ifOtherSymbol → would halt;
     //            wrapped's override redirects to continuation. nextState=continuation.
-    //            #207: halt-imminent fires on AFTER side (transition's original
-    //            nextState was haltState before the pop redirect).
-    //   visit 3: head blank, state=continuation → ifOtherSymbol → halt.
-    //            #207: halt-imminent fires on AFTER side.
+    //            #207: halt-imminent → after-side pause (original nextState was haltState).
+    //   visit 3: head blank, state=continuation → ifOtherSymbol → halt → after-side pause.
     const tape = new Tape({alphabet, symbols: ['A']});
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
@@ -215,39 +194,28 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     const wrapped = inner.withOverriddenHaltState(continuation);
 
     haltState.debug = true;
-    const steps: MachineState[] = [];
+    const session = new DebugSession(machine, {initialState: wrapped});
+    const pauses: Array<{step: number; side: string; nextState: State}> = [];
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, side: m.pause.side, nextState: m.nextState});
+      session.continue();
+    });
+    await session.start();
 
-    for (const s of machine.runStepByStep({initialState: wrapped})) { steps.push(s); }
-
-    expect(steps).toHaveLength(3);
-
-    // Visit 1: just self-loops into inner — no halt-related break.
-    expect(steps[0]).not.toHaveProperty('debugBreak');
-
-    // Visit 2: transitions to continuation via halt-pop. `debugBreak.after`
-    // fires because the transition's original nextState was haltState (the
-    // pop-redirect to continuation happens AFTER the engine's halt check).
-    const popYield = steps.find((s) => s.nextState === continuation);
-    expect(popYield).toBeDefined();
-    expect(popYield).toBe(steps[1]);
-    expect(popYield!.debugBreak).toEqual({after: true, cause: 'breakpoint'});
-
-    // Visit 3: transitions to halt directly. `debugBreak.after` fires.
-    expect(steps[2].nextState).toBe(haltState);
-    expect(steps[2].debugBreak).toEqual({after: true, cause: 'breakpoint'});
+    // Two halt entries: the halt-pop (→ continuation) and the final halt.
+    expect(pauses).toHaveLength(2);
+    // halt-pop visit: nextState resolves to the continuation (post-pop).
+    expect(pauses[0].side).toBe('after');
+    expect(pauses[0].nextState).toBe(continuation);
+    // final visit: transitions straight to halt.
+    expect(pauses[1].side).toBe('after');
+    expect(pauses[1].nextState).toBe(haltState);
   });
 
-  test('haltState.debug = false / null suppresses dispatch on every iter', async () => {
+  test('haltState.debug = false / null → no pauses', async () => {
     const {machine, state} = buildMachine();
     haltState.debug = false;
-    const steps: MachineState[] = [];
-
-    for (const s of machine.runStepByStep({initialState: state})) { steps.push(s); }
-
-    expect(steps).toHaveLength(VISIT_COUNT);
-    for (const step of steps) {
-      expect(step).not.toHaveProperty('debugBreak');
-    }
+    expect(await collectPauses(machine, state)).toEqual([]);
   });
 
   test('haltState.debug getter returns boolean (typed `boolean` via HaltState alias)', () => {
@@ -281,11 +249,11 @@ describe('TuringMachine — run() with onPause', () => {
   test('DebugSession pause event fires for "before" with current state', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
-    const seen: Array<{state: State, debugBreak?: MachineState['debugBreak']}> = [];
+    const seen: Array<{state: State, side: string; cause: string}> = [];
 
     const session = new DebugSession(machine, {initialState: state});
     session.on('pause', (m) => {
-      seen.push({state: m.state, debugBreak: m.debugBreak});
+      seen.push({state: m.state, side: m.pause.side, cause: m.pause.cause});
       session.continue();
     });
     await session.start();
@@ -293,18 +261,18 @@ describe('TuringMachine — run() with onPause', () => {
     expect(seen).toHaveLength(VISIT_COUNT);
     for (const entry of seen) {
       expect(entry.state).toBe(state);
-      expect(entry.debugBreak).toEqual({before: true, cause: 'breakpoint'});
+      expect({side: entry.side, cause: entry.cause}).toEqual({side: 'before', cause: 'breakpoint'});
     }
   });
 
   test('DebugSession pause event for "after" carries the same iter\'s state', async () => {
     const {machine, state} = buildMachine();
     state.debug = {after: true};
-    const seen: Array<{state: State, debugBreak?: MachineState['debugBreak'], step: number}> = [];
+    const seen: Array<{state: State, side: string; cause: string; step: number}> = [];
 
     const session = new DebugSession(machine, {initialState: state});
     session.on('pause', (m) => {
-      seen.push({state: m.state, debugBreak: m.debugBreak, step: m.step});
+      seen.push({state: m.state, side: m.pause.side, cause: m.pause.cause, step: m.step});
       session.continue();
     });
     await session.start();
@@ -312,24 +280,23 @@ describe('TuringMachine — run() with onPause', () => {
     expect(seen).toHaveLength(VISIT_COUNT);
     for (const entry of seen) {
       expect(entry.state).toBe(state);
-      expect(entry.debugBreak).toEqual({after: true, cause: 'breakpoint'});
+      expect({side: entry.side, cause: entry.cause}).toEqual({side: 'after', cause: 'breakpoint'});
     }
   });
 
-  test('both "before" and "after" on same yield → two pause events in lifecycle order', async () => {
+  test('both "before" and "after" on same iter → two pause events in lifecycle order', async () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true, after: true};
     const calls: Array<'before' | 'after'> = [];
 
     const session = new DebugSession(machine, {initialState: state});
     session.on('pause', (m) => {
-      if (m.debugBreak?.before) calls.push('before');
-      if (m.debugBreak?.after) calls.push('after');
+      calls.push(m.pause.side);
       session.continue();
     });
     await session.start();
 
-    // Per-iter lifecycle: before → step → after. Every yield dispatches both
+    // Per-iter lifecycle: before → step → after. Every iter dispatches both
     // pauses in this order. For VISIT_COUNT visits: [before, after, before, …]
     expect(calls).toHaveLength(VISIT_COUNT * 2);
     for (let i = 0; i < calls.length; i++) {
@@ -385,7 +352,7 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
 
     const session = new DebugSession(machine, {initialState: state});
     session.on('pause', (m) => {
-      if (m.debugBreak?.after) after.push(m);
+      if (m.pause.side === 'after') after.push(m);
       session.continue();
     });
     await session.start();
@@ -430,24 +397,24 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
   });
 });
 
-describe('debugBreak metadata on yields (no consumer dispatch)', () => {
+describe('runStepByStep ignores breakpoints entirely (detection lives in DebugSession)', () => {
   afterEach(() => { haltState.debug = null; });
 
-  // v6's `run({debug: false})` master switch is gone in v7 (callbacks moved
-  // entirely to DebugSession). The semantic that lived in those tests —
-  // "yielded MachineStates carry debugBreak metadata regardless of consumer
-  // dispatch" — still holds, and is observable by iterating `runStepByStep`
-  // directly without constructing a session.
+  // v7: breakpoint detection moved out of the generator. runStepByStep is the
+  // pure-iteration primitive — even with state.debug armed, raw yields carry
+  // NO pause/debugBreak field and iteration cadence is unchanged.
 
-  test('runStepByStep yields debugBreak metadata even without a DebugSession', () => {
+  test('raw yields carry no pause metadata even with state.debug armed', () => {
     const {machine, state} = buildMachine();
     state.debug = {before: true};
+    haltState.debug = true;
     const yields: MachineState[] = [];
     for (const m of machine.runStepByStep({initialState: state})) { yields.push(m); }
 
     expect(yields).toHaveLength(VISIT_COUNT);
     for (const y of yields) {
-      expect(y.debugBreak).toEqual({before: true, cause: 'breakpoint'});
+      expect(y).not.toHaveProperty('pause');
+      expect(y).not.toHaveProperty('debugBreak');
     }
   });
 

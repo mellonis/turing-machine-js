@@ -1,5 +1,13 @@
-import State from './State';
-import TuringMachine, {MACHINE_STATE_INTERNAL, type DebugBreak, type MachineState, type MachineStateInternal, type ResumeDirective} from './TuringMachine';
+import State, {haltState} from './State';
+import TuringMachine, {
+  MACHINE_STATE_INTERNAL,
+  matchFilter,
+  type MachineState,
+  type MachineStateInternal,
+  type PauseInfo,
+  type PausedMachineState,
+  type ResumeDirective,
+} from './TuringMachine';
 
 /**
  * Parameters mirror `TuringMachine.runStepByStep` / `run`. DebugSession passes
@@ -28,14 +36,20 @@ export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt';
  *   `stop` — fundamentally external to the listener's call site (UI click,
  *   postMessage, timer, etc.).
  * - `halt` — fire-and-forget. Terminal notification.
+ *
+ * `pause` listeners receive a `PausedMachineState` (a `MachineState` plus the
+ * one-sided `pause: {side, cause}` descriptor). `step` / `iter` listeners
+ * receive a plain `MachineState` — raw yields carry no pause info.
  */
 export type DebugSessionListener<E extends DebugSessionEvent> =
   E extends 'halt'
     ? () => void | Promise<void>
-    : (machineState: MachineState) => void | Promise<void>;
+    : E extends 'pause'
+      ? (machineState: PausedMachineState) => void | Promise<void>
+      : (machineState: MachineState) => void | Promise<void>;
 
 type ListenerMap = {
-  pause: Array<(m: MachineState) => void | Promise<void>>;
+  pause: Array<(m: PausedMachineState) => void | Promise<void>>;
   step: Array<(m: MachineState) => void | Promise<void>>;
   iter: Array<(m: MachineState) => void | Promise<void>>;
   halt: Array<() => void | Promise<void>>;
@@ -212,8 +226,8 @@ export default class DebugSession {
   }
 
   /**
-   * Emit a `pause` event with the synthesized debugBreak and await the consumer's
-   * resume signal. Resolver is installed BEFORE listeners fire so a listener
+   * Emit a `pause` event with the synthesized pause descriptor and await the
+   * consumer's resume signal. Resolver is installed BEFORE listeners fire so a listener
    * that synchronously calls `session.continue()` (or any other resume method)
    * sees a live resolver to drop.
    *
@@ -225,7 +239,7 @@ export default class DebugSession {
    * `stepOver` / `stepOut` issued from inside the listener can freeze it as
    * the click-time frame.
    */
-  async #dispatchPause(machineState: MachineState, debugBreak: DebugBreak): Promise<void> {
+  async #dispatchPause(machineState: MachineState, pause: PauseInfo): Promise<void> {
     this.#activeStepMode = null;
     this.#clickTimeTopFrame = null;
     const stack = this.#readStack(machineState);
@@ -234,9 +248,8 @@ export default class DebugSession {
     // Note: the spread drops the non-enumerable MACHINE_STATE_INTERNAL Symbol
     // accessor — that's intentional. Pause listeners are public API; the
     // Symbol accessor is package-private and only consumed by the session's
-    // OWN endpoint detection (which reads the original `machineState`,
-    // not `paused`, via #readStack above).
-    const paused: MachineState = {...machineState, debugBreak};
+    // OWN detection (which reads the original `machineState` via #readInternal).
+    const paused: PausedMachineState = {...machineState, pause};
     const pausePromise = new Promise<void>((resolve) => {
       this.#pauseResolver = resolve;
     });
@@ -246,13 +259,16 @@ export default class DebugSession {
     await pausePromise;
   }
 
-  // Reads the pre-iter halt-stack snapshot installed by `runStepByStep`.
-  // Returns empty if the accessor is missing (defensive — shouldn't happen
-  // with the engine on this branch).
-  #readStack(machineState: MachineState): readonly State[] {
+  // Reads the per-iter internal accessor installed by `runStepByStep` (halt
+  // stack + matched symbol). Returns null if the accessor is missing
+  // (defensive — shouldn't happen with the engine on this branch).
+  #readInternal(machineState: MachineState): MachineStateInternal | null {
     const fn = (machineState as unknown as Record<symbol, () => MachineStateInternal>)[MACHINE_STATE_INTERNAL];
-    if (typeof fn !== 'function') return [];
-    return fn().stack;
+    return typeof fn === 'function' ? fn() : null;
+  }
+
+  #readStack(machineState: MachineState): readonly State[] {
+    return this.#readInternal(machineState)?.stack ?? [];
   }
 
   async start(): Promise<void> {
@@ -286,8 +302,20 @@ export default class DebugSession {
       this.#iterating = true;
       if (this.#stopped) return;
 
-      const hasBeforeBreakpoint = machineState.debugBreak?.before === true;
-      const hasAfterBreakpoint = machineState.debugBreak?.after === true;
+      // Breakpoint detection lives HERE (not in the generator). Evaluate the
+      // current state's debug filters against the matched symbol the generator
+      // stashed in the internal accessor. `machineState.state` is always
+      // non-halt (halt is terminal), so `.debug` is a DebugConfig at runtime.
+      // The after side also fires on halt-imminent (`haltState.debug`, #207) —
+      // read via the internal flag, since the yielded `nextState` shows the
+      // post-pop continuation on subroutine-return iters, not haltState.
+      const internal = this.#readInternal(machineState);
+      const matchedSymbol = internal?.matchedSymbol;
+      const hasBeforeBreakpoint = matchedSymbol !== undefined
+        && matchFilter(machineState.state.debug?.before, matchedSymbol);
+      const hasAfterBreakpoint = (matchedSymbol !== undefined
+        && matchFilter(machineState.state.debug?.after, matchedSymbol))
+        || (internal?.haltImminent === true && haltState.debug === true);
       const stepInForcesPause = this.#activeStepMode === 'step-in';
       const stepOverEndpointReached =
         this.#activeStepMode === 'step-over'
@@ -310,11 +338,11 @@ export default class DebugSession {
       const fireBeforePause =
         hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached || manualPauseFires;
       if (fireBeforePause) {
-        const cause: DebugBreak['cause'] =
+        const cause: PauseInfo['cause'] =
           hasBeforeBreakpoint ? 'breakpoint'
             : (stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached) ? 'step'
               : 'manual';
-        await this.#dispatchPause(machineState, {before: true, cause});
+        await this.#dispatchPause(machineState, {side: 'before', cause});
         if (this.#stopped) return;
       }
 
@@ -324,7 +352,7 @@ export default class DebugSession {
       }
 
       if (hasAfterBreakpoint) {
-        await this.#dispatchPause(machineState, {after: true, cause: 'breakpoint'});
+        await this.#dispatchPause(machineState, {side: 'after', cause: 'breakpoint'});
         if (this.#stopped) return;
       }
 

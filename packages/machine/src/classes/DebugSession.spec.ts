@@ -159,34 +159,34 @@ describe('DebugSession: step event', () => {
 });
 
 describe('DebugSession: pause event + continue()', () => {
-  it('emits pause on debugBreak.before match with cause: breakpoint', async () => {
+  it('emits pause on before-side match with cause: breakpoint', async () => {
     const {machine, state} = buildWalker(['A', 'A']);
     state.debug = {before: true};
     const session = new DebugSession(machine, {initialState: state});
-    const pauses: Array<{step: number; before?: true; after?: true; cause: string}> = [];
+    const pauses: Array<{step: number; side: string; cause: string}> = [];
     session.on('pause', (m) => {
-      pauses.push({step: m.step, ...m.debugBreak!});
+      pauses.push({step: m.step, ...m.pause});
       session.continue();
     });
     await session.start();
     // Three iters total (iter 1 = A, iter 2 = A, iter 3 = blank → halt);
     // {before: true} matches every symbol so all three pause.
     expect(pauses).toEqual([
-      {step: 1, before: true, cause: 'breakpoint'},
-      {step: 2, before: true, cause: 'breakpoint'},
-      {step: 3, before: true, cause: 'breakpoint'},
+      {step: 1, side: 'before', cause: 'breakpoint'},
+      {step: 2, side: 'before', cause: 'breakpoint'},
+      {step: 3, side: 'before', cause: 'breakpoint'},
     ]);
   });
 
-  it('emits pause on debugBreak.after match too', async () => {
+  it('emits pause on after-side match too', async () => {
     const {machine, state} = buildWalker(['A']);
     state.debug = {after: true};
     const session = new DebugSession(machine, {initialState: state});
     const causes: Array<{side: string; cause: string}> = [];
     session.on('pause', (m) => {
       causes.push({
-        side: m.debugBreak!.before ? 'before' : 'after',
-        cause: m.debugBreak!.cause,
+        side: m.pause.side,
+        cause: m.pause.cause,
       });
       session.continue();
     });
@@ -255,7 +255,7 @@ describe('DebugSession: pause event + continue()', () => {
     const causes: Array<{step: number; cause: string}> = [];
     let firstHandled = false;
     session.on('pause', (m) => {
-      causes.push({step: m.step, cause: m.debugBreak!.cause});
+      causes.push({step: m.step, cause: m.pause.cause});
       if (!firstHandled) {
         firstHandled = true;
         session.stepIn();
@@ -288,7 +288,7 @@ describe('DebugSession: pause event + continue()', () => {
     const pauses: Array<{step: number; cause: string}> = [];
     let firstHandled = false;
     session.on('pause', (m) => {
-      pauses.push({step: m.step, cause: m.debugBreak!.cause});
+      pauses.push({step: m.step, cause: m.pause.cause});
       if (!firstHandled) {
         firstHandled = true;
         session.stepOver();
@@ -351,7 +351,7 @@ describe('DebugSession: pause event + continue()', () => {
     const pauses: Array<{step: number; cause: string}> = [];
     let firstHandled = false;
     session.on('pause', (m) => {
-      pauses.push({step: m.step, cause: m.debugBreak!.cause});
+      pauses.push({step: m.step, cause: m.pause.cause});
       if (!firstHandled) {
         firstHandled = true;
         session.stepOut();
@@ -422,7 +422,7 @@ describe('DebugSession: pause event + continue()', () => {
     const causes: string[] = [];
     let firstHandled = false;
     session.on('pause', (m) => {
-      causes.push(m.debugBreak!.cause);
+      causes.push(m.pause.cause);
       if (!firstHandled) {
         firstHandled = true;
         session.stepOver();
@@ -443,7 +443,7 @@ describe('DebugSession: pause event + continue()', () => {
     const order: string[] = [];
     session.on('step', (m) => { order.push(`step-${m.step}`); });
     session.on('pause', (m) => {
-      order.push(`pause-${m.step}-${m.debugBreak!.after ? 'after' : 'before'}`);
+      order.push(`pause-${m.step}-${m.pause.side}`);
       session.continue();
     });
     session.on('iter', (m) => { order.push(`iter-${m.step}`); });
@@ -486,7 +486,7 @@ describe('DebugSession: pause event + continue()', () => {
       }
     });
     session.on('pause', (m) => {
-      causes.push(m.debugBreak!.cause);
+      causes.push(m.pause.cause);
       session.continue();
     });
     await session.start();
@@ -586,7 +586,7 @@ describe('DebugSession: pause event + continue()', () => {
     // and a pending manual request. The breakpoint cause wins.
     session.pause();
     session.on('pause', (m) => {
-      observedCause = observedCause ?? m.debugBreak!.cause;
+      observedCause = observedCause ?? m.pause.cause;
       session.continue();
     });
     await session.start();
@@ -602,8 +602,8 @@ describe('DebugSession: pause event + continue()', () => {
       session.on('pause', (m) => {
         pauses.push({
           step: m.step,
-          side: m.debugBreak!.after ? 'after' : 'before',
-          cause: m.debugBreak!.cause,
+          side: m.pause.side,
+          cause: m.pause.cause,
         });
         session.continue();
       });

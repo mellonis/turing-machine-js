@@ -5,7 +5,7 @@ export { default as State, DebugConfig, haltState, ifOtherSymbol } from './class
 export { default as Tape } from './classes/Tape';
 export { default as TapeBlock } from './classes/TapeBlock';
 export { default as TapeCommand, movements, symbolCommands } from './classes/TapeCommand';
-export { default as TuringMachine, type MachineState, type DebugBreak } from './classes/TuringMachine';
+export { default as TuringMachine, type MachineState, type PauseInfo, type PausedMachineState } from './classes/TuringMachine';
 export {
   default as DebugSession,
   type DebugSessionParameter,

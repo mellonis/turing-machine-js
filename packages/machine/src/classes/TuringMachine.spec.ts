@@ -174,8 +174,7 @@ describe('run tests', () => {
     const session = new DebugSession(machine, {initialState, stepsLimit: 1e5});
     session.on('step', (m) => { order.push(`step-${m.step}`); });
     session.on('pause', (m) => {
-      const when = m.debugBreak?.before ? 'before' : 'after';
-      order.push(`pause-${when}-${m.step}`);
+      order.push(`pause-${m.pause.side}-${m.step}`);
       session.continue();
     });
     session.on('iter', (m) => { order.push(`iter-${m.step}`); });

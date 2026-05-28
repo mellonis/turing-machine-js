@@ -5,20 +5,24 @@ import {symbolCommands} from './TapeCommand';
 type RunParameter = { initialState: State, stepsLimit?: number };
 
 /**
- * Set only on iterations whose `MachineState` represents a pause point.
- * - Side flags: at least one of `before` / `after` is `true`.
- * - `cause` identifies the pause origin:
+ * Descriptor attached to a `DebugSession` `pause` event. Lives ONLY on the
+ * pause-event payload (`PausedMachineState`) — never on a raw `runStepByStep`
+ * yield, which is a minimal `MachineState` with no debug concern.
+ *
+ * - `side` — exactly one of `'before'` / `'after'`. DebugSession dispatches the
+ *   two timings as separate `pause` events, so a single descriptor is always
+ *   one-sided (the v6 "both timings on one yield" set no longer exists, because
+ *   detection moved out of the generator).
+ * - `cause` — pause origin:
  *   - `'breakpoint'` — a `state.debug[when]` filter or `haltState.debug === true` matched.
- *   - `'step'` — a DebugSession step-mode endpoint fired (stepIn / stepOver / stepOut).
+ *   - `'step'` — a step-mode endpoint fired (stepIn / stepOver / stepOut).
  *   - `'manual'` — a `DebugSession.pause()` call fired.
  *
- * On `runStepByStep` yields, `cause` is always `'breakpoint'` (the generator only
- * knows about engine-level breakpoint filters). DebugSession synthesizes `'step'`
- * and `'manual'` causes when dispatching its `pause` event.
+ * Precedence when an iter satisfies more than one trigger: `breakpoint > step >
+ * manual`. `'step'` / `'manual'` only ever fire on the `'before'` side.
  */
-export type DebugBreak = {
-  before?: true;
-  after?: true;
+export type PauseInfo = {
+  side: 'before' | 'after';
   cause: 'breakpoint' | 'step' | 'manual';
 };
 
@@ -46,6 +50,16 @@ export const MACHINE_STATE_INTERNAL = Symbol('MachineState.internal');
 export type MachineStateInternal = {
   /** Frozen pre-iter halt-stack snapshot. Consumers must not mutate. */
   stack: readonly State[];
+  /** The interned symbol the engine matched for this iter (the result of
+   *  `state.getSymbol(tapeBlock)`). DebugSession uses it to evaluate
+   *  `state.debug` filters without re-reading the tape. */
+  matchedSymbol: symbol;
+  /** Whether this iter's transition leads to halt — computed on the RAW
+   *  next-state (before any halt-pop redirect to a continuation). The yielded
+   *  `MachineState.nextState` shows the post-pop continuation, so consumers
+   *  can't recover halt-imminence from it; DebugSession reads this flag to
+   *  honor `haltState.debug` on subroutine-return (halt-pop) iters. */
+  haltImminent: boolean;
 };
 
 export type MachineState = {
@@ -55,12 +69,6 @@ export type MachineState = {
   nextSymbols: string[];
   movements: symbol[];
   nextState: State;
-  /**
-   * Set only when this iteration is a debug break point.
-   * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
-   * See `DebugBreak` for the field's shape and `cause` semantics.
-   */
-  debugBreak?: DebugBreak;
   /**
    * The transition the engine picked for this iter (#205). Always present
    * — `runStepByStep` resolves it at the very start of every iter via
@@ -86,9 +94,20 @@ export type MachineState = {
   };
 };
 
-// True iff `filter` matches `symbol` per the DebugConfig semantics.
-// undefined / [] -> never; true -> always; symbol[] -> exact membership.
-function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
+/**
+ * The payload of a `DebugSession` `pause` event: a `MachineState` plus the
+ * one-sided `pause` descriptor. Raw `runStepByStep` yields are plain
+ * `MachineState` (no `pause` field) — only DebugSession produces this shape.
+ */
+export type PausedMachineState = MachineState & { pause: PauseInfo };
+
+/**
+ * @internal — true iff `filter` matches `symbol` per the DebugConfig semantics.
+ * undefined / [] -> never; true -> always; symbol[] -> exact membership.
+ * Exported for sibling-module use in `DebugSession` (which now owns breakpoint
+ * detection); NOT re-exported from the package's public `index.ts`.
+ */
+export function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
   if (filter === undefined) return false;
   if (filter === true) return true;
   return filter.includes(symbol);
@@ -183,22 +202,10 @@ export default class TuringMachine {
         };
 
         try {
-          // Both before and after refer to THIS iter (#119 / v6.0.0).
-          // The halting iter's after-fire just rides along on the iter's
-          // own yield — no post-loop drain needed.
-          //
-          // #207 spec: `haltState.debug` is a boolean; the pause anchors on
-          // the AFTER side of the halt-triggering iter so consumers see the
-          // just-fired transition with the diagram cursor still on the
-          // triggering state.
-          //
-          // `state` here is always non-halt (halt is terminal — the run loop
-          // never iterates with state === haltState), so `state.debug` is
-          // always `DebugConfig` at runtime.
-          const beforeMatch = matchFilter(state.debug?.before, symbol);
-          const afterMatch = matchFilter(state.debug?.after, symbol)
-            || (nextState === haltState && haltState.debug);
-
+          // `runStepByStep` is the minimal execution primitive: it advances the
+          // machine and reports state. It does NO breakpoint detection — that's
+          // a debug concern that lives entirely in `DebugSession`. The yielded
+          // `MachineState` has no `pause` / `debugBreak` field.
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
             : nextState;
@@ -226,20 +233,20 @@ export default class TuringMachine {
             matchedTransition,
           };
 
-          if (beforeMatch || afterMatch) {
-            const dbg: DebugBreak = {cause: 'breakpoint'};
-            if (beforeMatch) dbg.before = true;
-            if (afterMatch) dbg.after = true;
-            yielded.debugBreak = dbg;
-          }
-
-          // #102: expose the pre-iter halt-stack to DebugSession via a
-          // Symbol-keyed accessor (non-enumerable so it doesn't leak into
-          // serialization / spread / toEqual). The snapshot is frozen so a
-          // consumer holding a reference can't mutate the engine's stack.
+          // #102: expose the pre-iter halt-stack + the matched symbol to
+          // DebugSession via a Symbol-keyed accessor (non-enumerable, so it
+          // doesn't leak into serialization / spread / toEqual). The stack
+          // snapshot is frozen so a consumer holding a reference can't mutate
+          // the engine's stack. DebugSession reads `matchedSymbol` to evaluate
+          // `state.debug` filters — keeping breakpoint detection out of this
+          // primitive.
           const stackSnapshot: readonly State[] = Object.freeze(stack.slice());
+          // Snapshot halt-imminence on the RAW nextState NOW, before the
+          // post-yield pop reassigns `nextState` — so the closure can't capture
+          // the mutated value.
+          const haltImminent = nextState === haltState;
           Object.defineProperty(yielded, MACHINE_STATE_INTERNAL, {
-            value: (): MachineStateInternal => ({stack: stackSnapshot}),
+            value: (): MachineStateInternal => ({stack: stackSnapshot, matchedSymbol: symbol, haltImminent}),
             enumerable: false,
           });
 

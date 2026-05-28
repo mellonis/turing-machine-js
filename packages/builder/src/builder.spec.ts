@@ -136,7 +136,7 @@ describe('buildMachine — debug config (#101)', () => {
     let afterCount = 0;
     const session = new DebugSession(machine, {initialState: init});
     session.on('pause', (m) => {
-      if (m.debugBreak?.after) afterCount += 1;
+      if (m.pause.side === 'after') afterCount += 1;
       session.continue();
     });
     await session.start();
@@ -158,8 +158,8 @@ describe('buildMachine — debug config (#101)', () => {
     let afterCount = 0;
     const session = new DebugSession(machine, {initialState: init});
     session.on('pause', (m) => {
-      if (m.debugBreak?.before) beforeCount += 1;
-      if (m.debugBreak?.after) afterCount += 1;
+      if (m.pause.side === 'before') beforeCount += 1;
+      if (m.pause.side === 'after') afterCount += 1;
       session.continue();
     });
     await session.start();
