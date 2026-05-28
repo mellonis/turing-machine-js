@@ -456,9 +456,9 @@ describe('DebugSession: pause event + continue()', () => {
     const {machine, state} = buildWalker(['A', 'A']);
     const session = new DebugSession(machine, {initialState: state});
     session.setRunInterval(5);
-    const start = Date.now();
+    const start = performance.now();
     await session.start();
-    const elapsed = Date.now() - start;
+    const elapsed = performance.now() - start;
     // 3 iters total (2 A's + 1 blank-halt); 3 throttle waits of 5ms each ≥ 15ms.
     expect(elapsed).toBeGreaterThanOrEqual(10);
   });
