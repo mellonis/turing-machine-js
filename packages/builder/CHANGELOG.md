@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.6] - 2026-05-28
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.6 — adds the `DebugSession` interactive-debugging class and reshapes the engine debug surface: `run()` becomes synchronous + callback-free, `runStepByStep` becomes the pure-iteration primitive (no breakpoint detection), and the per-yield `m.debugBreak` is replaced by a one-sided `m.pause: { side, cause }` carried on `DebugSession` `pause` events ([#102](https://github.com/mellonis/turing-machine-js/issues/102)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.5` → `^7.0.0-alpha.6`.
+
 ## [7.0.0-alpha.5] - 2026-05-25
 
 Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.5 — adds per-iter `MachineState.matchedTransition` + renames `GraphTransition.id` separator `-` → `.` ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` with halt-imminent pause on the AFTER side of the halt-triggering iter ([#207](https://github.com/mellonis/turing-machine-js/issues/207)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.4` → `^7.0.0-alpha.5`.

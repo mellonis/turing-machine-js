@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.6] - 2026-05-28
+
+Sixth v7 pre-release. Lands the debugger step controls ([#102](https://github.com/mellonis/turing-machine-js/issues/102), [PR #214](https://github.com/mellonis/turing-machine-js/pull/214)) and, in doing so, **reshapes the entire debug surface** into three clearly-separated entry points: `run()` is now pure synchronous execution (no callbacks), `runStepByStep` is the minimal pure-iteration primitive (no breakpoint detection), and a new **`DebugSession`** class owns all interactive debugging — events, step controls, throttle, and pause coordination. With #102 the **v7 milestone is feature-complete**; the stable v7.0.0 cut is the only remaining step. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.6`.
+
+### Added
+
+- **`DebugSession`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — `new DebugSession(machine, { initialState })`. The sole interactive-debugging surface (there is no `debugRun()` factory on `TuringMachine`). Emits `pause` / `step` / `iter` / `halt` events via `session.on(event, listener)`; `iter` listeners are **awaited** (the per-iter throttle / coordination point), `pause` / `step` / `halt` are fire-and-forget. Drive controls: `continue()`, `stepIn()`, `stepOver()`, `stepOut()`, external `pause()`, `stop()`, and `setRunInterval(ms)` for a per-iter throttle. Breakpoint detection (`state.debug` filters, `haltState.debug`) lives entirely here — `runStepByStep` no longer evaluates it. Concurrent sessions on one machine are rejected with a clear error (the underlying `TapeBlock` lock is single-active-run).
+
+- **`PauseInfo` / `PausedMachineState`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — the `pause` event payload is a `MachineState & { pause: PauseInfo }` where `PauseInfo = { side: 'before' | 'after'; cause: 'breakpoint' | 'step' | 'manual' }`. Exactly one side per descriptor — `DebugSession` dispatches the two timings as separate `pause` events, so the v6 "both timings on one yield" shape no longer exists. `cause` precedence when an iter satisfies more than one trigger: `breakpoint > step > manual`; `'step'` / `'manual'` only ever fire on the `'before'` side.
+
+- **Depth-based step controls mirroring Chrome DevTools** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — `stepIn` = next iter at any depth; `stepOver` = next iter at `depth ≤ click-time depth` (nested `.withOverriddenHaltState(...)` subroutines run to completion, pause back at the starting level); `stepOut` = next iter at `depth < click-time depth` (current subroutine frame popped; throws at depth 0, mirroring DevTools' top-frame Step Out).
+
+- **`matchFilter` export** ([#102](https://github.com/mellonis/turing-machine-js/issues/102), `@internal`) — predicate evaluating a `DebugConfig` side-filter against a matched symbol. Exported for sibling-module use in `DebugSession`; NOT re-exported from the package root.
+
+### Changed
+
+- **`run()` is synchronous and callback-free** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — signature is now `run({ initialState, stepsLimit? }): void` (was `async … : Promise<void>` with `onPause` / `onStep` / `onIter` callbacks). Pure execution, no debug overhead. Reverses v4's `run` → `async run` change now that all callback machinery has moved to `DebugSession`. **Breaking** for callers awaiting `run()` or passing callbacks — construct a `DebugSession` instead.
+
+- **`runStepByStep` is the minimal pure-iteration primitive** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — it advances the machine and yields a plain `MachineState`; it evaluates no `state.debug` filters and stamps no pause field. All breakpoint detection moved to `DebugSession`. **Breaking** for consumers that read a pause / breakpoint field off raw yields.
+
+- **`haltState.debug` pause is delivered via `DebugSession`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — still fires on the AFTER side of the halt-triggering iter (alpha.5 semantics: `m.state` is the triggering state, not `haltState`), but now arrives as a `pause` event with `{ side: 'after', cause: 'breakpoint' }` instead of a `debugBreak` field on the yield.
+
+### Removed
+
+- **`MachineState.debugBreak`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — the per-yield `{ before?, after?, cause }` descriptor from the v4–alpha.5 debugger is **removed**. Its replacement is the one-sided `m.pause: { side, cause }` carried ONLY on a `DebugSession` `pause` event (`PausedMachineState`); raw `runStepByStep` yields carry no pause field. **Breaking from alpha.5** — consumers reading `m.debugBreak.before` / `.after` / `.cause` must move to a `DebugSession` and read `m.pause.side` / `m.pause.cause`.
+
 ## [7.0.0-alpha.5] - 2026-05-25
 
 Fifth v7 pre-release. Adds per-iter `matchedTransition` to `MachineState` so consumers can resolve the firing transition by graph id without re-deriving from `(source, nextState)` ambiguous pairs ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` and moves the halt-imminent pause to the AFTER side of the halt-triggering iter so the wording + diagram cursor agree with the just-fired transition ([#207](https://github.com/mellonis/turing-machine-js/issues/207)), and renames the `GraphTransition.id` separator from `-` to `.` for parser-friendly splitting. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
