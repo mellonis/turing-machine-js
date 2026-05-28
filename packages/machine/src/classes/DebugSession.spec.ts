@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import Alphabet from './Alphabet';
-import State, {haltState} from './State';
+import State, {haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MACHINE_STATE_INTERNAL, type MachineStateInternal} from './TuringMachine';
@@ -613,5 +613,75 @@ describe('DebugSession: pause event + continue()', () => {
     } finally {
       haltState.debug = false;
     }
+  });
+});
+
+describe('DebugSession: step granularity under genuine nesting (DevTools parity)', () => {
+  // Build a machine with REAL depth-2 nesting (a bare that itself enters a
+  // wrapper), so stepIn / stepOver / stepOut land at three DISTINCT iters.
+  //
+  // Trajectory (pre-iter halt-stack depth in parens):
+  //   run start: enter `outer` → push outerCont           → depth 1
+  //   iter 1 (d1): outerBare → nestedSub; end-of-iter pushes innerCont → depth 2
+  //   iter 2 (d2): inner (via nestedSub) → halt; pop innerCont          → depth 1
+  //   iter 3 (d1): innerCont → halt; pop outerCont                      → depth 0
+  //   iter 4 (d0): outerCont → halt
+  //
+  // Paused at iter 1 (depth 1), the three step modes pause at:
+  //   stepIn   → iter 2 (next iter, descends into the nested call, depth 2)
+  //   stepOver → iter 3 (skip the nested call, back at click-time depth 1)
+  //   stepOut  → iter 4 (current frame exited, depth 0)
+  const build = () => {
+    const alphabet = new Alphabet(' A'.split(''));
+    const tape = new Tape({alphabet, symbols: ['A', 'A', 'A']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+
+    const outerCont = new State({[ifOtherSymbol]: {command: [{movement: movements.stay}], nextState: haltState}});
+    const innerCont = new State({[ifOtherSymbol]: {command: [{movement: movements.right}], nextState: haltState}});
+    const inner = new State({[ifOtherSymbol]: {command: [{movement: movements.right}], nextState: haltState}});
+    const nestedSub = inner.withOverriddenHaltState(innerCont);
+    const outerBare = new State({[ifOtherSymbol]: {command: [{movement: movements.right}], nextState: nestedSub}});
+    const outer = outerBare.withOverriddenHaltState(outerCont);
+
+    // Breakpoint on iter 1: outerBare's #debugRef is shared with the `outer`
+    // wrapper, so this fires on the first iter.
+    outerBare.debug = {before: true};
+    return {machine, outer};
+  };
+
+  // Pause at iter 1, issue the given step mode, return the step number of the
+  // resulting (cause: 'step') endpoint pause.
+  async function endpointOf(mode: 'stepIn' | 'stepOver' | 'stepOut'): Promise<number> {
+    const {machine, outer} = build();
+    const session = new DebugSession(machine, {initialState: outer});
+    const pauses: Array<{step: number; cause: string}> = [];
+    let first = true;
+    session.on('pause', (m) => {
+      pauses.push({step: m.step, cause: m.pause.cause});
+      if (first) {
+        first = false;
+        session[mode]();
+      } else {
+        session.continue();
+      }
+    });
+    await session.start();
+    // pauses[0] = iter-1 breakpoint; pauses[1] = the step endpoint.
+    expect(pauses[0]).toEqual({step: 1, cause: 'breakpoint'});
+    expect(pauses[1].cause).toBe('step');
+    return pauses[1].step;
+  }
+
+  it('stepIn descends into the nested call (depth 2) — pauses at iter 2', async () => {
+    expect(await endpointOf('stepIn')).toBe(2);
+  });
+
+  it('stepOver skips the nested call, returns to click-time depth — pauses at iter 3', async () => {
+    expect(await endpointOf('stepOver')).toBe(3);
+  });
+
+  it('stepOut exits the current frame — pauses at iter 4', async () => {
+    expect(await endpointOf('stepOut')).toBe(4);
   });
 });

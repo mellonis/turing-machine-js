@@ -89,18 +89,16 @@ export default class DebugSession {
   #pauseResolver: (() => void) | null = null;
   #activeStepMode: ResumeDirective | null = null;
   /**
-   * Top of the halt-stack snapshotted at the most recent pause dispatch. Used by
-   * stepOver / stepOut to recognize their natural endpoint (the click-time
-   * frame is no longer on the stack). `null` when the click-time stack was
-   * empty.
+   * Halt-stack DEPTH snapshotted at the most recent pause dispatch (= number
+   * of frames on the stack). DevTools-style step granularity is depth-based:
+   * stepOver pauses at the next iter with `depth <= clickTimeDepth` (skip
+   * frames the stepped-over iter pushes, pause back at the start level);
+   * stepOut at `depth < clickTimeDepth` (the current frame itself exited).
+   * Captured on EVERY pause so a step* call from the listener can freeze it.
    */
-  #capturedTopFrame: State | null = null;
-  /**
-   * The click-time top-frame frozen at the moment a step-over / step-out
-   * directive was issued. Distinct from `#capturedTopFrame` (which tracks
-   * EVERY pause); this one only updates when stepOver / stepOut accepts.
-   */
-  #clickTimeTopFrame: State | null = null;
+  #capturedDepth = 0;
+  /** The click-time depth frozen when a stepOver / stepOut directive is issued. */
+  #clickTimeDepth = 0;
   #runIntervalMs = 0;
   #pauseRequested = false;
 
@@ -175,42 +173,45 @@ export default class DebugSession {
    */
   stepIn(): void {
     this.#activeStepMode = 'step-in';
-    this.#clickTimeTopFrame = null;
     this.#releasePause();
   }
 
   /**
-   * Resume and run until the click-time top halt-frame is no longer on the
-   * stack, then pause at the first iter past that point. With an empty
-   * click-time stack, collapses to `stepIn` (pause at next iter).
+   * Resume and pause at the next iter back at (or above) the click-time depth
+   * — i.e. `depth <= clickTimeDepth`. Frames the stepped-over iter pushes are
+   * run to completion without pausing inside (the engine's continuation-passing
+   * `withOverriddenHaltState` "calls"). Mirrors DevTools Step Over.
+   *
+   * For a plain iter (no frame push) this coincides with stepIn (next iter is
+   * already at the same depth). The Over-vs-In / Over-vs-Out distinction only
+   * appears under genuine nesting (a bare that itself enters a wrapper).
    *
    * One-shot: an inner breakpoint or any other pause drops the step-over
    * intent. The endpoint pause carries `cause: 'step'`.
    */
   stepOver(): void {
     this.#activeStepMode = 'step-over';
-    this.#clickTimeTopFrame = this.#capturedTopFrame;
+    this.#clickTimeDepth = this.#capturedDepth;
     this.#releasePause();
   }
 
   /**
-   * Resume and run until the click-time top halt-frame is popped, then pause
-   * at the next iter. Endpoint predicate is the same as stepOver; the
-   * difference is the empty-stack contract:
-   *   - stepOver: empty click-time stack → collapse to stepIn.
-   *   - stepOut: empty click-time stack → throw (no enclosing frame to exit).
+   * Resume and pause at the next iter STRICTLY shallower than the click-time
+   * depth — `depth < clickTimeDepth` — i.e. once the current frame itself has
+   * been popped. Mirrors DevTools Step Out.
    *
-   * Matches IDE convention: "step out of nothing" is a programming error,
-   * not a silent no-op.
+   * Throws when the click-time depth is 0: there's no enclosing frame to exit
+   * (IDE convention — "step out of nothing" is a programming error, not a
+   * silent no-op).
    */
   stepOut(): void {
-    if (this.#capturedTopFrame === null) {
+    if (this.#capturedDepth === 0) {
       throw new Error(
         'DebugSession.stepOut() called with an empty click-time halt-stack — there is no enclosing frame to exit.',
       );
     }
     this.#activeStepMode = 'step-out';
-    this.#clickTimeTopFrame = this.#capturedTopFrame;
+    this.#clickTimeDepth = this.#capturedDepth;
     this.#releasePause();
   }
 
@@ -235,15 +236,13 @@ export default class DebugSession {
    * manual pause) drops the active step-mode BEFORE listeners fire. Listeners
    * that want to keep stepping must call stepIn/Over/Out from the new pause.
    *
-   * The pre-iter halt-stack top is snapshotted into `#capturedTopFrame` so a
+   * The pre-iter halt-stack DEPTH is snapshotted into `#capturedDepth` so a
    * `stepOver` / `stepOut` issued from inside the listener can freeze it as
-   * the click-time frame.
+   * the click-time depth.
    */
   async #dispatchPause(machineState: MachineState, pause: PauseInfo): Promise<void> {
     this.#activeStepMode = null;
-    this.#clickTimeTopFrame = null;
-    const stack = this.#readStack(machineState);
-    this.#capturedTopFrame = stack.length > 0 ? stack[stack.length - 1] : null;
+    this.#capturedDepth = this.#readStack(machineState).length;
 
     // Note: the spread drops the non-enumerable MACHINE_STATE_INTERNAL Symbol
     // accessor — that's intentional. Pause listeners are public API; the
@@ -317,16 +316,14 @@ export default class DebugSession {
         && matchFilter(machineState.state.debug?.after, matchedSymbol))
         || (internal?.haltImminent === true && haltState.debug === true);
       const stepInForcesPause = this.#activeStepMode === 'step-in';
+      // Depth-based endpoints (DevTools semantics). currentDepth = pre-iter
+      // halt-stack length. stepOver: back at/above click-time depth (skip
+      // pushed frames). stepOut: strictly shallower (current frame exited).
+      const currentDepth = this.#readStack(machineState).length;
       const stepOverEndpointReached =
-        this.#activeStepMode === 'step-over'
-        && (
-          this.#clickTimeTopFrame === null  // empty click-time stack — collapse to stepIn
-          || !this.#readStack(machineState).includes(this.#clickTimeTopFrame)
-        );
+        this.#activeStepMode === 'step-over' && currentDepth <= this.#clickTimeDepth;
       const stepOutEndpointReached =
-        this.#activeStepMode === 'step-out'
-        && this.#clickTimeTopFrame !== null
-        && !this.#readStack(machineState).includes(this.#clickTimeTopFrame);
+        this.#activeStepMode === 'step-out' && currentDepth < this.#clickTimeDepth;
       // Consume the manual-pause flag at iter start. If a breakpoint also
       // matches this iter, the request is silently consumed by the
       // breakpoint dispatch (one pause, cause: 'breakpoint').

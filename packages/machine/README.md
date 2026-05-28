@@ -544,13 +544,15 @@ The `debug` field is mutable — toggle breakpoints at runtime without rebuildin
 |---|---|
 | `start(): Promise<void>` | Begin execution. Resolves on natural halt or after `stop()`. Single-use — a second call throws. |
 | `continue()` | Resume from a pause and run to the next breakpoint or halt. |
-| `stepIn()` | Resume and force a `pause` event on the very next iter, regardless of breakpoint filters. |
-| `stepOver()` | Resume and pause at the first iter after the click-time top halt-frame is no longer on the stack. Collapses to `stepIn` if the click-time stack was empty. |
-| `stepOut()` | Same endpoint as `stepOver`, but throws if the click-time stack is empty (no enclosing frame to exit — IDE convention). |
+| `stepIn()` | Resume and pause at the very next iter, regardless of depth — descends into any subroutine the current iter enters. Mirrors DevTools **Step Into**. |
+| `stepOver()` | Resume and pause at the next iter back at (or above) the click-time halt-stack depth (`depth ≤ clickTimeDepth`) — subroutines the stepped-over iter enters run to completion without pausing inside. Mirrors DevTools **Step Over**. |
+| `stepOut()` | Resume and pause at the next iter strictly shallower than the click-time depth (`depth < clickTimeDepth`) — i.e. once the current frame has been popped. Throws if the click-time depth is 0 (no enclosing frame to exit). Mirrors DevTools **Step Out**. |
 | `pause()` | Request a pause from outside the loop. Fires on the next iter with `cause: 'manual'`. If a breakpoint matches that same iter, the breakpoint wins (single pause, `cause: 'breakpoint'`). |
 | `stop()` | Terminate immediately. `halt` event does NOT fire. |
 | `setRunInterval(ms)` | Insert an awaited `setTimeout(ms)` at the end of each iter. `0` disables. Useful for visualization UIs. |
 | `on(event, listener) / off(event, listener)` | Register / unregister listeners. Multiple listeners per event are supported. Listener dispatch differs by event — see *Events* below. |
+
+The three step controls are depth-based to mirror DevTools: from a pause at halt-stack depth `D`, `stepIn` pauses at the next iter (any depth), `stepOver` at the next iter with `depth ≤ D`, `stepOut` at the next iter with `depth < D`. For a *plain* iter (no subroutine entry) all of Into/Over coincide — they differ only under genuine nesting (a bare that itself enters a `withOverriddenHaltState` wrapper). One engine-specific nuance: composition is continuation-passing (`A.with(B)` = "run A, then B" — sequential), so a flat `.with()` chain has no real nesting and Over/Out behave the same there; the distinction appears only when a subroutine's body enters another wrapper.
 
 ### Events
 
