@@ -71,6 +71,7 @@ export default class DebugSession {
   };
   #started = false;
   #stopped = false;
+  #iterating = false;
   #pauseResolver: (() => void) | null = null;
   #activeStepMode: ResumeDirective | null = null;
   /**
@@ -260,7 +261,29 @@ export default class DebugSession {
     }
     this.#started = true;
 
+    try {
+      await this.#drive();
+    } catch (error) {
+      // `runStepByStep` acquires the TapeBlock lock at its first advance. If
+      // another DebugSession (or a bare `run()`) is already active on this
+      // machine, that acquisition throws the low-level 'Lock check failed'.
+      // Remap it to a message that names the real cause. The `#iterating`
+      // guard scopes the remap to the startup acquisition only — once we hold
+      // the lock and are iterating, a same-named error can't originate here.
+      if (!this.#iterating && error instanceof Error && error.message === 'Lock check failed') {
+        throw new Error(
+          'Cannot start this DebugSession: a run is already in progress on this machine. '
+          + 'Only one DebugSession or run() may be active on a TuringMachine at a time — '
+          + 'stop the active session (or let it halt) before starting another.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async #drive(): Promise<void> {
     for (const machineState of this.#machine.runStepByStep(this.#parameter)) {
+      this.#iterating = true;
       if (this.#stopped) return;
 
       const hasBeforeBreakpoint = machineState.debugBreak?.before === true;

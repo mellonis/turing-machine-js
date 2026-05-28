@@ -570,6 +570,14 @@ When the `pause` event fires, `m.debugBreak.cause` distinguishes the origin:
 - `'step'` — a `stepIn` / `stepOver` / `stepOut` directive's natural endpoint was reached.
 - `'manual'` — `session.pause()` was called from outside.
 
+**When an iter satisfies more than one trigger**, exactly **one** `pause` event fires — never two at the same iter — and `cause` is chosen by precedence:
+
+```
+breakpoint  >  step  >  manual
+```
+
+So a step-mode endpoint (or a pending manual pause) that lands exactly on a breakpoint reports `cause: 'breakpoint'`; a manual pause that coincides with a step endpoint reports `cause: 'step'`. Rationale: a breakpoint is the user's explicit, persistent intent ("always stop here"), so it's the most informative attribution; a step directive is a specific computed endpoint, more specific than the vaguer "pause soon" of a manual request. The step-mode is still consumed (one-shot rule below) regardless of which cause is reported — if the iter was the step's endpoint, the step is satisfied. Matches IDE convention (a breakpoint on the line you step onto reports as a breakpoint stop).
+
 ### One-shot step-mode rule
 
 Every active step-mode (`stepIn` / `stepOver` / `stepOut`) is dropped on the next `pause` dispatch — whether that dispatch is the step's own endpoint, an inner breakpoint that fired sooner, or a manual pause. To keep stepping, call `stepIn` / `stepOver` / `stepOut` again from the new pause. Matches IDE convention.

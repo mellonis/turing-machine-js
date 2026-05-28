@@ -14,8 +14,8 @@ const buildSimple = () => {
   const tapeBlock = TapeBlock.fromTapes([tape]);
   const machine = new TuringMachine({tapeBlock});
   const {symbol} = tapeBlock;
-  const halt = new State({[symbol(['A'])]: {nextState: haltState}});
-  return {machine, halt, tapeBlock};
+  const haltWrapper = new State({[symbol(['A'])]: {nextState: haltState}});
+  return {machine, haltWrapper, tapeBlock};
 };
 
 const readInternal = (m: unknown): MachineStateInternal =>
@@ -23,9 +23,9 @@ const readInternal = (m: unknown): MachineStateInternal =>
 
 describe('MACHINE_STATE_INTERNAL accessor on yielded MachineState', () => {
   it('exposes a frozen halt-stack snapshot on every iter', () => {
-    const {machine, halt} = buildSimple();
-    const inner = halt;
-    const outer = inner.withOverriddenHaltState(halt);
+    const {machine, haltWrapper} = buildSimple();
+    const inner = haltWrapper;
+    const outer = inner.withOverriddenHaltState(haltWrapper);
 
     const yields = [...machine.runStepByStep({initialState: outer})];
 
@@ -38,31 +38,31 @@ describe('MACHINE_STATE_INTERNAL accessor on yielded MachineState', () => {
   });
 
   it("does NOT include the accessor in enumerable spread / toEqual", () => {
-    const {machine, halt} = buildSimple();
+    const {machine, haltWrapper} = buildSimple();
 
-    const [m] = [...machine.runStepByStep({initialState: halt})];
+    const [m] = [...machine.runStepByStep({initialState: haltWrapper})];
     // Enumerable spread must NOT include the symbol-keyed accessor.
     expect(Object.keys(m)).not.toContain(MACHINE_STATE_INTERNAL.toString());
     // toEqual on the visible shape must succeed even though the symbol prop is present.
-    expect(m).toEqual(expect.objectContaining({state: halt, step: 1}));
+    expect(m).toEqual(expect.objectContaining({state: haltWrapper, step: 1}));
   });
 
   it('captures the PRE-iter stack (snapshot taken before this iter advances)', () => {
-    const {machine, halt} = buildSimple();
-    const outer = halt.withOverriddenHaltState(halt);
+    const {machine, haltWrapper} = buildSimple();
+    const outer = haltWrapper.withOverriddenHaltState(haltWrapper);
 
     const [first] = [...machine.runStepByStep({initialState: outer})];
     const internal = readInternal(first);
-    // Iter 1 is inside the wrapper — the wrapper's overriddenHaltState (halt) is on the stack.
+    // Iter 1 is inside the wrapper — the wrapper's overriddenHaltState (haltWrapper) is on the stack.
     expect(internal.stack.length).toBe(1);
-    expect(internal.stack[0]).toBe(halt);
+    expect(internal.stack[0]).toBe(haltWrapper);
   });
 });
 
 describe('DebugSession skeleton', () => {
   it('runs to natural halt and fires the halt listener', async () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     let halted = false;
     session.on('halt', () => { halted = true; });
     await session.start();
@@ -70,8 +70,8 @@ describe('DebugSession skeleton', () => {
   });
 
   it("doesn't fire halt when stop() is called", async () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     let halted = false;
     session.on('halt', () => { halted = true; });
     session.stop();
@@ -80,15 +80,39 @@ describe('DebugSession skeleton', () => {
   });
 
   it('throws on a second start() call', async () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     await session.start();
     await expect(session.start()).rejects.toThrow(/already been called/);
   });
 
+  it('rejects a second concurrent session on the same machine with a clear error', async () => {
+    // Two sessions on one machine fight over the single TapeBlock lock. The
+    // first to start holds it while paused; the second's start() should reject
+    // with a cause-naming message, NOT the low-level 'Lock check failed'.
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {before: true};
+
+    const sessionA = new DebugSession(machine, {initialState: state});
+    let aPaused = false;
+    sessionA.on('pause', () => { aPaused = true; /* hold the pause — don't resume */ });
+    // Start A but don't await — it parks on the first before-pause, holding the lock.
+    const aPromise = sessionA.start();
+    // Yield a macrotask so A reaches its first pause.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(aPaused).toBe(true);
+
+    const sessionB = new DebugSession(machine, {initialState: state});
+    await expect(sessionB.start()).rejects.toThrow(/already in progress on this machine/);
+
+    // Clean up A so the test doesn't leak a held lock.
+    sessionA.stop();
+    await aPromise;
+  });
+
   it('off() removes a previously registered listener', async () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     let fired = 0;
     const handler = () => { fired += 1; };
     session.on('halt', handler);
@@ -246,7 +270,7 @@ describe('DebugSession: pause event + continue()', () => {
 
   it('stepOver() pauses at the first iter after click-time top-frame is no longer on the stack', async () => {
     // Setup: outer wrapper around an inner state. Click-time stack at iter 1
-    // (inside outer's bare) contains the wrapper's overriddenHaltState (= halt).
+    // (inside outer's bare) contains the wrapper's overriddenHaltState (= haltWrapper).
     // stepOver should run until that frame is gone — which happens at iter 2,
     // when the inner halts → halt-pop → state advances to halt; iter 2's pause
     // fires because the stack is now empty.
@@ -255,9 +279,9 @@ describe('DebugSession: pause event + continue()', () => {
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
     const {symbol} = tapeBlock;
-    const halt = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
-    const inner = new State({[symbol(['A'])]: {nextState: halt}, [symbol([' '])]: {nextState: halt}});
-    const outer = inner.withOverriddenHaltState(halt);
+    const haltWrapper = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
+    const inner = new State({[symbol(['A'])]: {nextState: haltWrapper}, [symbol([' '])]: {nextState: haltWrapper}});
+    const outer = inner.withOverriddenHaltState(haltWrapper);
     inner.debug = {before: true};
 
     const session = new DebugSession(machine, {initialState: outer});
@@ -318,9 +342,9 @@ describe('DebugSession: pause event + continue()', () => {
     const tapeBlock = TapeBlock.fromTapes([tape]);
     const machine = new TuringMachine({tapeBlock});
     const {symbol} = tapeBlock;
-    const halt = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
-    const inner = new State({[symbol(['A'])]: {nextState: halt}, [symbol([' '])]: {nextState: halt}});
-    const outer = inner.withOverriddenHaltState(halt);
+    const haltWrapper = new State({[symbol(['A'])]: {nextState: haltState}, [symbol([' '])]: {nextState: haltState}});
+    const inner = new State({[symbol(['A'])]: {nextState: haltWrapper}, [symbol([' '])]: {nextState: haltWrapper}});
+    const outer = inner.withOverriddenHaltState(haltWrapper);
     inner.debug = {before: true};
 
     const session = new DebugSession(machine, {initialState: outer});
@@ -380,19 +404,19 @@ describe('DebugSession: pause event + continue()', () => {
     const machine = new TuringMachine({tapeBlock});
     const {symbol} = tapeBlock;
 
-    const halt = new State({
+    const haltWrapper = new State({
       [symbol(['A'])]: {nextState: haltState},
       [symbol(['B'])]: {nextState: haltState},
       [symbol([' '])]: {nextState: haltState},
     });
     const inner = new State({
-      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: halt},
-      [symbol(['B'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: halt},
-      [symbol([' '])]: {nextState: halt},
+      [symbol(['A'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: haltWrapper},
+      [symbol(['B'])]: {command: [{symbol: symbolCommands.keep, movement: movements.right}], nextState: haltWrapper},
+      [symbol([' '])]: {nextState: haltWrapper},
     });
-    const outer = inner.withOverriddenHaltState(halt);
-    inner.debug = {before: [symbol(['A'])]};   // matches iter 1
-    halt.debug = {before: true};               // matches when control reaches halt's pre-iter
+    const outer = inner.withOverriddenHaltState(haltWrapper);
+    inner.debug = {before: [symbol(['A'])]};       // matches iter 1
+    haltWrapper.debug = {before: true};            // matches when control reaches haltWrapper's pre-iter
 
     const session = new DebugSession(machine, {initialState: outer});
     const causes: string[] = [];
@@ -440,8 +464,8 @@ describe('DebugSession: pause event + continue()', () => {
   });
 
   it('setRunInterval rejects negative / NaN / Infinity', () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     expect(() => session.setRunInterval(-1)).toThrow();
     expect(() => session.setRunInterval(NaN)).toThrow();
     expect(() => session.setRunInterval(Infinity)).toThrow();
@@ -532,8 +556,8 @@ describe('DebugSession: pause event + continue()', () => {
   });
 
   it('multiple listeners on the same event all fire', async () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     let countA = 0;
     let countB = 0;
     session.on('step', () => { countA += 1; });
@@ -544,8 +568,8 @@ describe('DebugSession: pause event + continue()', () => {
   });
 
   it('continue() / stepIn() / stepOver() are no-op when no pause is active', () => {
-    const {machine, halt} = buildSimple();
-    const session = new DebugSession(machine, {initialState: halt});
+    const {machine, haltWrapper} = buildSimple();
+    const session = new DebugSession(machine, {initialState: haltWrapper});
     // No pause active — these must not throw.
     expect(() => session.continue()).not.toThrow();
     expect(() => session.stepIn()).not.toThrow();
