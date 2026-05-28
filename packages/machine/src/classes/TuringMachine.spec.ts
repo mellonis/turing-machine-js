@@ -1,9 +1,9 @@
-import {vi} from 'vitest';
 import Alphabet from './Alphabet';
 import State, {haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MachineState} from './TuringMachine';
+import DebugSession from './DebugSession';
 import {movements, symbolCommands} from './TapeCommand';
 import Reference from './Reference';
 
@@ -100,44 +100,32 @@ describe('run tests', () => {
     ];
   });
 
-  test('run', async () => {
-    const steps: MachineState[] = [];
-
-    await machine.run({initialState, stepsLimit: 1e5, onStep: (step) => { steps.push(step); }});
-
-    expect(steps)
-      .toEqual(expectedSteps);
-    expect(tape.symbols.join('').trim().length)
-      .toBe(0);
+  test('run (sync, no observation) drains to halt', () => {
+    machine.run({initialState, stepsLimit: 1e5});
+    expect(tape.symbols.join('').trim().length).toBe(0);
   });
 
-  test('stepsLimit', async () => {
-    const onStepsLimit0Mock = vi.fn();
+  test('run with DebugSession observes every step in order', async () => {
+    const steps: MachineState[] = [];
+    const session = new DebugSession(machine, {initialState, stepsLimit: 1e5});
+    session.on('step', (m) => { steps.push(m); });
+    await session.start();
+    // DebugSession's step listener fires once per iter — matches the v6
+    // onStep contract.
+    expect(steps.length).toBe(expectedSteps.length);
+    for (let i = 0; i < steps.length; i++) {
+      // step listener gets the live MachineState. expectedSteps were captured
+      // from the pre-v7 run({onStep}) shape; the visible MachineState fields
+      // are the same. matchObject ignores the internal MACHINE_STATE_INTERNAL.
+      expect(steps[i]).toMatchObject(expectedSteps[i] as object);
+    }
+  });
 
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 0,
-      onStep: () => onStepsLimit0Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
-
-    const onStepsLimit1Mock = vi.fn();
-
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 1,
-      onStep: () => onStepsLimit1Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
-
-    const onStepsLimit2Mock = vi.fn();
-
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 2,
-      onStep: () => onStepsLimit2Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
+  test('stepsLimit throws "Long execution" after N iters', () => {
+    // run() is sync — `throws`, not `rejects`.
+    expect(() => machine.run({initialState, stepsLimit: 0})).toThrow('Long execution');
+    expect(() => machine.run({initialState, stepsLimit: 1})).toThrow('Long execution');
+    expect(() => machine.run({initialState, stepsLimit: 2})).toThrow('Long execution');
   });
 
   test('stepByStep', () => {
@@ -175,66 +163,41 @@ describe('run tests', () => {
     expect(generator.next().done).toBe(true);
   });
 
-  test('onIter fires once per iter, awaited, after both pause dispatches (#163)', async () => {
+  test('per-iter lifecycle: pause-before → step → pause-after → iter (#163)', async () => {
     // Arm both before+after on the initial state so the dispatch order
-    // before(K) → step(K) → after(K) → iter(K) is observable per iter.
+    // before(K) → step(K) → after(K) → iter(K) is observable per iter via
+    // DebugSession's events.
     initialState.debug = {before: true, after: true};
 
     const order: string[] = [];
-    const yieldToMicrotask = () => new Promise<void>((r) => queueMicrotask(r));
 
-    await machine.run({
-      initialState,
-      stepsLimit: 1e5,
-      onStep: (m) => { order.push(`step-${m.step}`); },
-      onPause: (m) => {
-        const when = m.debugBreak?.before ? 'before' : 'after';
-        order.push(`pause-${when}-${m.step}`);
-      },
-      onIter: async (m) => {
-        order.push(`iter-pre-${m.step}`);
-        await yieldToMicrotask();
-        order.push(`iter-post-${m.step}`);
-      },
+    const session = new DebugSession(machine, {initialState, stepsLimit: 1e5});
+    session.on('step', (m) => { order.push(`step-${m.step}`); });
+    session.on('pause', (m) => {
+      order.push(`pause-${m.pause.side}-${m.step}`);
+      session.continue();
     });
+    session.on('iter', (m) => { order.push(`iter-${m.step}`); });
+    await session.start();
 
     initialState.debug = null; // reset for other tests
 
-    // For every iter K we must see:
-    //   pause-before-K, step-K, pause-after-K, iter-pre-K, iter-post-K
-    // …adjacent and in that order, never interleaved across iters
-    // (which would mean onIter wasn't awaited).
+    // For every iter K we must see (in order):
+    //   pause-before-K, step-K, pause-after-K, iter-K
     expect(order.length).toBeGreaterThan(0);
-    expect(order.length % 5).toBe(0);
-    for (let i = 0; i < order.length; i += 5) {
+    expect(order.length % 4).toBe(0);
+    for (let i = 0; i < order.length; i += 4) {
       const k = order[i].split('-').pop();
       expect(order[i]).toBe(`pause-before-${k}`);
       expect(order[i + 1]).toBe(`step-${k}`);
       expect(order[i + 2]).toBe(`pause-after-${k}`);
-      expect(order[i + 3]).toBe(`iter-pre-${k}`);
-      expect(order[i + 4]).toBe(`iter-post-${k}`);
+      expect(order[i + 3]).toBe(`iter-${k}`);
     }
   });
-
-  test('onIter fires unconditionally (not gated by debug flag) (#163)', async () => {
-    // No state.debug armed AND `debug: false` master switch — onPause must
-    // never fire, but onIter still fires every iter.
-    const iters: number[] = [];
-
-    await machine.run({
-      initialState,
-      stepsLimit: 1e5,
-      debug: false,
-      onIter: (m) => { iters.push(m.step); },
-    });
-
-    expect(iters.length).toBeGreaterThan(0);
-    // Strictly increasing — one onIter per iter.
-    for (let i = 1; i < iters.length; i++) {
-      expect(iters[i]).toBeGreaterThan(iters[i - 1]);
-    }
-  });
-
+  // NOTE: The v6 `debug: false` master-switch test is dropped — v7 removes
+  // the master switch (along with the rest of the run() callback surface).
+  // DebugSession's iter event already covers "fires regardless of breakpoint
+  // configuration" via the buildWalker tests in DebugSession.spec.ts.
 });
 
 describe('properties', () => {
@@ -362,12 +325,9 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     gen.return(undefined);
 
     const iters: Array<{step: number; name: string}> = [];
-    await machine.run({
-      initialState,
-      onIter: (m) => {
-        iters.push({step: m.step, name: m.state.name ?? ''});
-      },
-    });
+    for (const m of machine.runStepByStep({initialState})) {
+      iters.push({step: m.step, name: m.state.name ?? ''});
+    }
 
     expect(iters).toEqual([
       {step: 1, name: 'walkToBlank(writeMarker)'},
@@ -379,7 +339,7 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     expect(tape.symbols).toEqual(['a', 'b', 'a', '*']);
   });
 
-  test('runStepByStep and run produce identical iter sequences', async () => {
+  test('runStepByStep and DebugSession iter event produce identical sequences', async () => {
     const a = buildWrapperOverWalkToBlank();
     const fromGen: Array<{step: number; name: string}> = [];
     for (const m of a.machine.runStepByStep({initialState: a.initialState})) {
@@ -387,15 +347,14 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     }
 
     const b = buildWrapperOverWalkToBlank();
-    const fromRun: Array<{step: number; name: string}> = [];
-    await b.machine.run({
-      initialState: b.initialState,
-      onIter: (m) => {
-        fromRun.push({step: m.step, name: m.state.name ?? ''});
-      },
+    const fromSession: Array<{step: number; name: string}> = [];
+    const session = new DebugSession(b.machine, {initialState: b.initialState});
+    session.on('iter', (m) => {
+      fromSession.push({step: m.step, name: m.state.name ?? ''});
     });
+    await session.start();
 
-    expect(fromRun).toEqual(fromGen);
+    expect(fromSession).toEqual(fromGen);
   });
 
   test('two consecutive runs on the same machine produce identical iter sequences', async () => {
@@ -425,20 +384,14 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     const initialState = bare.withOverriddenHaltState(continuation);
 
     const first: Array<{step: number; name: string}> = [];
-    await machine.run({
-      initialState,
-      onIter: (m) => {
-        first.push({step: m.step, name: m.state.name ?? ''});
-      },
-    });
+    for (const m of machine.runStepByStep({initialState})) {
+      first.push({step: m.step, name: m.state.name ?? ''});
+    }
 
     const second: Array<{step: number; name: string}> = [];
-    await machine.run({
-      initialState,
-      onIter: (m) => {
-        second.push({step: m.step, name: m.state.name ?? ''});
-      },
-    });
+    for (const m of machine.runStepByStep({initialState})) {
+      second.push({step: m.step, name: m.state.name ?? ''});
+    }
 
     expect(first.length).toBe(2); // wrapper-iter + continuation-iter
     expect(second).toEqual(first);
