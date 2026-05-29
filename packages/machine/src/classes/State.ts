@@ -103,7 +103,7 @@ export default class State {
   // Two-level WeakMap so the outer entry is GC'd when the bare is collected;
   // WeakRef values let wrappers themselves be GC'd when nothing else holds
   // them, with cache misses simply reconstructing fresh wrappers.
-  static #wrapperCache = new WeakMap<State, WeakMap<State, WeakRef<State>>>();
+  static #wrapperCache = new WeakMap<State, WeakMap<State, WeakRef<CallFrame>>>();
 
   readonly #id: number = id(this);
 
@@ -111,14 +111,6 @@ export default class State {
   // composed name on a no-arg `new State()` to bypass the constructor's
   // user-facing name validation (composite names contain `(` and `)`).
   #name: string;
-
-  #overriddenHaltState: State | null = null;
-
-  // For wrapper states (produced by `withOverriddenHaltState`), points at the
-  // State whose transition map was wrapped. `null` on bare/atomic states.
-  // `toGraph` reads this to render wrapper and bare as separate nodes linked
-  // by a `==> call` arrow.
-  #bareState: State | null = null;
 
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
 
@@ -223,8 +215,10 @@ export default class State {
     return this.#id === 0;
   }
 
-  get overriddenHaltState() {
-    return this.#overriddenHaltState;
+  // Plain States never override the halt state — only a `CallFrame` (produced
+  // by `withOverriddenHaltState`) carries an override, via its own getter.
+  get overriddenHaltState(): State | null {
+    return null;
   }
 
   get ref() {
@@ -438,15 +432,15 @@ export default class State {
     return {nextState: entry.nextState, matchedSymbol: symbol, ix};
   }
 
-  withOverriddenHaltState(overriddenHaltState: State) {
-    // Unwrap `this` if it's itself a wrapper — the chain's inner overrides
+  withOverriddenHaltState(overriddenHaltState: State): CallFrame {
+    // Unwrap `this` if it's itself a CallFrame — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
     // pushed onto the halt-stack on entry; verified empirically). Composite
     // name reflects runtime behavior, not construction history. See #176.
-    const bare = this.#bareState ?? this;
+    const bare = this instanceof CallFrame ? this.bare : this;
 
     // Memoize by (bare, override) so identical args return the same instance
-    // (#175). The cache uses WeakMaps + WeakRefs so cached wrappers can be
+    // (#175). The cache uses WeakMaps + WeakRefs so cached frames can be
     // GC'd when nothing else holds them. Compounds with the chain-collapse
     // above: `A.wohs(t1).wohs(t2)` keys as (A, t2) after the unwrap, hitting
     // the same cache slot as a direct `A.wohs(t2)`.
@@ -467,20 +461,11 @@ export default class State {
       State.#wrapperCache.set(bare, innerCache);
     }
 
-    // Cache miss — construct with no name, then overwrite #name directly
-    // (composed names contain `(` and `)` which the constructor's user-facing
-    // validation would reject; private-field access bypasses that).
-    const state = new State();
+    const frame = new CallFrame(bare, overriddenHaltState);
 
-    state.#name = `${bare.name}(${overriddenHaltState.name})`;
-    state.#symbolToDataMap = bare.#symbolToDataMap;
-    state.#overriddenHaltState = overriddenHaltState;
-    state.#debugRef = bare.#debugRef;
-    state.#bareState = bare;
+    innerCache.set(overriddenHaltState, new WeakRef(frame));
 
-    innerCache.set(overriddenHaltState, new WeakRef(state));
-
-    return state;
+    return frame;
   }
 
   /**
@@ -519,8 +504,8 @@ export default class State {
       get id(): number { return self.#id; },
       get name(): string { return self.#name; },
       set name(v: string) { self.#name = v; },
-      get bareState(): State | null { return self.#bareState; },
-      get overriddenHaltState(): State | null { return self.#overriddenHaltState; },
+      get bareState(): State | null { return null; },
+      get overriddenHaltState(): State | null { return null; },
       get symbolToDataMap() { return self.#symbolToDataMap; },
       get tags(): ReadonlySet<string> { return self.#tags; },
     };
@@ -542,13 +527,18 @@ export default class State {
       nextState: { id: number; name: string } | null;
     }>;
   } {
+    // Route through the STATE_INTERNAL view so a CallFrame reports its bare's
+    // transitions and its own override — the view delegates those to the bare
+    // / the frame's #override, whereas the raw private fields on a CallFrame
+    // are empty/null.
+    const internal = state[STATE_INTERNAL]();
     const transitions: Array<{
       rawPatternDescription: string | undefined;
       command: Array<{ symbol: string; movement: string }>;
       nextState: { id: number; name: string } | null;
     }> = [];
 
-    for (const [sym, {command, nextState}] of state.#symbolToDataMap) {
+    for (const [sym, {command, nextState}] of internal.symbolToDataMap) {
       let target: State | null = null;
 
       try {
@@ -567,12 +557,14 @@ export default class State {
       });
     }
 
+    const override = internal.overriddenHaltState;
+
     return {
-      id: state.#id,
-      name: state.#name,
+      id: internal.id,
+      name: internal.name,
       isHalt: state.isHalt,
-      overriddenHaltState: state.#overriddenHaltState
-        ? {id: state.#overriddenHaltState.id, name: state.#overriddenHaltState.name}
+      overriddenHaltState: override
+        ? {id: override.id, name: override.name}
         : null,
       transitions,
     };
@@ -641,3 +633,91 @@ export type HaltState = State & {
 };
 
 export const haltState: HaltState = new State(null) as HaltState;
+
+/**
+ * A first-class call frame produced by `State.withOverriddenHaltState`
+ * (#213). A `CallFrame` is a `State` — `instanceof State` holds, so it flows
+ * anywhere a `State` does (as a `nextState`, through `toGraph`/`fromGraph`,
+ * etc.) — but it carries its own `bare` (the wrapped State) and `override`
+ * (the continuation pushed onto the run-stack on entry). `instanceof
+ * CallFrame` is the explicit wrapper discriminator.
+ *
+ * It owns no transitions of its own: lookups (`getSymbol`/`getCommand`/
+ * `getNextState`/`getMatchedTransition`) and `debug` DELEGATE to the bare,
+ * replacing the v6 field-aliasing (where a wrapper was a plain `State` whose
+ * private `#symbolToDataMap`/`#debugRef` were physically shared with the
+ * bare). `id`, `name` (composite `bare(override)`), and `tags` are its own
+ * (inherited State fields) — so memoized frames sharing a bare keep
+ * independent tags (#186), and the frame is never the halt singleton
+ * (fresh nonzero `#id` → `isHalt === false`).
+ */
+export class CallFrame extends State {
+  readonly #bare: State;
+
+  readonly #override: State;
+
+  constructor(bare: State, override: State) {
+    super(null);
+    this.#bare = bare;
+    this.#override = override;
+    // Composite name contains `(` / `)`, which the constructor's user-facing
+    // name validator rejects; the STATE_INTERNAL name setter bypasses it
+    // (writes the inherited #name). `super[...]` reaches State's own view so
+    // we don't recurse through this subclass's override below.
+    super[STATE_INTERNAL]().name = `${bare.name}(${override.name})`;
+  }
+
+  get bare(): State {
+    return this.#bare;
+  }
+
+  get overriddenHaltState(): State {
+    return this.#override;
+  }
+
+  getSymbol(tapeBlock: TapeBlock) {
+    return this.#bare.getSymbol(tapeBlock);
+  }
+
+  getCommand(symbol: symbol) {
+    return this.#bare.getCommand(symbol);
+  }
+
+  getNextState(symbol: symbol) {
+    return this.#bare.getNextState(symbol);
+  }
+
+  getMatchedTransition(symbol: symbol) {
+    return this.#bare.getMatchedTransition(symbol);
+  }
+
+  get debug(): DebugConfig {
+    return this.#bare.debug;
+  }
+
+  set debug(
+    value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
+  ) {
+    this.#bare.debug = value;
+  }
+
+  [STATE_INTERNAL]() {
+    // Own id / name / tags come from the inherited State fields (via super's
+    // view); bareState / overriddenHaltState / the transition map delegate to
+    // #bare / #override so sibling modules (stateGraph, inspect) see the
+    // frame's true shape.
+    const own = super[STATE_INTERNAL]();
+    const bare = this.#bare;
+    const override = this.#override;
+
+    return {
+      get id(): number { return own.id; },
+      get name(): string { return own.name; },
+      set name(v: string) { own.name = v; },
+      get bareState(): State | null { return bare; },
+      get overriddenHaltState(): State | null { return override; },
+      get symbolToDataMap() { return bare[STATE_INTERNAL]().symbolToDataMap; },
+      get tags(): ReadonlySet<string> { return own.tags; },
+    };
+  }
+}

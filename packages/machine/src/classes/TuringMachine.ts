@@ -1,4 +1,4 @@
-import State, {haltState, STATE_INTERNAL, type DebugConfig} from './State';
+import State, {CallFrame, haltState, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
@@ -186,16 +186,10 @@ export default class TuringMachine {
         const command = state.getCommand(symbol);
         const matched = state.getMatchedTransition(symbol);
         let nextState = matched.nextState.ref;
-        // For wrapper-entry iters, the wrapper's transitions in `toGraph`
-        // are empty (wrappers delegate to the bare via shared
-        // `#symbolToDataMap`); the resolvable transition id lives under
-        // the bare's stateId. `bareState` is non-null only when `state`
-        // is a wrapper produced by `withOverriddenHaltState`. Accessed
-        // via the STATE_INTERNAL package-private view (same pattern
-        // `utilities/stateGraph.ts` uses) to avoid widening the public
-        // State API for this internal need.
-        const stateInternal = state[STATE_INTERNAL]();
-        const resolvableStateId = stateInternal.bareState?.id ?? state.id;
+        // For wrapper-entry iters, a CallFrame's own transitions in `toGraph`
+        // are empty (it delegates lookups to its bare); the resolvable
+        // transition id lives under the bare's stateId.
+        const resolvableStateId = state instanceof CallFrame ? state.bare.id : state.id;
         const matchedTransition: MachineState['matchedTransition'] = {
           id: `${resolvableStateId}.${matched.ix}`,
           matchKinds: this.#tapeBlock.patternKinds(matched.matchedSymbol),
