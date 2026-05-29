@@ -1,6 +1,6 @@
 import Alphabet from './Alphabet';
 import Reference from './Reference';
-import State, {STATE_INTERNAL, haltState, ifOtherSymbol} from './State';
+import State, {CallFrame, STATE_INTERNAL, haltState, ifOtherSymbol} from './State';
 import TapeBlock from './TapeBlock';
 import {movements, symbolCommands} from './TapeCommand';
 
@@ -136,8 +136,9 @@ describe('State.getSymbol — head resolution', () => {
 });
 
 describe('State.withOverriddenHaltState', () => {
-  // The wrapper shares the original's symbolToDataMap and debugRef but adds
-  // an overriddenHaltState. These tests pin the wrapping contract.
+  // The wrapper (a CallFrame) delegates transition lookups and debug to the
+  // original and adds an override. These tests pin the wrapping contract;
+  // CallFrame-identity is covered in the 'CallFrame' describe below.
 
   test('wrapper exposes the override target', () => {
     const original = new State({[ifOtherSymbol]: {nextState: haltState}});
@@ -293,6 +294,61 @@ describe('State.withOverriddenHaltState', () => {
 
     expect(W.name).toBe('A(t3)');
     expect(W.overriddenHaltState).toBe(t3);
+  });
+});
+
+describe('CallFrame', () => {
+  // withOverriddenHaltState returns a first-class CallFrame (a State subclass)
+  // rather than a mutated plain State. instanceof State stays true (consumers
+  // pass wrappers as nextState); instanceof CallFrame is the wrapper discriminator.
+
+  test('withOverriddenHaltState returns a CallFrame that is also a State', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const w = A.withOverriddenHaltState(haltState);
+
+    expect(w).toBeInstanceOf(State);
+    expect(w).toBeInstanceOf(CallFrame);
+  });
+
+  test('exposes its bare via the .bare accessor', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const w = A.withOverriddenHaltState(haltState);
+
+    expect(w.bare).toBe(A);
+  });
+
+  test('a wrapped wohs unwraps to the original bare (#176)', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t1 = new State({[ifOtherSymbol]: {}}, 't1');
+    const t2 = new State({[ifOtherSymbol]: {}}, 't2');
+
+    const chained = A.withOverriddenHaltState(t1).withOverriddenHaltState(t2);
+
+    expect(chained.bare).toBe(A);
+  });
+
+  test('a plain State is not a CallFrame', () => {
+    expect(new State({[ifOtherSymbol]: {}})).not.toBeInstanceOf(CallFrame);
+    expect(haltState).not.toBeInstanceOf(CallFrame);
+  });
+
+  test('STATE_INTERNAL view exposes own id/name/tags and delegates bare/override/map', () => {
+    const A = new State({[ifOtherSymbol]: {}}, 'A');
+    const t = new State({[ifOtherSymbol]: {}}, 't');
+    const w = A.withOverriddenHaltState(t);
+
+    const view = w[STATE_INTERNAL]();
+
+    expect(view.id).toBe(w.id);
+    expect(view.name).toBe('A(t)');
+    expect(view.bareState).toBe(A);
+    expect(view.overriddenHaltState).toBe(t);
+    expect(view.symbolToDataMap).toBe(A[STATE_INTERNAL]().symbolToDataMap);
+    expect([...view.tags]).toEqual([]);
+
+    // The name setter writes the frame's own (inherited) #name.
+    view.name = 'renamed';
+    expect(w.name).toBe('renamed');
   });
 });
 

@@ -239,7 +239,7 @@ const s = new State({
 Notable members and statics:
 
 - **`state.id`**, **`state.name`** — identity (`isHalt` is `id === 0`).
-- **`state.withOverriddenHaltState(other)`** — returns a copy whose would-be halt transitions fall through to `other`. The subroutine-call composition mechanism (see `library-binary-numbers/src/index.ts` for examples).
+- **`state.withOverriddenHaltState(other)`** — returns a `CallFrame` (a `State` subclass, so it flows anywhere a `State` does) whose would-be halt transitions fall through to `other`. The subroutine-call composition mechanism (see `library-binary-numbers/src/index.ts` for examples). `instanceof CallFrame` is the wrapper discriminator.
 - **`State.toGraph(state, tapeBlock)`** — walks the reachable graph from `state` and returns a serializable `Graph` (states, transitions, alphabets).
 - **`State.fromGraph(graph)`** — inverse of `toGraph`: rebuilds `State` instances + a fresh `TapeBlock` from a `Graph`. Round-trips together with `toMermaid` / `fromMermaid`.
 - **`State.collectStates(state, tapeBlock)`** — walks the same graph and returns a `Map<number, {state, transitionSymbols}>` keyed by `GraphNode.id`. Use when downstream tooling holds a numeric id (e.g. a clicked node in a rendered graph) and needs the live `State` instance or the per-pattern `Symbol` for breakpoint setup. See [Setting breakpoints by graph id](#setting-breakpoints-by-graph-id).
@@ -378,7 +378,7 @@ for (const m of machine.runStepByStep({initialState})) {
 
 ## Subroutine composition with `withOverriddenHaltState`
 
-`state.withOverriddenHaltState(other)` returns a copy of `state` whose would-be halt transitions fall through to `other` at run time. The original is left untouched. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
+`state.withOverriddenHaltState(other)` returns a `CallFrame` — a `State` subclass that delegates transition lookups and `debug` to `state` (its *bare*) and whose would-be halt transitions fall through to `other` at run time. The bare is left untouched. Because a `CallFrame` is a `State`, it flows anywhere a `State` does (as a `nextState`, through `toGraph`/`fromGraph`); `instanceof CallFrame` distinguishes it from a plain state. This is the engine's only composition primitive — bigger machines are built by stacking smaller halt-on-completion subroutines.
 
 ```javascript
 import { Alphabet, State, TapeBlock, TuringMachine, Tape, haltState, ifOtherSymbol, movements, symbolCommands } from '@turing-machine-js/machine';
@@ -472,7 +472,7 @@ s.untag('hot');
 s.tags; // readonly ['subroutine-entry']
 ```
 
-**Scoped to the wrapper instance.** Under [`withOverriddenHaltState` memoization (#175)](https://github.com/mellonis/turing-machine-js/issues/175), `A.wohs(t1)` and `A.wohs(t2)` are distinct wrapper instances even though they share `A`'s `#symbolToDataMap`. Tags live on the instance, so tagging one wrapper doesn't propagate to siblings sharing the same bare. Wrappers from `withOverriddenHaltState` start with an empty tag set (do not inherit from bare); the caller tags explicitly as needed.
+**Scoped to the wrapper instance.** Under [`withOverriddenHaltState` memoization (#175)](https://github.com/mellonis/turing-machine-js/issues/175), `A.wohs(t1)` and `A.wohs(t2)` are distinct `CallFrame` instances even though both delegate to the same bare `A`. Tags live on the frame instance, so tagging one wrapper doesn't propagate to siblings sharing the same bare. Wrappers from `withOverriddenHaltState` start with an empty tag set (do not inherit from bare); the caller tags explicitly as needed.
 
 **Round-trip preserved.** `state.toGraph` writes the tag set to `GraphNode.tags`; `state.fromGraph` reads it back and reapplies. `toMermaid` renders tags two ways: inline in the node label (`sN["name<br>tag1, tag2"]`, universal Mermaid line break) and as `classDef tag_<sanitized>` + `class sN tag_<sanitized>` lines for color grouping. `fromMermaid` splits the label on `<br>` as source of truth; the `class` lines are decorative and discarded on parse.
 
@@ -534,7 +534,7 @@ myState.debug = null;
 
 > ⚠️ **Chained-form `haltState.debug.before = true` doesn't throw in non-strict mode** — this is a JavaScript primitive quirk, not engine behavior. The getter returns the boolean `false`; assigning `.before` to that boolean is a no-op in non-strict mode (silent), a `TypeError` in strict mode. The engine setter only sees whole-object writes (`haltState.debug = X`). **Always use the whole-object form: `haltState.debug = true` / `= false` / `= null`.**
 
-The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. The internal cell is shared with `state.withOverriddenHaltState(...)` wrappers, so an assignment on the original is visible from every wrapper. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input is wrapped automatically. The instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property.
+The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. A `CallFrame` (from `state.withOverriddenHaltState(...)`) delegates its `debug` to the bare, so an assignment on the original is visible from every wrapper and vice versa. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input is wrapped automatically. The instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property.
 
 **Filter semantics:** `true` is a wildcard (match any symbol). `[ifOtherSymbol]` is NOT a wildcard — it matches only the catch-all resolution case (same meaning as in transition keys).
 
