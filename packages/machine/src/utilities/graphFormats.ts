@@ -136,15 +136,21 @@ export function toMermaid(graph: Graph): string {
 
   // Bucket nodes for emit order.
   const topLevelNodes = nodes.filter((n) => n.frameId === null && !n.isWrapper);
+  // All wrappers — needed by the call / return / wrapper-to-override
+  // arrow emit passes below regardless of where the wrapper renders.
   const wrapperNodes = nodes.filter((n) => n.isWrapper);
-  // Bares-and-bodies inside frames, grouped by frameId.
+  // Top-level wrappers: wrappers whose caller has no frame (the caller is
+  // the top-level program). Framed wrappers (whose caller IS a subroutine
+  // with its own frame) render INSIDE that frame's subgraph below.
+  const topLevelWrapperNodes = wrapperNodes.filter((w) => w.frameId === null);
+  // Bares-bodies-and-framed-wrappers inside frames, grouped by frameId.
   const nodesByFrame = new Map<number, GraphNode[]>();
   // Halt-marker per frame (kept separate so it always emits LAST inside the
   // subgraph for deterministic shape).
   const haltMarkerByFrame = new Map<number, GraphNode>();
 
   for (const node of nodes) {
-    if (node.frameId === null || node.isWrapper) continue;
+    if (node.frameId === null) continue;
 
     if (node.isHaltMarker) {
       haltMarkerByFrame.set(node.frameId, node);
@@ -190,8 +196,9 @@ export function toMermaid(graph: Graph): string {
     }
   }
 
-  // 2. Emit wrappers at top level.
-  for (const wrapper of wrapperNodes) {
+  // 2. Emit top-level wrappers (wrappers owned by the top-level program;
+  // wrappers owned by a subroutine emit inside that subroutine's subgraph).
+  for (const wrapper of topLevelWrapperNodes) {
     lines.push(`  ${mermaidIdFor(wrapper.id)}[["${labelOf(wrapper)}"]]`);
   }
 
@@ -215,9 +222,15 @@ export function toMermaid(graph: Graph): string {
 
     lines.push(`  subgraph ${frameSubgraphId(frameId)}["${label}"]`);
 
-    // Inner nodes — sort by id for determinism.
+    // Inner nodes — sort by id for determinism. Framed wrappers (call sites
+    // owned by this frame) render with the `[[name]]` wrapper shape; bares
+    // and body states render with the regular `["name"]` shape.
     for (const node of (nodesByFrame.get(frameId) ?? []).slice().sort((a, b) => a.id - b.id)) {
-      lines.push(`    ${mermaidIdFor(node.id)}["${labelOf(node)}"]`);
+      if (node.isWrapper) {
+        lines.push(`    ${mermaidIdFor(node.id)}[["${labelOf(node)}"]]`);
+      } else {
+        lines.push(`    ${mermaidIdFor(node.id)}["${labelOf(node)}"]`);
+      }
     }
 
     // Every frame has a halt marker — `State.toGraph`'s frame-emit pass

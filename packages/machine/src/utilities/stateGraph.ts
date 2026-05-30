@@ -169,11 +169,68 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
   }
 
   // Pass 2: For each bare, compute its forward-reachable set (following
-  // transitions; stopping at halt and at wrappers — both are frame
-  // boundaries).
+  // transitions; stopping at halt; including wrappers AND tunneling through
+  // them to their `overriddenHaltStateId` continuation).
+  //
+  // Wrappers are call-site markers — semantically owned by the CALLER (the
+  // bare whose body invokes the sub-call). Both the wrapper itself and its
+  // continuation (its `--> override` arrow in the rendered diagram, sourced
+  // from `overriddenHaltStateId`) belong to the caller's frame: the wrapper
+  // visually anchors the call site inside the caller's subgraph; the
+  // continuation is the state the caller's body resumes at AFTER the inner
+  // sub-call returns. So when reach traversal hits a wrapper, we PUSH the
+  // wrapper (joining the caller's reach-set) AND tunnel through to its
+  // continuation (also joining). Wrappers carry no `transitions` of their
+  // own (Pass 1 emits `transitions: []` on wrapper nodes), so the main loop
+  // pops them and adds them to `reach` without further traversal — but the
+  // continuation already entered via the wrapper-tunnel chain in
+  // `resolveAndPush`.
+  //
+  // Halt-bound retargeting + union-find then "just work": continuation
+  // states' halt-bound transitions get retargeted to the caller's halt
+  // marker (so an in-subroutine halt returns to the caller, not the
+  // program's terminal halt); when two bares both reach the same
+  // continuation through different wrapper chains, union-find merges their
+  // frames as it already does for non-wrapper overlap.
+  //
+  // Wrapper chains (continuation IS another wrapper, e.g., nested
+  // compositions) are walked transitively by the inner while-loop in
+  // `resolveAndPush` — each tunnel hop pushes the intermediate wrapper.
   const computeReach = (startId: number): Set<number> => {
     const reach = new Set<number>();
-    const stack = [startId];
+    const stack: number[] = [];
+
+    const resolveAndPush = (id: number) => {
+      let current = id;
+
+      while (true) {
+        const target = nodes[current];
+
+        if (!target || target.isHalt) {
+          return;
+        }
+
+        if (!target.isWrapper) {
+          stack.push(current);
+          return;
+        }
+
+        // Wrapper: push it (so it joins the caller's frame) AND tunnel to
+        // its continuation. Both belong to the caller's frame.
+        stack.push(current);
+
+        /* c8 ignore next 3 — every wrapper emitted by Pass 1 has a
+           non-null overriddenHaltStateId (lines 76-101); this branch
+           only guards against future wrapper variants that might not. */
+        if (target.overriddenHaltStateId === null) {
+          return;
+        }
+
+        current = target.overriddenHaltStateId;
+      }
+    };
+
+    resolveAndPush(startId);
 
     while (stack.length > 0) {
       const id = stack.pop()!;
@@ -182,28 +239,12 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
         continue;
       }
 
-      const node = nodes[id];
-
-      // `nodes[id]` is always populated for `id` that the BFS reached, so
-      // a defensive `!node` check would be dead. `isHalt` / `isWrapper`
-      // are real boundaries — both stop reach-set expansion.
-      /* c8 ignore next 3 — defensive: the push site below already filters
-         halt/wrapper targets, and the initial push is always a bare, so
-         this branch is unreachable in practice. */
-      if (node.isHalt || node.isWrapper) {
-        continue;
-      }
-
       reach.add(id);
 
-      for (const t of node.transitions) {
-        const target = nodes[t.nextStateId];
-
-        if (!target || target.isHalt || target.isWrapper) {
-          continue;
-        }
-
-        stack.push(t.nextStateId);
+      // Wrappers have empty transitions arrays — the for-loop runs zero
+      // iterations and we proceed to the next stack entry.
+      for (const t of nodes[id].transitions) {
+        resolveAndPush(t.nextStateId);
       }
     }
 

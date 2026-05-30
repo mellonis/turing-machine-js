@@ -449,7 +449,7 @@ flowchart TD
 
 **Reading guide** — the v7 callable-subtree emit (introduced in [#174](https://github.com/mellonis/turing-machine-js/issues/174)) models `withOverriddenHaltState` as a function call: the wrapper is the call site, the bare's subtree is the callable body.
 
-1. **`[[scanToX(eraseHere)]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node, drawn OUTSIDE any subgraph. It's the runtime entry point — `idle -. enter .->` arrives here — and shows the composite name (`bare(override)`). Wrappers have no transitions of their own; they delegate to the bare via the `call` arrow.
+1. **`[[scanToX(eraseHere)]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node. It's the runtime entry point — `idle -. enter .->` arrives here — and shows the composite name (`bare(override)`). Wrappers have no transitions of their own; they delegate to the bare via the `call` arrow. **Placement**: this top-level wrapper is drawn OUTSIDE any subgraph; a wrapper that participates in a caller's frame (e.g. an inner-call continuation of another wrapper, as in `library-binary-numbers/minusOne`) renders INSIDE its owner frame's subgraph with the same `[[…]]` shape (see [#223](https://github.com/mellonis/turing-machine-js/issues/223)).
 2. **`subgraph w_1["callable subtree of scanToX"]`** is the bare's callable subtree — the scope of code that runs when the wrapper is "called." It contains the bare `s1["scanToX"]`, any body states reachable from the bare, and a local halt marker `c1(((halt)))` where the bare's halt-bound transitions land.
 3. **The bold `==> call`** from wrapper to bare is the call arrow — visual signature of "wrapper invokes this callable subtree, pushing its override onto the runtime stack." Bold arrows are reserved for wrapper-to-bare calls; counting them in a diagram counts the wrappers in play.
 4. **The dotted `-. return .->`** from the subtree back to the wrapper is the return arrow — fires when the bare halts (lands on `c1`) and the stack pops. The wrapper's solid `--> s2` (to `eraseHere`) is the post-return continuation; ordinary transition under the function-call mental model.
@@ -756,7 +756,7 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 |---|---|
 | `s0(((halt)))` | the halt state |
 | `sN["name"]` | a regular state (or a bare, when inside a subgraph) |
-| `sN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site, outside any subgraph) — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) |
+| `sN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site; outside any subgraph when top-level, INSIDE its owner frame's subgraph when its continuation chain participates in a caller's frame — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) and [#223](https://github.com/mellonis/turing-machine-js/issues/223)) |
 | `cN(((halt)))` inside a subgraph | halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
 | `idle([idle])` | pre-execution sentinel (not a real state) |
 

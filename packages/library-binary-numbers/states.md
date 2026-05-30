@@ -190,12 +190,10 @@ flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
   s1["goToNumber"]
-  s9["invertNumberGoToNumberWithInversion"]
   s12["normalizeNumberPutNewStartSymbol"]
   s13["normalizeNumberMoveNumberStart"]
   s15["normalizeNumber"]
   s23["minusOne"]
-  s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
   s14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
   s20[["invertNumber(normalizeNumber)"]]
   s21[["plusOne(invertNumber(normalizeNumber))"]]
@@ -206,6 +204,8 @@ flowchart TD
     c5(((halt)))
   end
   subgraph w_11["callable subtree of invertNumber"]
+    s9["invertNumberGoToNumberWithInversion"]
+    s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
     s11["invertNumber"]
     c11(((halt)))
   end
@@ -235,7 +235,7 @@ flowchart TD
   s9 -- "['^'] → [K]/[R]" --> s9
   s9 -- "['1'] → ['0']/[R]" --> s9
   s9 -- "['0'] → ['1']/[R]" --> s9
-  s9 -- "['$'] → [K]/[S]" --> s0
+  s9 -- "['$'] → [K]/[S]" --> c11
   s11 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s10
   s11 -- "[*] → [K]/[S]" --> c11
   s12 -- "[B] → ['^']/[S]" --> s1
