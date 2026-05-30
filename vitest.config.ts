@@ -47,6 +47,7 @@ export default defineConfig({
       '@turing-machine-js/builder': resolve(root, './packages/builder/src'),
       '@turing-machine-js/library-binary-numbers': resolve(root, './packages/library-binary-numbers/src'),
       '@turing-machine-js/library-binary-numbers-bare': resolve(root, './packages/library-binary-numbers-bare/src'),
+      '@turing-machine-js/visuals': resolve(root, './packages/visuals/src'),
     },
   },
 });
