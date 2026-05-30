@@ -6,5 +6,5 @@ export type { GraphIndexes } from './graphIndexes';
 export { indexGraph } from './graphIndexes';
 export type { GraphHighlight, TapeSnapshot, Frame, Snippet } from './types';
 export { applyHighlight, applyIndicator } from './applyHighlight';
-export { formatCommand, formatStep } from './format';
+export { formatCommand, formatStep, formatStepNotation, formatTape, type StepCommand } from './format';
 export { recordSnippet, type RecordSnippetOptions } from './recordSnippet';
