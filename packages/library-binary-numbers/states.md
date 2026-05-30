@@ -194,7 +194,6 @@ flowchart TD
   s13["normalizeNumberMoveNumberStart"]
   s15["normalizeNumber"]
   s23["minusOne"]
-  s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
   s14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
   s20[["invertNumber(normalizeNumber)"]]
   s21[["plusOne(invertNumber(normalizeNumber))"]]
@@ -206,6 +205,7 @@ flowchart TD
   end
   subgraph w_11["callable subtree of invertNumber"]
     s9["invertNumberGoToNumberWithInversion"]
+    s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
     s11["invertNumber"]
     c11(((halt)))
   end
