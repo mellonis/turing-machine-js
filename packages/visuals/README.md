@@ -279,16 +279,23 @@ function applyFrame(): void {
   renderTape(frame.tape);
 }
 
+// One AbortController scopes both the auto-play timer and the click
+// listeners — call controller.abort() in your component teardown
+// (Svelte onDestroy / React useEffect cleanup / etc.).
+const controller = new AbortController();
+const { signal } = controller;
+
 // Auto-play forward at a fixed cadence:
 const id = setInterval(() => {
   if (!player.forward()) { clearInterval(id); return; }
   applyFrame();
 }, 800);
+signal.addEventListener('abort', () => clearInterval(id), { once: true });
 
 // Bi-directional scrub:
-prevBtn.onclick = () => { if (player.back())    applyFrame(); };
-nextBtn.onclick = () => { if (player.forward()) applyFrame(); };
-replayBtn.onclick = () => { player.reset();     applyFrame(); };
+prevBtn.addEventListener('click', () => { if (player.back())    applyFrame(); }, { signal });
+nextBtn.addEventListener('click', () => { if (player.forward()) applyFrame(); }, { signal });
+replayBtn.addEventListener('click', () => { player.reset();     applyFrame(); }, { signal });
 ```
 
 `SnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only). Mirrors the engine's `DebugSession` shape — stateful playback driver for live runs vs prerecorded runs.
