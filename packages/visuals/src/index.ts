@@ -18,3 +18,4 @@ export {
   type StepTokens,
 } from './format';
 export { recordSnippet, type RecordSnippetOptions } from './recordSnippet';
+export { createSnippetPlayer, type SnippetPlayer } from './snippetPlayer';

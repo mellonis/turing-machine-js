@@ -102,6 +102,9 @@ formatStep(machineState): string    // alpha.6 MachineState-based formatter; kep
 
 // Recording
 recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }): Snippet
+
+// Playback
+createSnippetPlayer(snippet): SnippetPlayer
 ```
 
 The 16-rule contract `applyHighlight` satisfies is documented at [`docs/graph-highlight-and-breakpoints.md`](./docs/graph-highlight-and-breakpoints.md).
@@ -237,6 +240,41 @@ const snippet = recordSnippet({
 ```
 
 `Frame.commands` carries both `read` and `write` per tape so a player can step forward (write `write`, move per `movement`, flash if `write !== read`) AND backward (move opposite of `movement`, restore `read`) without diffing neighbouring frames.
+
+## Example: playing a snippet
+
+```ts
+import {
+  applyHighlight, createSnippetPlayer, indexGraph,
+  type HighlightOps, type Snippet,
+} from '@turing-machine-js/visuals';
+
+const player = createSnippetPlayer(snippet);
+const indexes = indexGraph(snippet.graph);
+let prev: Parameters<typeof applyHighlight>[3] = null;
+
+function render(ops: HighlightOps, renderTape: (snap: Snippet['frames'][0]['tape']) => void) {
+  const frame = player.currentFrame;
+  // (consumer wipes previous highlight classes from the DOM before calling)
+  if (frame.highlight) {
+    prev = applyHighlight(frame.highlight, snippet.graph, indexes, prev, ops).nextPrev;
+  }
+  renderTape(frame.tape);
+}
+
+// Auto-play forward at a fixed cadence:
+const id = setInterval(() => {
+  if (!player.forward()) { clearInterval(id); return; }
+  render(ops, renderTape);
+}, 800);
+
+// Bi-directional scrub:
+prevBtn.onclick = () => { if (player.back())    render(ops, renderTape); };
+nextBtn.onclick = () => { if (player.forward()) render(ops, renderTape); };
+replayBtn.onclick = () => { player.reset();     render(ops, renderTape); };
+```
+
+`createSnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only).
 
 ## Versioning
 
