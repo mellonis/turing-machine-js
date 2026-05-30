@@ -1,3 +1,5 @@
+import type { Graph } from '@turing-machine-js/machine';
+
 /**
  * State-graph highlight descriptor (machines-demo#10). MachineView derives it
  * from `executionMode` + the latest pause-response data; MachineGraph reads
@@ -28,4 +30,47 @@ export type GraphHighlight = {
    * trigger.
    */
   paused: boolean;
+};
+
+/**
+ * Per-tape snapshot: the cells visible/usable plus the head's index into them.
+ * Same shape as machines-demo's TapeSnapshot. Pure data — no library handles.
+ */
+export type TapeSnapshot = {
+  symbols: string[];
+  position: number;
+};
+
+/**
+ * One frame of a recorded snippet — the state of the machine at iter `step`.
+ * Frame 0 = initial state (before any transition); frame N = state after iter N's transition.
+ *
+ * `tape` is per-tape (single-tape machines: length 1). `highlight` describes
+ * what to render on the state graph at this moment (null when no highlight).
+ * `log` is optional pre-formatted text — a caption / status line consumers can render.
+ */
+export type Frame = {
+  step: number;
+  tape: TapeSnapshot[];
+  highlight: GraphHighlight | null;
+  log?: string;
+};
+
+/**
+ * Recorded run of a machine — playback artifact for embeds, articles,
+ * landing-page panels. Engine-agnostic (no `engine` field; identity lives
+ * at the caller bucket level).
+ *
+ * - `version: 1` — schema integer. Additive fields don't bump it;
+ *   shape-breaking changes do.
+ * - `graph` — engine `State.toGraph` output captured at recording time.
+ * - `alphabets` — per-tape alphabet list (single-tape: length 1).
+ * - `frames` — length === `stepsApplied + 1`; frame 0 is the initial state.
+ */
+export type Snippet = {
+  version: 1;
+  name?: string;
+  graph: Graph;
+  alphabets: string[][];
+  frames: Frame[];
 };
