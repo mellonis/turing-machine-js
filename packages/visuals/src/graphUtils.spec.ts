@@ -26,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 function loadGraph(name: string): Graph {
-  const path = resolve(__dirname, '../../tests/fixtures/graphs', `${name}.json`);
+  const path = resolve(__dirname, './fixtures/graphs', `${name}.json`);
   return JSON.parse(readFileSync(path, 'utf8')) as Graph;
 }
 
