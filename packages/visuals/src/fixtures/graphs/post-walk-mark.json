@@ -1,0 +1,108 @@
+{
+  "initialId": 6,
+  "alphabets": [
+    [
+      "␣",
+      "•"
+    ]
+  ],
+  "nodes": {
+    "0": {
+      "id": 0,
+      "name": "id:0",
+      "isHalt": true,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "6": {
+      "id": 6,
+      "name": "10",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "'•'",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": 7,
+          "id": "6.0"
+        },
+        {
+          "pattern": "B",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": 8,
+          "id": "6.1"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": [
+        "main"
+      ]
+    },
+    "7": {
+      "id": 7,
+      "name": "20",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "*",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 6,
+          "id": "7.0"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "8": {
+      "id": 8,
+      "name": "30",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "*",
+          "command": [
+            {
+              "symbol": "'•'",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": 0,
+          "id": "8.0"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "initialId": 1,
+  "alphabets": [
+    [
+      "␣",
+      "a",
+      "b",
+      "c",
+      "*"
+    ]
+  ],
+  "nodes": {
+    "0": {
+      "id": 0,
+      "name": "id:0",
+      "isHalt": true,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "1": {
+      "id": 1,
+      "name": "id:1",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "'b'",
+          "command": [
+            {
+              "symbol": "'*'",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 1,
+          "id": "1.0"
+        },
+        {
+          "pattern": "B",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "L"
+            }
+          ],
+          "nextStateId": 0,
+          "id": "1.1"
+        },
+        {
+          "pattern": "*",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 1,
+          "id": "1.2"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    }
+  }
+}

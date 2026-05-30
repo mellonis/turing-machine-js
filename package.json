@@ -13,7 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "docs:states": "node ./scripts/build-states-md.mjs",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit -p packages/machine/tsconfig.json && tsc --noEmit -p packages/builder/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers-bare/tsconfig.json"
+    "typecheck": "tsc --noEmit -p packages/machine/tsconfig.json && tsc --noEmit -p packages/builder/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers-bare/tsconfig.json && tsc --noEmit -p packages/visuals/tsconfig.json"
   },
   "author": "Ruslan Gilmullin <mellonis@yandex.ru>",
   "workspaces": [
