@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract machines-demo's pure highlight/graph-indexing modules + rules doc into a new lockstep-published package `@turing-machine-js/visuals`. NO new functionality in this PR — pure code-move + scaffold. `recordSnippet` + Snippet/Frame schema lands as a follow-up plan (issue step 3).
+**Goal:** Extract machines-demo's pure highlight/graph-indexing modules + rules doc into a new lockstep-published package `@turing-machine-js/visuals`, AND ship the initial `recordSnippet` + `Snippet`/`Frame` schema so v1 publishes with a complete API.
+
+**Scope split:** Originally drafted as extraction-only (issue step 1) with `recordSnippet` as a follow-up PR (step 3). **Revised mid-implementation to fold step 3 in** — so the first published alpha carries the complete v1 API ready to feed the landing-page work (#79). Step 2 (machines-demo cleanup) remains a separate follow-up in the machines-demo repo. See Tasks 10–13 below.
 
 **Architecture:** New `packages/visuals/` workspace, peer dep on `@turing-machine-js/machine` (`Graph` type only — no runtime dependency). Pure TypeScript, no DOM, no Svelte. Modules are line-for-line moves: `TuringGraph` local alias becomes `import { Graph } from '@turing-machine-js/machine'`; everything else unchanged. The rules doc moves under `packages/visuals/docs/`. machines-demo's local copies + the doc-source are deleted in a follow-up demo PR (issue step 2, **not** this PR — keeps the extract PR self-contained and reviewable against engine tests only).
 
@@ -18,7 +20,12 @@
 
 - **Package name: `@turing-machine-js/visuals`.** Issue #204 lists this as an open question between `visuals` / `highlight` / `graph-visuals`. Going with `visuals` — broadest, room for `recordSnippet` + future visual primitives without renaming.
 - **No DOM applier sub-export in v1.** The package stays purely renderer-agnostic. A future `@turing-machine-js/visuals/dom` sub-path can be added non-breakingly when there's a concrete consumer asking for one. Out of scope here.
-- **Snippet schema versioning policy (deferred to PR B).** This PR does NOT introduce the schema; recording the policy now keeps PR B short: additive fields don't bump `version`; breaking shape changes bump the integer. Will be documented in PR B's README addition.
+- **Snippet schema versioning policy.** Additive fields don't bump `version`; breaking shape changes bump the integer. Documented in the README addition that ships with Task 13.
+- **`Frame` shape (locked).** Per-iter capture: `{ step: number; tape: TapeSnapshot[]; highlight: GraphHighlight | null; log?: string }`. `step` is 0-indexed iter (frame 0 = initial state, before any transition). `tape` is per-tape array (single-tape: length 1). `highlight` is the GraphHighlight to render for this frame (null = no active highlight). `log` is optional pre-formatted text; consumers can render it as a caption / status line. Users wanting a different shape pass `log` callback for the string only — Frame's structural fields stay fixed (consumers' renderers depend on the shape).
+- **`Snippet` shape (locked, no `engine` field per #204 comment).** `{ version: 1; name?: string; graph: Graph; alphabets: string[][]; frames: Frame[] }`. `frames.length === stepsApplied + 1` — frame 0 is the initial state. `alphabets` is per-tape (single-tape: length 1).
+- **`recordSnippet` signature (locked).** `recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }): Snippet`. Caller supplies pre-built `machine`, `initialState`, pre-computed `graph` (via `State.toGraph`), and `alphabets`. Caller chooses which engine (turing-machine-js or post-machine-js) — recorder is engine-agnostic, just runs `machine.runStepByStep({ initialState, stepsLimit: maxSteps })` and captures per iter. `log` callback (optional) receives `(machineState, prevMachineState | null)` and returns the line text. Default frame has `log: undefined`.
+- **Default formatter primitives.** Ship `formatCommand(command)` + `formatStep(machineState, prev?)` as composable helpers, exported alongside `recordSnippet`. Format mirrors the engine's edge-label notation (`[reads] → [writes]/[moves]`) so a logged step lines up with the rendered graph's edge. Users compose their own `log` callback by combining these or write their own from scratch.
+- **`TapeSnapshot` type moves into visuals.** `{ symbols: string[]; position: number }` — pure data, renderer-agnostic, lives in `packages/visuals/src/types.ts` alongside `GraphHighlight`. Demo's local copy stays during this PR (cleaned up in the step-2 follow-up).
 - **`graphHighlightDerivation.ts` does NOT extract.** Its `ExecutionMode` union mirrors machines-demo's MachineView state machine (`'DEMO' | 'MANUAL' | 'RUNNING_AUTO' | …`) — demo orchestration, not engine semantics. Stays in machines-demo and imports `bareIdOf` from the published package post-extract.
 - **`Snippet.engine` field is dropped (per #204 comment 2026-05-29).** Pinned here so PR B inherits the constraint. Engine identity lives at the caller bucket level (`{ turing: Snippet[], post: Snippet[] }`), not on the artifact.
 - **No content rewrites during the move.** Rules doc moves verbatim — any rewording is a separate edit later. Keeps this PR's diff a clean move.
@@ -31,26 +38,29 @@
 ```
 packages/visuals/
 ├── package.json              # NEW — peer dep on @turing-machine-js/machine
-├── tsconfig.json             # NEW — project references, extends repo conventions
+├── tsconfig.json             # NEW — IDE/typecheck config (mirrors machine's)
+├── tsconfig.build.json       # NEW — composite-build config (mirrors machine's)
 ├── README.md                 # NEW — what this package is, public API summary
 ├── src/
-│   ├── index.ts              # NEW — re-exports public surface
-│   ├── highlightOps.ts       # MOVED from machines-demo/src/lib/highlightOps.ts
-│   ├── graphUtils.ts         # MOVED from machines-demo/src/lib/graphUtils.ts
-│   ├── graphIndexes.ts       # MOVED from machines-demo/src/lib/graphIndexes.ts
-│   └── applyHighlight.ts     # MOVED from machines-demo/src/lib/applyHighlight.ts
-├── tests/
-│   ├── graphUtils.spec.ts    # MOVED — renamed .test.ts → .spec.ts to match repo convention
-│   ├── graphIndexes.spec.ts  # (no source test in demo; trivial test added if extraction warrants)
-│   ├── applyHighlight.spec.ts # MOVED + renamed
-│   ├── graphFixtures.spec.ts # MOVED + renamed
-│   └── fixtures/             # MOVED — fixture JSONs (graphs/*.json) used by graphFixtures
+│   ├── index.ts                  # NEW — re-exports public surface
+│   ├── highlightOps.ts           # MOVED from machines-demo/src/lib/highlightOps.ts
+│   ├── graphUtils.ts             # MOVED from machines-demo/src/lib/graphUtils.ts
+│   ├── graphUtils.spec.ts        # MOVED + .test.ts → .spec.ts (colocated next to source per repo convention)
+│   ├── graphIndexes.ts           # MOVED from machines-demo/src/lib/graphIndexes.ts
+│   ├── applyHighlight.ts         # MOVED from machines-demo/src/lib/applyHighlight.ts
+│   ├── applyHighlight.spec.ts    # MOVED + colocated
+│   ├── graphFixtures.spec.ts     # MOVED + colocated
+│   └── fixtures/                 # MOVED — fixture JSONs (graphs/*.json) used by graphFixtures.spec.ts
 └── docs/
     └── graph-highlight-and-breakpoints.md  # MOVED from machines-demo/docs/
 
-tsconfig.build.json           # MODIFY — add reference to packages/visuals
-package.json                  # MODIFY — extend "typecheck" script to include packages/visuals
+tsconfig.build.json           # MODIFY — references packages/visuals/tsconfig.build.json (per repo convention — all entries reference the build variant)
+package.json                  # MODIFY — extend "typecheck" script to include packages/visuals/tsconfig.json
 ```
+
+**Convention notes (verified against `packages/machine`):**
+- **Dual tsconfig** per package: `tsconfig.json` (extends root, `rootDir: ".."`, includes `paths` alias map) for IDE / standalone typecheck; `tsconfig.build.json` (extends local `./tsconfig.json`, `rootDir: "src"`, `composite: true`, `exclude: ["**/*.spec.ts", "dist"]`) for the project-references build.
+- **Tests colocated** as `*.spec.ts` next to source under `src/` (per CLAUDE.md). No top-level `tests/` dir. Fixtures live wherever the colocated spec needs them — under `src/fixtures/` if the test reads from it.
 
 Public API exported from `packages/visuals/src/index.ts`:
 
