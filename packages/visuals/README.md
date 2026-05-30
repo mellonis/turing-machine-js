@@ -105,6 +105,7 @@ recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? 
 
 // Playback
 new SnippetPlayer(snippet)
+tapeViewport(snapshot, width, blank): { cells, headIndex }
 ```
 
 The 16-rule contract `applyHighlight` satisfies is documented at [`docs/graph-highlight-and-breakpoints.md`](./docs/graph-highlight-and-breakpoints.md).
