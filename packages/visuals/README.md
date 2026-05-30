@@ -246,17 +246,33 @@ const snippet = recordSnippet({
 
 ```ts
 import {
-  applyHighlight, SnippetPlayer, indexGraph,
-  type HighlightOps, type Snippet,
+  applyHighlight, indexGraph, SnippetPlayer,
+  type Frame, type HighlightOps,
 } from '@turing-machine-js/visuals';
+
+// Build a HighlightOps over your SVG / renderer — see the
+// "Example: applying highlight in a DOM renderer" above for the
+// concrete `domOps(svgRoot)` factory.
+declare const ops: HighlightOps;
+
+// Render a frame's tape state into your UI — app-specific (Svelte,
+// React, vanilla, ANSI, …). For a fixed-width centered window padded
+// with the alphabet's blank, see `tapeViewport(snap, width, blank)` below.
+declare function renderTape(tape: Frame['tape']): void;
+
+// Buttons your UI exposes — strictly illustrative.
+declare const prevBtn: HTMLButtonElement;
+declare const nextBtn: HTMLButtonElement;
+declare const replayBtn: HTMLButtonElement;
 
 const player = new SnippetPlayer(snippet);
 const indexes = indexGraph(snippet.graph);
 let prev: Parameters<typeof applyHighlight>[3] = null;
 
-function render(ops: HighlightOps, renderTape: (snap: Snippet['frames'][0]['tape']) => void) {
+function applyFrame(): void {
   const frame = player.currentFrame;
-  // (consumer wipes previous highlight classes from the DOM before calling)
+  // (consumer is responsible for wiping previous highlight classes from
+  // the DOM before each applyHighlight call — see the highlight example above.)
   if (frame.highlight) {
     prev = applyHighlight(frame.highlight, snippet.graph, indexes, prev, ops).nextPrev;
   }
@@ -266,13 +282,13 @@ function render(ops: HighlightOps, renderTape: (snap: Snippet['frames'][0]['tape
 // Auto-play forward at a fixed cadence:
 const id = setInterval(() => {
   if (!player.forward()) { clearInterval(id); return; }
-  render(ops, renderTape);
+  applyFrame();
 }, 800);
 
 // Bi-directional scrub:
-prevBtn.onclick = () => { if (player.back())    render(ops, renderTape); };
-nextBtn.onclick = () => { if (player.forward()) render(ops, renderTape); };
-replayBtn.onclick = () => { player.reset();     render(ops, renderTape); };
+prevBtn.onclick = () => { if (player.back())    applyFrame(); };
+nextBtn.onclick = () => { if (player.forward()) applyFrame(); };
+replayBtn.onclick = () => { player.reset();     applyFrame(); };
 ```
 
 `SnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only). Mirrors the engine's `DebugSession` shape — stateful playback driver for live runs vs prerecorded runs.
