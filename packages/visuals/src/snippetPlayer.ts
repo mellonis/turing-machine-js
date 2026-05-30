@@ -3,73 +3,82 @@ import type { Frame, Snippet } from './types';
 /**
  * Pure-state playback driver for a `Snippet` produced by `recordSnippet`.
  *
- * Holds the current frame index and exposes forward / back / reset / goTo.
- * Stateless w.r.t. wall-clock — consumers wire their own ticking
+ * Holds the current frame index and exposes `forward` / `back` / `reset` /
+ * `goTo`. Stateless w.r.t. wall-clock — consumers wire their own ticking
  * (`setInterval`, `requestAnimationFrame`, `IntersectionObserver`, etc.).
  * Renderer-agnostic — consumers read `currentFrame` and apply it however
  * they like (e.g. `applyHighlight(snippet.graph, frame.highlight, ops)`
  * for state-graph highlight, plus app-specific tape rendering).
+ *
+ * Two players over the same `Snippet` are independent — frame storage is
+ * shared and read-only.
+ *
+ * Mirrors the engine's `DebugSession` shape (a stateful playback driver
+ * for live runs); this is the analogous driver for prerecorded runs.
  */
-export type SnippetPlayer = {
+export class SnippetPlayer {
+  readonly #snippet: Snippet;
+  readonly #lastIndex: number;
+  #index = 0;
+
+  constructor(snippet: Snippet) {
+    if (snippet.frames.length === 0) {
+      throw new Error('SnippetPlayer: snippet has no frames');
+    }
+    this.#snippet = snippet;
+    this.#lastIndex = snippet.frames.length - 1;
+  }
+
   /** The frame at the current index. Live getter — re-reads on every access. */
-  readonly currentFrame: Frame;
+  get currentFrame(): Frame {
+    return this.#snippet.frames[this.#index];
+  }
+
   /** Current frame index (0 = initial state, `snippet.frames.length - 1` = final). */
-  readonly frameIndex: number;
+  get frameIndex(): number {
+    return this.#index;
+  }
+
   /** True when `frameIndex === snippet.frames.length - 1`. */
-  readonly done: boolean;
+  get done(): boolean {
+    return this.#index === this.#lastIndex;
+  }
+
   /**
    * Advance one frame. Returns `true` if advanced, `false` if already at the
    * last frame (no-op in that case).
    */
-  forward(): boolean;
+  forward(): boolean {
+    if (this.#index >= this.#lastIndex) return false;
+    this.#index += 1;
+    return true;
+  }
+
   /**
    * Retreat one frame. Returns `true` if retreated, `false` if already at
    * the first frame (no-op in that case).
    */
-  back(): boolean;
-  /** Jump to frame 0. */
-  reset(): void;
-  /**
-   * Jump to a specific frame index. Throws `RangeError` if out of bounds.
-   */
-  goTo(frameIndex: number): void;
-};
-
-/**
- * Create a fresh `SnippetPlayer` positioned at frame 0.
- *
- * Throws if the snippet has no frames. Each `createSnippetPlayer` call
- * yields an independent player — the same `Snippet` can drive any number
- * of concurrent players (frame storage is shared and read-only).
- */
-export function createSnippetPlayer(snippet: Snippet): SnippetPlayer {
-  if (snippet.frames.length === 0) {
-    throw new Error('createSnippetPlayer: snippet has no frames');
+  back(): boolean {
+    if (this.#index <= 0) return false;
+    this.#index -= 1;
+    return true;
   }
-  const lastIndex = snippet.frames.length - 1;
-  let idx = 0;
-  return {
-    get currentFrame() { return snippet.frames[idx]; },
-    get frameIndex() { return idx; },
-    get done() { return idx === lastIndex; },
-    forward() {
-      if (idx >= lastIndex) return false;
-      idx += 1;
-      return true;
-    },
-    back() {
-      if (idx <= 0) return false;
-      idx -= 1;
-      return true;
-    },
-    reset() { idx = 0; },
-    goTo(target: number) {
-      if (!Number.isInteger(target) || target < 0 || target > lastIndex) {
-        throw new RangeError(
-          `createSnippetPlayer.goTo: frame index ${target} out of bounds [0, ${lastIndex}]`,
-        );
-      }
-      idx = target;
-    },
-  };
+
+  /** Jump to frame 0. */
+  reset(): void {
+    this.#index = 0;
+  }
+
+  /**
+   * Jump to a specific frame index. Throws `RangeError` if out of bounds
+   * (negative, beyond the last frame, or not an integer).
+   */
+  goTo(frameIndex: number): void {
+    if (!Number.isInteger(frameIndex) || frameIndex < 0 || frameIndex > this.#lastIndex) {
+      throw new RangeError(
+        `SnippetPlayer.goTo: frame index ${frameIndex} out of bounds [0, ${this.#lastIndex}]`,
+      );
+    }
+    this.#index = frameIndex;
+  }
 }

@@ -104,7 +104,7 @@ formatStep(machineState): string    // alpha.6 MachineState-based formatter; kep
 recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }): Snippet
 
 // Playback
-createSnippetPlayer(snippet): SnippetPlayer
+new SnippetPlayer(snippet)
 ```
 
 The 16-rule contract `applyHighlight` satisfies is documented at [`docs/graph-highlight-and-breakpoints.md`](./docs/graph-highlight-and-breakpoints.md).
@@ -245,11 +245,11 @@ const snippet = recordSnippet({
 
 ```ts
 import {
-  applyHighlight, createSnippetPlayer, indexGraph,
+  applyHighlight, SnippetPlayer, indexGraph,
   type HighlightOps, type Snippet,
 } from '@turing-machine-js/visuals';
 
-const player = createSnippetPlayer(snippet);
+const player = new SnippetPlayer(snippet);
 const indexes = indexGraph(snippet.graph);
 let prev: Parameters<typeof applyHighlight>[3] = null;
 
@@ -274,7 +274,7 @@ nextBtn.onclick = () => { if (player.forward()) render(ops, renderTape); };
 replayBtn.onclick = () => { player.reset();     render(ops, renderTape); };
 ```
 
-`createSnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only).
+`SnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only). Mirrors the engine's `DebugSession` shape — stateful playback driver for live runs vs prerecorded runs.
 
 ## Versioning
 

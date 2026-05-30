@@ -10,7 +10,7 @@ import {
   movements,
 } from '@turing-machine-js/machine';
 import { recordSnippet } from './recordSnippet';
-import { createSnippetPlayer } from './snippetPlayer';
+import { SnippetPlayer } from './snippetPlayer';
 import type { Snippet } from './types';
 
 function buildTwoAMachine() {
@@ -34,21 +34,21 @@ function buildSnippet(): Snippet {
   return recordSnippet({ machine, initialState, graph, alphabets });
 }
 
-describe('createSnippetPlayer', () => {
+describe('SnippetPlayer', () => {
   it('throws if the snippet has no frames', () => {
     const empty: Snippet = { version: 1, graph: {} as never, alphabets: [], frames: [] };
-    expect(() => createSnippetPlayer(empty)).toThrow(/no frames/);
+    expect(() => new SnippetPlayer(empty)).toThrow(/no frames/);
   });
 
   it('starts at frame 0', () => {
-    const p = createSnippetPlayer(buildSnippet());
+    const p = new SnippetPlayer(buildSnippet());
     expect(p.frameIndex).toBe(0);
     expect(p.currentFrame.step).toBe(0);
   });
 
   it('done is true only at the last frame', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     expect(p.done).toBe(false);
     while (p.forward()) { /* advance */ }
     expect(p.frameIndex).toBe(snippet.frames.length - 1);
@@ -57,7 +57,7 @@ describe('createSnippetPlayer', () => {
 
   it('forward advances and returns true; returns false at end', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     for (let i = 1; i < snippet.frames.length; i += 1) {
       expect(p.forward()).toBe(true);
       expect(p.frameIndex).toBe(i);
@@ -68,7 +68,7 @@ describe('createSnippetPlayer', () => {
 
   it('back retreats and returns true; returns false at start', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     p.goTo(snippet.frames.length - 1);
     for (let i = snippet.frames.length - 2; i >= 0; i -= 1) {
       expect(p.back()).toBe(true);
@@ -79,7 +79,7 @@ describe('createSnippetPlayer', () => {
   });
 
   it('reset returns to frame 0', () => {
-    const p = createSnippetPlayer(buildSnippet());
+    const p = new SnippetPlayer(buildSnippet());
     p.forward();
     p.forward();
     p.reset();
@@ -89,7 +89,7 @@ describe('createSnippetPlayer', () => {
 
   it('goTo jumps to a specific frame', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     p.goTo(snippet.frames.length - 1);
     expect(p.frameIndex).toBe(snippet.frames.length - 1);
     expect(p.currentFrame).toBe(snippet.frames[snippet.frames.length - 1]);
@@ -99,7 +99,7 @@ describe('createSnippetPlayer', () => {
 
   it('goTo throws RangeError on out-of-bounds index', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     expect(() => p.goTo(-1)).toThrow(RangeError);
     expect(() => p.goTo(snippet.frames.length)).toThrow(RangeError);
     expect(() => p.goTo(1.5)).toThrow(RangeError);
@@ -107,7 +107,7 @@ describe('createSnippetPlayer', () => {
 
   it('currentFrame is a live getter — reflects index changes', () => {
     const snippet = buildSnippet();
-    const p = createSnippetPlayer(snippet);
+    const p = new SnippetPlayer(snippet);
     const first = p.currentFrame;
     p.forward();
     const second = p.currentFrame;
@@ -117,8 +117,8 @@ describe('createSnippetPlayer', () => {
 
   it('two players over the same snippet are independent', () => {
     const snippet = buildSnippet();
-    const a = createSnippetPlayer(snippet);
-    const b = createSnippetPlayer(snippet);
+    const a = new SnippetPlayer(snippet);
+    const b = new SnippetPlayer(snippet);
     a.forward();
     a.forward();
     expect(a.frameIndex).toBe(2);
