@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/visuals",
-  "version": "7.0.0-alpha.6",
+  "version": "7.0.0-alpha.6.1",
   "description": "Pure highlight + graph-indexing logic for @turing-machine-js/machine — no DOM, no renderer.",
   "engines": {
     "npm": ">=7.0.0"
