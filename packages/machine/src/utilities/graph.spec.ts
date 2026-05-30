@@ -690,6 +690,21 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     // The continuation Y joins A's frame (the fix).
     expect(nodeY.frameId).toBe(nodeA.frameId);
 
+    // The wrapper itself (the call site that A's body invokes) ALSO joins
+    // A's frame — wrappers are call-site markers semantically owned by the
+    // caller, so they render inside the caller's subgraph.
+    const wrapperNodes = Object.values(graph.nodes).filter((n) => n.isWrapper);
+    // Two wrappers in this graph: the dispatcher's wohs(A, aftermath) AND
+    // A's body's wohs(X, Y). The latter (bareStateId === X.id) is the one
+    // owned by A. The former (bareStateId === A.id) is owned by the
+    // top-level dispatcher and stays unframed.
+    const wrapperInsideA = wrapperNodes.find((w) => w.bareStateId === X.id);
+    const wrapperAroundA = wrapperNodes.find((w) => w.bareStateId === A.id);
+    expect(wrapperInsideA).toBeDefined();
+    expect(wrapperAroundA).toBeDefined();
+    expect(wrapperInsideA!.frameId).toBe(nodeA.frameId);
+    expect(wrapperAroundA!.frameId).toBeNull();
+
     // Y's halt-bound transitions retarget to A's frame halt marker
     // (id = -frameId, isHaltMarker), NOT to top-level halt s0.
     for (const t of nodeY.transitions) {
@@ -704,6 +719,13 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     expect(graph.nodes[0]).toBeDefined();
     expect(graph.nodes[0].isHalt).toBe(true);
     expect(graph.nodes[0].isHaltMarker).toBe(false);
+
+    // Mermaid emit: the framed wrapper renders INSIDE A's subgraph (with
+    // the `[[name]]` wrapper shape), not at top level.
+    const out = toMermaid(graph);
+    expect(out).toMatch(new RegExp(
+      `subgraph w_${nodeA.frameId}\\[[^\\n]*\\n(?:[^\\n]*\\n)*?\\s+s${wrapperInsideA!.id}\\[\\[`,
+    ));
   });
 
   test('wrapper-chain continuations tunnel multi-hop (continuation IS another wrapper)', () => {
