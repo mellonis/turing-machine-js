@@ -12,6 +12,9 @@
     },
     {
       "path": "packages/machine/tsconfig.build.json"
+    },
+    {
+      "path": "packages/visuals/tsconfig.json"
     }
   ]
 }
