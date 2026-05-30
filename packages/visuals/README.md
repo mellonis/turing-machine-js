@@ -102,6 +102,10 @@ formatStep(machineState): string    // alpha.6 MachineState-based formatter; kep
 
 // Recording
 recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }): Snippet
+
+// Playback
+new SnippetPlayer(snippet)
+tapeViewport(snapshot, width, blank): { cells, headIndex }
 ```
 
 The 16-rule contract `applyHighlight` satisfies is documented at [`docs/graph-highlight-and-breakpoints.md`](./docs/graph-highlight-and-breakpoints.md).
@@ -237,6 +241,64 @@ const snippet = recordSnippet({
 ```
 
 `Frame.commands` carries both `read` and `write` per tape so a player can step forward (write `write`, move per `movement`, flash if `write !== read`) AND backward (move opposite of `movement`, restore `read`) without diffing neighbouring frames.
+
+## Example: playing a snippet
+
+```ts
+import {
+  applyHighlight, indexGraph, SnippetPlayer,
+  type Frame, type HighlightOps,
+} from '@turing-machine-js/visuals';
+
+// Build a HighlightOps over your SVG / renderer — see the
+// "Example: applying highlight in a DOM renderer" above for the
+// concrete `domOps(svgRoot)` factory.
+declare const ops: HighlightOps;
+
+// Render a frame's tape state into your UI — app-specific (Svelte,
+// React, vanilla, ANSI, …). For a fixed-width centered window padded
+// with the alphabet's blank, see `tapeViewport(snap, width, blank)` below.
+declare function renderTape(tape: Frame['tape']): void;
+
+// Buttons your UI exposes — strictly illustrative.
+declare const prevBtn: HTMLButtonElement;
+declare const nextBtn: HTMLButtonElement;
+declare const replayBtn: HTMLButtonElement;
+
+const player = new SnippetPlayer(snippet);
+const indexes = indexGraph(snippet.graph);
+let prev: Parameters<typeof applyHighlight>[3] = null;
+
+function applyFrame(): void {
+  const frame = player.currentFrame;
+  // (consumer is responsible for wiping previous highlight classes from
+  // the DOM before each applyHighlight call — see the highlight example above.)
+  if (frame.highlight) {
+    prev = applyHighlight(frame.highlight, snippet.graph, indexes, prev, ops).nextPrev;
+  }
+  renderTape(frame.tape);
+}
+
+// One AbortController scopes both the auto-play timer and the click
+// listeners — call controller.abort() in your component teardown
+// (Svelte onDestroy / React useEffect cleanup / etc.).
+const controller = new AbortController();
+const { signal } = controller;
+
+// Auto-play forward at a fixed cadence:
+const id = setInterval(() => {
+  if (!player.forward()) { clearInterval(id); return; }
+  applyFrame();
+}, 800);
+signal.addEventListener('abort', () => clearInterval(id), { once: true });
+
+// Bi-directional scrub:
+prevBtn.addEventListener('click', () => { if (player.back())    applyFrame(); }, { signal });
+nextBtn.addEventListener('click', () => { if (player.forward()) applyFrame(); }, { signal });
+replayBtn.addEventListener('click', () => { player.reset();     applyFrame(); }, { signal });
+```
+
+`SnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only). Mirrors the engine's `DebugSession` shape — stateful playback driver for live runs vs prerecorded runs.
 
 ## Versioning
 

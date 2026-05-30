@@ -4,6 +4,19 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.7.1] - 2026-05-30
+
+### Added
+
+- **`tapeViewport(snapshot, width, blank): { cells, headIndex }`** — fixed-width window of tape cells centered on the head. The engine's `Tape` class exposes a `viewport` getter for the live tape; this is the equivalent for `TapeSnapshot` (the wire-data shape carried in `Frame.tape`). Cells outside the snapshot's `symbols` array are padded with `blank`, so the result always has exactly `width` entries. `headIndex` is deterministic at `Math.floor(width / 2)` and is exposed for caller convenience (and to leave room for future non-centered policies without a signature break). Throws `RangeError` on non-positive or non-integer width.
+
+- **`SnippetPlayer`** — pure-state playback driver for a `Snippet`. `new SnippetPlayer(snippet)` returns an instance exposing `currentFrame` / `frameIndex` / `done` getters plus `forward()` / `back()` / `reset()` / `goTo(idx)`. Mirrors the engine's `DebugSession` shape (a stateful playback driver for live runs); this is the analogous driver for prerecorded runs. Stateless w.r.t. wall-clock — consumers wire their own ticking (`setInterval`, `requestAnimationFrame`, `IntersectionObserver`); renderer-agnostic — consumers read `currentFrame` and apply it however they like (typically `applyHighlight(snippet.graph, frame.highlight, ops)` for the state graph plus app-specific tape rendering). Two players over the same `Snippet` are independent (frame storage is shared and read-only). `forward()` / `back()` return a `boolean` (true if moved, false at end/start — no-op in that case); `goTo(idx)` throws `RangeError` on out-of-bounds.
+
+### Compatibility
+
+- Engine + builder + library-binary-numbers + library-binary-numbers-bare stay at `7.0.0-alpha.7` — no changes there. Visuals-only follow-up patch, mirroring the alpha.6.1 precedent for additive consumer-package enhancements.
+- Peer dep `@turing-machine-js/machine: ^7.0.0-alpha.7` unchanged (semver-prerelease caret already accepts `alpha.7.1`).
+
 ## [7.0.0-alpha.7] - 2026-05-30
 
 Lockstep re-alignment with the engine 7.0.0-alpha.7 bump (engine [#213](https://github.com/mellonis/turing-machine-js/issues/213) `CallFrame` extraction + [#223](https://github.com/mellonis/turing-machine-js/issues/223) `toMermaid` framed-wrapper emit fix). No source or behavior changes in this package since alpha.6.1. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.

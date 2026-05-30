@@ -18,3 +18,5 @@ export {
   type StepTokens,
 } from './format';
 export { recordSnippet, type RecordSnippetOptions } from './recordSnippet';
+export { SnippetPlayer } from './snippetPlayer';
+export { tapeViewport } from './tapeViewport';
