@@ -5,6 +5,8 @@
 
 A composable Turing-machine engine for JavaScript: multi-tape, subroutine composition via `withOverriddenHaltState`, Mermaid round-trip, and runtime breakpoints.
 
+For runtime highlight + breakpoint rendering on top of the engine's `Graph`, plus a byte-identical edge-label formatter and snippet-recording artifacts, see the companion package [`@turing-machine-js/visuals`](../visuals).
+
 <details>
 <summary>Table of contents</summary>
 
