@@ -4,3 +4,5 @@ export { recordingOps } from './highlightOps';
 export { bareIdOf, highlightExpand, equivalentIds } from './graphUtils';
 export type { GraphIndexes } from './graphIndexes';
 export { indexGraph } from './graphIndexes';
+export type { GraphHighlight } from './types';
+export { applyHighlight, applyIndicator } from './applyHighlight';
