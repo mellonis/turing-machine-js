@@ -48,25 +48,29 @@ export type TapeSnapshot = {
  * `tape` is per-tape (single-tape machines: length 1). `highlight` describes
  * what to render on the state graph at this moment (null when no highlight).
  * `log` is optional pre-formatted text — a caption / status line consumers can render.
- * `commands` carries the per-tape engine command for the iter that produced this frame.
- * Undefined on frame 0 (initial state — no transition has fired yet).
- * `movement` drives the tape slide direction; `symbol === null` means keep (no write —
- * UI skips the per-cell flash); a non-null `symbol` is the literal that was written to
- * the just-vacated cell.
  */
 export type Frame = {
   step: number;
   tape: TapeSnapshot[];
   /**
-   * Per-tape engine command for the iter that produced this frame.
+   * Per-tape engine command for the iter that produced this frame. Carries
+   * both sides of the cell so players can step bi-directionally without
+   * recomputing from neighbouring frames:
+   *
+   * - `movement` — `'L' | 'R' | 'S'`. Forward step slides the tape this way;
+   *   backward step slides the opposite.
+   * - `read` — symbol on the head's cell BEFORE this iter (what the engine
+   *   matched). Backward step writes this back.
+   * - `write` — symbol on the cell AFTER this iter (=== `read` if no write
+   *   happened). Forward step writes this; UI triggers the per-cell flash
+   *   iff `write !== read`.
+   *
    * Undefined on frame 0 (initial state — no transition has fired yet).
-   * `movement` drives the tape slide direction; `symbol === null` means
-   * keep (no write — UI skips the per-cell flash); a non-null `symbol`
-   * is the literal that was written to the just-vacated cell.
    */
   commands?: {
     movement: 'L' | 'R' | 'S';
-    symbol: string | null;
+    read: string;
+    write: string;
   }[];
   highlight: GraphHighlight | null;
   log?: string;

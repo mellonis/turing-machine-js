@@ -75,23 +75,24 @@ describe('recordSnippet', () => {
   });
 
   describe('per-iter frame commands', () => {
-    it('frame 1: write "b", move R', () => {
+    it('frame 1: read "a", write "b", move R', () => {
       const { machine, initialState, graph, alphabets } = buildTwoAMachine();
       const snippet = recordSnippet({ machine, initialState, graph, alphabets });
-      expect(snippet.frames[1].commands).toEqual([{ movement: 'R', symbol: 'b' }]);
+      expect(snippet.frames[1].commands).toEqual([{ movement: 'R', read: 'a', write: 'b' }]);
     });
 
-    it('frame 2: write "b", move R', () => {
+    it('frame 2: read "a", write "b", move R', () => {
       const { machine, initialState, graph, alphabets } = buildTwoAMachine();
       const snippet = recordSnippet({ machine, initialState, graph, alphabets });
-      expect(snippet.frames[2].commands).toEqual([{ movement: 'R', symbol: 'b' }]);
+      expect(snippet.frames[2].commands).toEqual([{ movement: 'R', read: 'a', write: 'b' }]);
     });
 
-    it('frame 3 (halt iter): symbol null (keep), movement S (stay)', () => {
+    it('frame 3 (halt iter): read===write (keep), movement S (stay)', () => {
       const { machine, initialState, graph, alphabets } = buildTwoAMachine();
       const snippet = recordSnippet({ machine, initialState, graph, alphabets });
-      // halt-bound transition has default command: keep + stay
-      expect(snippet.frames[3].commands).toEqual([{ movement: 'S', symbol: null }]);
+      // halt-bound transition has default command: keep + stay; blank cell read+written
+      const blank = snippet.frames[3].commands![0].read;
+      expect(snippet.frames[3].commands).toEqual([{ movement: 'S', read: blank, write: blank }]);
     });
   });
 
@@ -252,8 +253,8 @@ describe('recordSnippet', () => {
     });
   });
 
-  describe('keep command → symbol null', () => {
-    it('a keep+stay command produces symbol: null in commands', () => {
+  describe('keep command → read === write', () => {
+    it('a keep+stay command yields read === write in commands', () => {
       const alphabet = new Alphabet([' ', 'a']);
       const tape = new Tape({ alphabet, symbols: ['a'] });
       const tapeBlock = TapeBlock.fromTapes([tape]);
@@ -268,7 +269,7 @@ describe('recordSnippet', () => {
       const alphabets = [['a', ' ']];
 
       const snippet = recordSnippet({ machine, initialState, graph, alphabets });
-      expect(snippet.frames[1].commands![0]).toEqual({ movement: 'S', symbol: null });
+      expect(snippet.frames[1].commands![0]).toEqual({ movement: 'S', read: 'a', write: 'a' });
     });
   });
 });

@@ -41,14 +41,13 @@ function snapshotTapes(machine: TuringMachine): TapeSnapshot[] {
 function deriveCommands(
   m: MachineState,
 ): NonNullable<Frame['commands']> {
-  return m.movements.map((mv, i) => {
-    const movement = MOVEMENT_LETTER.get(mv) ?? 'S';
-    // nextSymbols is already resolved (keep → current symbol, erase → blank).
-    // If it equals the current symbol the command is "keep" → null (no write flash).
-    const written =
-      m.nextSymbols[i] !== m.currentSymbols[i] ? m.nextSymbols[i] : null;
-    return { movement, symbol: written };
-  });
+  return m.movements.map((mv, i) => ({
+    movement: MOVEMENT_LETTER.get(mv) ?? 'S',
+    read: m.currentSymbols[i],
+    // nextSymbols is already resolved (keep → current symbol, erase → blank);
+    // when write === read the command was a keep (UI suppresses the flash).
+    write: m.nextSymbols[i],
+  }));
 }
 
 function deriveHighlight(m: MachineState, graph: Graph): GraphHighlight {
