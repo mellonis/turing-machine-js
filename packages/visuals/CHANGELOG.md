@@ -9,8 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - `formatStepNotation(reads, commands, blanks, matchKinds?)` — engine edge-label format primitive, matches `toMermaid` emit byte-for-byte. Per-cell encoding: literal `'X'`, blank shortcut `B`, wildcard `*='X'` (shows what `ifOtherSymbol` caught), keep-with-concrete-symbol `K='X'` / `K=B`, erase `E`. Multi-tape comma-separated within one outer bracket per role. Pass `reads === null` for the manual-Apply path (no transition fired) — output collapses to `[writes]/[moves]`. Folds in the richness machines-demo's local `format.ts` had so demo can drop the local helper and call visuals's primitive directly.
+- `tokenizeStep(reads, commands, blanks, matchKinds?)` + `ReadToken` / `WriteToken` / `StepTokens` types — renderer-agnostic structured form of one step. Same input contract as `formatStepNotation`; returns discriminated-union tokens per cell (`{ kind: 'literal' | 'blank' | 'wildcard', ... }` for reads, `{ kind: 'literal' | 'erase' | 'keep', ... }` for writes). Consumers wanting custom rendering — HTML spans with CSS classes for syntax highlighting, ANSI-colored terminal output, alternative move vocabulary, clickable cells — walk the tokens themselves. `formatStepNotation` is refactored to be a thin string renderer over `tokenizeStep` (output byte-identical).
 - `formatTape(tape)` — inline tape rendering with the head bracketed in place (`a[b]c`).
-- `StepCommand` — plain per-tape command shape (`{ movement: 'L' | 'R' | 'S'; symbol: string | null }`) consumed by `formatStepNotation`. Distinct from the engine's `TapeCommand` class; matches the shape machines-demo's worker boundary exposes.
+- `StepCommand` — plain per-tape command shape (`{ movement: 'L' | 'R' | 'S'; symbol: string | null }`) consumed by `formatStepNotation` and `tokenizeStep`. Distinct from the engine's `TapeCommand` class; matches the shape machines-demo's worker boundary exposes.
 
 ### Compatibility
 

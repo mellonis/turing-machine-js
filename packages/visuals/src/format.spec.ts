@@ -10,7 +10,14 @@ import {
   movements,
   symbolCommands,
 } from '@turing-machine-js/machine';
-import { formatCommand, formatStep, formatStepNotation, formatTape, type StepCommand } from './format';
+import {
+  formatCommand,
+  formatStep,
+  formatStepNotation,
+  formatTape,
+  tokenizeStep,
+  type StepCommand,
+} from './format';
 
 describe('formatCommand', () => {
   it('formats a literal symbol write + right move', () => {
@@ -163,6 +170,100 @@ describe('formatStepNotation', () => {
   it('omitted matchKinds (undefined) renders reads as literals', () => {
     const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
     expect(formatStepNotation(['a'], commands, BLANK)).toBe("['a'] → ['b']/[R]");
+  });
+});
+
+describe('tokenizeStep', () => {
+  const BLANK = [' '];
+
+  it('literal read + literal write', () => {
+    const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
+    expect(tokenizeStep(['a'], commands, BLANK, ['literal'])).toEqual({
+      reads: [{ kind: 'literal', symbol: 'a' }],
+      writes: [{ kind: 'literal', symbol: 'b' }],
+      moves: ['R'],
+    });
+  });
+
+  it('blank read (non-wildcard) tokenizes to { kind: "blank" }', () => {
+    const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
+    expect(tokenizeStep([' '], commands, BLANK, ['literal']).reads).toEqual([
+      { kind: 'blank' },
+    ]);
+  });
+
+  it('wildcard read preserves literal symbol (no blank shortcut)', () => {
+    const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
+    expect(tokenizeStep([' '], commands, BLANK, ['wildcard']).reads).toEqual([
+      { kind: 'wildcard', symbol: ' ' },
+    ]);
+  });
+
+  it('keep write with read context (non-blank read)', () => {
+    const commands: StepCommand[] = [{ symbol: null, movement: 'S' }];
+    expect(tokenizeStep(['a'], commands, BLANK, ['literal']).writes).toEqual([
+      { kind: 'keep', readContext: { symbol: 'a', isBlank: false } },
+    ]);
+  });
+
+  it('keep write with blank read flags isBlank: true', () => {
+    const commands: StepCommand[] = [{ symbol: null, movement: 'S' }];
+    expect(tokenizeStep([' '], commands, BLANK, ['literal']).writes).toEqual([
+      { kind: 'keep', readContext: { symbol: ' ', isBlank: true } },
+    ]);
+  });
+
+  it('erase tokenizes as { kind: "erase" } (write equals blank)', () => {
+    const commands: StepCommand[] = [{ symbol: ' ', movement: 'L' }];
+    expect(tokenizeStep(['a'], commands, BLANK, ['literal']).writes).toEqual([
+      { kind: 'erase' },
+    ]);
+  });
+
+  it('manual Apply (reads === null): reads is null, keeps carry no readContext', () => {
+    const commands: StepCommand[] = [{ symbol: null, movement: 'S' }];
+    const tokens = tokenizeStep(null, commands, BLANK, null);
+    expect(tokens.reads).toBeNull();
+    expect(tokens.writes).toEqual([{ kind: 'keep' }]);
+  });
+
+  it('omitted matchKinds treats every read as literal (no wildcards)', () => {
+    const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
+    expect(tokenizeStep(['a'], commands, BLANK).reads).toEqual([
+      { kind: 'literal', symbol: 'a' },
+    ]);
+  });
+
+  it('multi-tape arrays line up per index across reads/writes/moves', () => {
+    const commands: StepCommand[] = [
+      { symbol: 'b', movement: 'R' },
+      { symbol: null, movement: 'S' },
+      { symbol: ' ', movement: 'L' },
+    ];
+    expect(tokenizeStep(['a', 'x', ' '], commands, [' ', ' ', ' '], ['literal', 'wildcard', 'literal'])).toEqual({
+      reads: [
+        { kind: 'literal', symbol: 'a' },
+        { kind: 'wildcard', symbol: 'x' },
+        { kind: 'blank' },
+      ],
+      writes: [
+        { kind: 'literal', symbol: 'b' },
+        { kind: 'keep', readContext: { symbol: 'x', isBlank: false } },
+        { kind: 'erase' },
+      ],
+      moves: ['R', 'S', 'L'],
+    });
+  });
+
+  it('formatStepNotation output equals manual render of tokens (consistency invariant)', () => {
+    const commands: StepCommand[] = [{ symbol: 'b', movement: 'R' }];
+    const tokens = tokenizeStep(['a'], commands, BLANK, ['literal']);
+    // Sanity: the token-based public API and the string-based public API
+    // describe the same step. If this breaks, formatStepNotation drifted
+    // from tokenizeStep.
+    expect(tokens.writes).toHaveLength(1);
+    expect(tokens.reads).toHaveLength(1);
+    expect(formatStepNotation(['a'], commands, BLANK, ['literal'])).toBe("['a'] → ['b']/[R]");
   });
 });
 

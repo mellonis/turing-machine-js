@@ -64,11 +64,124 @@ export function formatStep(m: MachineState): string {
 }
 
 /**
+ * Per-tape read-cell token. Discriminated union for renderer-agnostic
+ * consumption — UIs map each variant to their own presentation (plain
+ * string via `formatStepNotation`, HTML span with CSS class, ANSI color,
+ * clickable token, etc.). `formatStepNotation` is the default string
+ * renderer over these tokens.
+ *
+ * - `literal` — the engine matched this exact symbol non-wildcard.
+ * - `blank` — the matched symbol is the tape's blank glyph; renderers
+ *   commonly want a `B`-style shortcut instead of `' '`.
+ * - `wildcard` — the engine matched via `ifOtherSymbol`. The literal
+ *   `symbol` is preserved so renderers can show what the catch-all
+ *   actually caught (a blank-shortcut would obscure it).
+ */
+export type ReadToken =
+  | { kind: 'literal'; symbol: string }
+  | { kind: 'blank' }
+  | { kind: 'wildcard'; symbol: string };
+
+/**
+ * Per-tape write-cell token.
+ *
+ * - `literal` — engine wrote this exact symbol; not a blank, not a keep.
+ * - `erase` — engine wrote the tape's blank glyph; rendered as `E` by
+ *   `formatStepNotation` but structurally distinct from a generic blank
+ *   write so renderers can style "erase" differently from "write blank as
+ *   the next interesting symbol."
+ * - `keep` — engine left the cell unchanged (`command.symbol === null`).
+ *   `readContext` carries the kept symbol when caller supplied `reads`;
+ *   `isBlank` flags whether the kept symbol equals the tape's blank glyph.
+ *   No `readContext` means manual-Apply path (no transition fired, no
+ *   per-tape read available).
+ */
+export type WriteToken =
+  | { kind: 'literal'; symbol: string }
+  | { kind: 'erase' }
+  | { kind: 'keep'; readContext?: { symbol: string; isBlank: boolean } };
+
+/**
+ * Structured-token representation of one step. `formatStepNotation` is the
+ * default string renderer over this shape; consumers wanting custom
+ * rendering (HTML spans, alternative vocabulary, clickable cells, ANSI
+ * colors) call `tokenizeStep` and walk the tokens themselves.
+ *
+ * `reads === null` denotes the manual-Apply path (no transition fired);
+ * all read-side encoding is suppressed and `keep` writes carry no
+ * `readContext`.
+ */
+export type StepTokens = {
+  reads: readonly ReadToken[] | null;
+  writes: readonly WriteToken[];
+  moves: readonly ('L' | 'R' | 'S')[];
+};
+
+/**
+ * Tokenize one step's per-tape data into renderer-agnostic structured
+ * form. Same input contract as `formatStepNotation` — same engine
+ * vocabulary, same null-`reads` manual-Apply handling, same wildcard
+ * suppression of the blank shortcut. Use this when you need to render the
+ * step in a non-string medium (HTML, terminal escape codes, JSON for
+ * embeds) or just want different syntax than the default string output.
+ */
+export function tokenizeStep(
+  reads: readonly string[] | null,
+  commands: readonly StepCommand[],
+  blanks: readonly string[],
+  matchKinds?: readonly ('wildcard' | 'literal')[] | null,
+): StepTokens {
+  const writes: WriteToken[] = commands.map((c, i) => {
+    if (c.symbol === null) {
+      if (reads !== null) {
+        const r = reads[i];
+        if (r !== undefined) {
+          return { kind: 'keep', readContext: { symbol: r, isBlank: r === blanks[i] } };
+        }
+      }
+      return { kind: 'keep' };
+    }
+    if (c.symbol === blanks[i]) return { kind: 'erase' };
+    return { kind: 'literal', symbol: c.symbol };
+  });
+
+  const moves = commands.map((c) => c.movement);
+
+  if (reads === null) {
+    return { reads: null, writes, moves };
+  }
+
+  const readTokens: ReadToken[] = reads.map((r, i) => {
+    if (matchKinds?.[i] === 'wildcard') return { kind: 'wildcard', symbol: r };
+    if (r === blanks[i]) return { kind: 'blank' };
+    return { kind: 'literal', symbol: r };
+  });
+
+  return { reads: readTokens, writes, moves };
+}
+
+function renderReadToken(t: ReadToken): string {
+  if (t.kind === 'wildcard') return `*='${t.symbol}'`;
+  if (t.kind === 'blank') return 'B';
+  return `'${t.symbol}'`;
+}
+
+function renderWriteToken(t: WriteToken): string {
+  if (t.kind === 'erase') return 'E';
+  if (t.kind === 'literal') return `'${t.symbol}'`;
+  if (!t.readContext) return 'K';
+  if (t.readContext.isBlank) return 'K=B';
+  return `K='${t.readContext.symbol}'`;
+}
+
+/**
  * Engine edge-label format — `[reads] → [writes]/[moves]`. Matches
  * `toMermaid` emit byte-for-byte so a logged step's notation lines up with
- * the same transition's edge label in the rendered state graph.
+ * the same transition's edge label in the rendered state graph. Thin
+ * string renderer over `tokenizeStep`; see that function's docstring +
+ * `StepTokens` for the structured form most UIs should prefer.
  *
- * Per-cell encoding:
+ * Per-cell rendering:
  * - Read cell: `'X'` (literal) | `B` (blank, NON-wildcard only) | `*='X'`
  *   (wildcard — shows what `ifOtherSymbol` caught; the `B` shortcut is
  *   suppressed for wildcards so the matched literal is always visible).
@@ -80,10 +193,10 @@ export function formatStep(m: MachineState): string {
  * Multi-tape: per-tape entries comma-separated inside one outer bracket
  * per role — `['1','a'] → ['0','b']/[R,L]`.
  *
- * Pass `reads === null` for the manual-Apply path (no transition fired):
- * output collapses to `[writes]/[moves]` and `K` renders without read
- * context. Pass `matchKinds === null`/omit when no transition fired:
- * every position renders as a literal (no wildcard markers).
+ * Pass `reads === null` for the manual-Apply path: output collapses to
+ * `[writes]/[moves]` and `K` renders without read context. Pass
+ * `matchKinds === null`/omit when no transition fired: every position
+ * renders as a literal (no wildcard markers).
  */
 export function formatStepNotation(
   reads: readonly string[] | null,
@@ -91,30 +204,12 @@ export function formatStepNotation(
   blanks: readonly string[],
   matchKinds?: readonly ('wildcard' | 'literal')[] | null,
 ): string {
-  const writes = commands
-    .map((c, i) => {
-      if (c.symbol === null) {
-        if (reads !== null) {
-          const r = reads[i];
-          if (r !== undefined) return r === blanks[i] ? 'K=B' : `K='${r}'`;
-        }
-        return 'K';
-      }
-      if (c.symbol === blanks[i]) return 'E';
-      return `'${c.symbol}'`;
-    })
-    .join(',');
-  const moves = commands.map((c) => c.movement).join(',');
-  const writesPart = `[${writes}]/[${moves}]`;
-
-  if (reads === null) return writesPart;
-
-  const readsStr = reads
-    .map((r, i) => {
-      if (matchKinds?.[i] === 'wildcard') return `*='${r}'`;
-      return r === blanks[i] ? 'B' : `'${r}'`;
-    })
-    .join(',');
+  const tokens = tokenizeStep(reads, commands, blanks, matchKinds);
+  const writesStr = tokens.writes.map(renderWriteToken).join(',');
+  const movesStr = tokens.moves.join(',');
+  const writesPart = `[${writesStr}]/[${movesStr}]`;
+  if (tokens.reads === null) return writesPart;
+  const readsStr = tokens.reads.map(renderReadToken).join(',');
   return `[${readsStr}] → ${writesPart}`;
 }
 
