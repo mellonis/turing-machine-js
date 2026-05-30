@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/library-binary-numbers-bare",
-  "version": "7.0.0-alpha.6",
+  "version": "7.0.0-alpha.7",
   "description": "Single-number binary arithmetic on a 3-symbol alphabet (blank, 0, 1) — same operations as @turing-machine-js/library-binary-numbers but without ^/$ markers. Side-by-side with the marker-based library for learning the trade-off.",
   "engines": {
     "npm": ">=7.0.0"
@@ -28,7 +28,7 @@
     "teaching"
   ],
   "peerDependencies": {
-    "@turing-machine-js/machine": "^7.0.0-alpha.6"
+    "@turing-machine-js/machine": "^7.0.0-alpha.7"
   },
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/library-binary-numbers-bare",
