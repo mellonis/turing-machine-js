@@ -48,10 +48,26 @@ export type TapeSnapshot = {
  * `tape` is per-tape (single-tape machines: length 1). `highlight` describes
  * what to render on the state graph at this moment (null when no highlight).
  * `log` is optional pre-formatted text — a caption / status line consumers can render.
+ * `commands` carries the per-tape engine command for the iter that produced this frame.
+ * Undefined on frame 0 (initial state — no transition has fired yet).
+ * `movement` drives the tape slide direction; `symbol === null` means keep (no write —
+ * UI skips the per-cell flash); a non-null `symbol` is the literal that was written to
+ * the just-vacated cell.
  */
 export type Frame = {
   step: number;
   tape: TapeSnapshot[];
+  /**
+   * Per-tape engine command for the iter that produced this frame.
+   * Undefined on frame 0 (initial state — no transition has fired yet).
+   * `movement` drives the tape slide direction; `symbol === null` means
+   * keep (no write — UI skips the per-cell flash); a non-null `symbol`
+   * is the literal that was written to the just-vacated cell.
+   */
+  commands?: {
+    movement: 'L' | 'R' | 'S';
+    symbol: string | null;
+  }[];
   highlight: GraphHighlight | null;
   log?: string;
 };

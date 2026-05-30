@@ -7,3 +7,4 @@ export { indexGraph } from './graphIndexes';
 export type { GraphHighlight, TapeSnapshot, Frame, Snippet } from './types';
 export { applyHighlight, applyIndicator } from './applyHighlight';
 export { formatCommand, formatStep } from './format';
+export { recordSnippet, type RecordSnippetOptions } from './recordSnippet';

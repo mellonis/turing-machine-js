@@ -1,6 +1,6 @@
 import { movements, symbolCommands, type MachineState, type TapeCommand } from '@turing-machine-js/machine';
 
-const MOVEMENT_LETTER = new Map<symbol, string>([
+export const MOVEMENT_LETTER = new Map<symbol, 'L' | 'R' | 'S'>([
   [movements.left, 'L'],
   [movements.right, 'R'],
   [movements.stay, 'S'],
