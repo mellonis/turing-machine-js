@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.7] - 2026-05-30
+
+Seventh v7 pre-release. Lands the `CallFrame` extraction ([#213](https://github.com/mellonis/turing-machine-js/issues/213), [PR #218](https://github.com/mellonis/turing-machine-js/pull/218)) and a `toMermaid` framed-wrapper emit fix ([#223](https://github.com/mellonis/turing-machine-js/issues/223), [PR #224](https://github.com/mellonis/turing-machine-js/pull/224)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.7`.
+
+### Added
+
+- **`CallFrame extends State`** ([#213](https://github.com/mellonis/turing-machine-js/issues/213)) — `withOverriddenHaltState`'s wrapper is now a first-class `State` subclass instead of a `State` instance aliasing the bare's private `#symbolToDataMap` / `#debugRef`. Transition lookups and `debug` access delegate to the bare. `instanceof State` is preserved (no breaking surface change), and `instanceof CallFrame` becomes the wrapper discriminator. `CallFrame` is exported additively from the package root.
+
+### Fixed
+
+- **`toMermaid` framed-wrapper emit asymmetry** ([#223](https://github.com/mellonis/turing-machine-js/issues/223)) — `toGraph`'s reach-set previously tunneled through wrappers to their continuation but left the wrappers themselves outside the caller's frame, so framed-wrapper-continuations (e.g. `library-binary-numbers/minusOne`'s `goToNumberStart(invertNumberGoToNumberWithInversion)` inside `invertNumber`'s callable subtree) emitted at the top level, visually disconnected from their owner frame. Fix in `utilities/stateGraph.ts`'s `resolveAndPush` pushes the wrapper itself AND tunnels through `overriddenHaltStateId`, so both join the caller's frame; `utilities/graphFormats.ts` renders framed wrappers inside the owner subgraph with the same `[[…]]` shape. Unframed top-level wrappers still emit outside any subgraph. `library-binary-numbers/states.md` regenerated — only the `minusOne` diagram shape changed.
+
 ## [7.0.0-alpha.6] - 2026-05-28
 
 Sixth v7 pre-release. Lands the debugger step controls ([#102](https://github.com/mellonis/turing-machine-js/issues/102), [PR #214](https://github.com/mellonis/turing-machine-js/pull/214)) and, in doing so, **reshapes the entire debug surface** into three clearly-separated entry points: `run()` is now pure synchronous execution (no callbacks), `runStepByStep` is the minimal pure-iteration primitive (no breakpoint detection), and a new **`DebugSession`** class owns all interactive debugging — events, step controls, throttle, and pause coordination. With #102 the **v7 milestone is feature-complete**; the stable v7.0.0 cut is the only remaining step. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
