@@ -635,6 +635,123 @@ describe('README diagrams: engine-generated outputs', () => {
 //     path compression + ufUnion)
 //   - `callable scope: A ∪ B` subgraph label (graphFormats frameBareNames sort)
 //   - `-. "halt" .->` demand-emit arrow (graphFormats hasNonWrapperEntry path)
+describe('callable-subtree: wrapper continuation joins caller frame (#223)', () => {
+  // When a bare's body invokes a sub-call via `withOverriddenHaltState`, the
+  // wrapper's continuation (the `--> override` arrow in the rendered diagram,
+  // sourced from `overriddenHaltStateId`) is the state the bare's body resumes
+  // at after the inner call returns. Pre-#223 the reach-set sweep stopped
+  // dead at the wrapper, leaving the continuation unframed: it rendered
+  // outside the subgraph and its halt-bound transitions kept pointing at the
+  // top-level halt instead of the bare's frame halt marker. Post-#223, the
+  // sweep tunnels through wrappers via their continuation, so the continuation
+  // (and any further body states it reaches) join the bare's frame.
+  test('after-return continuation state is in the bare frame; its halt retargets to the frame halt marker', () => {
+    const alphabet = new Alphabet([' ', 'a', 'b']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+    const {symbol} = tapeBlock;
+
+    // Inner subroutine X: halts on any symbol (just exists to be called).
+    const X = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'X');
+
+    // Continuation Y: invertNumberGoToNumberWithInversion-shaped — A's bare
+    // returns here after X halts. Y itself halts on 'b' (this halt should
+    // retarget to A's frame halt marker post-#223).
+    const Y = new State({
+      [symbol(['b'])]: {command: {movement: movements.stay}, nextState: haltState},
+      [ifOtherSymbol]: {command: {movement: movements.right}, nextState: haltState},
+    }, 'Y');
+
+    // Bare A: on 'a', calls X with Y as the continuation. Mirrors the
+    // s11 → s10 (= goToNumberStart(invertNumberGoToNumberWithInversion))
+    // shape from library-binary-numbers' invertNumber inside minusOne.
+    const A = new State({
+      [symbol(['a'])]: {command: {movement: movements.stay}, nextState: X.withOverriddenHaltState(Y)},
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'A');
+
+    // Outer wrapper to give A its own frame (A is the bare of this wrapper).
+    const aftermath = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'aftermath');
+
+    const dispatcher = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: A.withOverriddenHaltState(aftermath)},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+
+    const nodeA = graph.nodes[A.id];
+    const nodeY = graph.nodes[Y.id];
+
+    // A is a bare → has its own frame.
+    expect(nodeA.frameId).not.toBeNull();
+    // The continuation Y joins A's frame (the fix).
+    expect(nodeY.frameId).toBe(nodeA.frameId);
+
+    // Y's halt-bound transitions retarget to A's frame halt marker
+    // (id = -frameId, isHaltMarker), NOT to top-level halt s0.
+    for (const t of nodeY.transitions) {
+      const targetNode = graph.nodes[t.nextStateId];
+      expect(targetNode.isHaltMarker).toBe(true);
+      expect(targetNode.frameId).toBe(nodeA.frameId);
+      expect(t.nextStateId).toBe(-nodeA.frameId!);
+    }
+
+    // Sanity: top-level halt s0 is still emitted as a sentinel, even though
+    // no in-frame transition points to it any more.
+    expect(graph.nodes[0]).toBeDefined();
+    expect(graph.nodes[0].isHalt).toBe(true);
+    expect(graph.nodes[0].isHaltMarker).toBe(false);
+  });
+
+  test('wrapper-chain continuations tunnel multi-hop (continuation IS another wrapper)', () => {
+    const alphabet = new Alphabet([' ', 'a']);
+    const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
+
+    // Three inner subroutines X1 / X2 — each halts on any.
+    const X1 = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'X1');
+    const X2 = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'X2');
+
+    // Final continuation Z, with a halt-bound transition.
+    const Z = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'Z');
+
+    // Bare A's body: calls X1 with continuation = X2.wohs(Z). Reach traversal
+    // from A must tunnel through TWO wrappers (X1's wrapper → X2.wohs(Z)
+    // wrapper → Z) to land on Z.
+    const A = new State({
+      [ifOtherSymbol]: {
+        command: {movement: movements.stay},
+        nextState: X1.withOverriddenHaltState(X2.withOverriddenHaltState(Z)),
+      },
+    }, 'A');
+
+    const aftermath = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: haltState},
+    }, 'aftermath');
+
+    const dispatcher = new State({
+      [ifOtherSymbol]: {command: {movement: movements.stay}, nextState: A.withOverriddenHaltState(aftermath)},
+    }, 'dispatcher');
+
+    const graph = State.toGraph(dispatcher, tapeBlock);
+
+    const nodeA = graph.nodes[A.id];
+    const nodeZ = graph.nodes[Z.id];
+
+    expect(nodeA.frameId).not.toBeNull();
+    // Z is reached through a 2-hop wrapper chain — must still land in A's frame.
+    expect(nodeZ.frameId).toBe(nodeA.frameId);
+  });
+});
+
 describe('callable-subtree: shared body state forces a union frame', () => {
   test('two bares sharing a body state merge into one frame; non-wrapper entry triggers halt arrow', () => {
     const alphabet = new Alphabet([' ', '1', '2', '3', 'X']);

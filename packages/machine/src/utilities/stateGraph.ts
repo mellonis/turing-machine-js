@@ -169,11 +169,59 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
   }
 
   // Pass 2: For each bare, compute its forward-reachable set (following
-  // transitions; stopping at halt and at wrappers — both are frame
-  // boundaries).
+  // transitions; stopping at halt; tunneling through wrappers to their
+  // `overriddenHaltStateId` continuation).
+  //
+  // Wrappers are call-site markers — semantically owned by the caller. A
+  // wrapper's continuation (its `--> override` arrow in the rendered
+  // diagram, sourced from `overriddenHaltStateId`) is the state the
+  // caller's body resumes at AFTER the inner subroutine call returns. So
+  // when reach traversal hits a wrapper, we don't stop — we follow the
+  // continuation back into the caller's frame. The wrapper node itself
+  // stays unframed (it renders outside the subgraph as a call site), but
+  // the continuation joins the caller's reach-set.
+  //
+  // Halt-bound retargeting + union-find then "just work": continuation
+  // states' halt-bound transitions get retargeted to the caller's halt
+  // marker (so an in-subroutine halt returns to the caller, not the
+  // program's terminal halt); when two bares both reach the same
+  // continuation through different wrapper chains, union-find merges
+  // their frames as it already does for non-wrapper overlap.
+  //
+  // Wrapper chains (continuation IS another wrapper, e.g., nested
+  // compositions) are walked transitively by the inner while-loop in
+  // `resolveAndPush`.
   const computeReach = (startId: number): Set<number> => {
     const reach = new Set<number>();
-    const stack = [startId];
+    const stack: number[] = [];
+
+    const resolveAndPush = (id: number) => {
+      let current = id;
+
+      while (true) {
+        const target = nodes[current];
+
+        if (!target || target.isHalt) {
+          return;
+        }
+
+        if (!target.isWrapper) {
+          stack.push(current);
+          return;
+        }
+
+        /* c8 ignore next 3 — every wrapper emitted by Pass 1 has a
+           non-null overriddenHaltStateId (lines 76-101); this branch
+           only guards against future wrapper variants that might not. */
+        if (target.overriddenHaltStateId === null) {
+          return;
+        }
+
+        current = target.overriddenHaltStateId;
+      }
+    };
+
+    resolveAndPush(startId);
 
     while (stack.length > 0) {
       const id = stack.pop()!;
@@ -182,28 +230,10 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
         continue;
       }
 
-      const node = nodes[id];
-
-      // `nodes[id]` is always populated for `id` that the BFS reached, so
-      // a defensive `!node` check would be dead. `isHalt` / `isWrapper`
-      // are real boundaries — both stop reach-set expansion.
-      /* c8 ignore next 3 — defensive: the push site below already filters
-         halt/wrapper targets, and the initial push is always a bare, so
-         this branch is unreachable in practice. */
-      if (node.isHalt || node.isWrapper) {
-        continue;
-      }
-
       reach.add(id);
 
-      for (const t of node.transitions) {
-        const target = nodes[t.nextStateId];
-
-        if (!target || target.isHalt || target.isWrapper) {
-          continue;
-        }
-
-        stack.push(t.nextStateId);
+      for (const t of nodes[id].transitions) {
+        resolveAndPush(t.nextStateId);
       }
     }
 
