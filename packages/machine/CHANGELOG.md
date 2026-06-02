@@ -15,10 +15,15 @@ Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symb
 - **`TapeSnapshot` type** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — `{ symbols: string[]; position: number }`. The per-tape wire-data shape — what callers serialize a live `Tape` into for transmission (worker boundaries, snippet recording, snapshot tests). Previously lived in `@turing-machine-js/visuals`'s `types.ts` and was re-imported by the engine for `Frame.tape`-style fields. Now sits in the engine next to the live `Tape` class; `@turing-machine-js/visuals` re-exports it for consumer-import stability (so `import { TapeSnapshot } from '@turing-machine-js/visuals'` keeps working).
 - **`tapeViewport(snapshot, width, blank): { cells, headIndex }`** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — pure helper: fixed-width window over a `TapeSnapshot`, centered on the head, padded with `blank` for out-of-bounds cells. `headIndex` is deterministic at `Math.floor(width / 2)`. Throws `RangeError` on non-positive or non-integer width. Visuals re-exports.
 
+### Changed
+
+- **`Tape.viewport` getter now shares its centering loop with `tapeViewport`** via an internal `tapeViewportFromAccess(position, width, cellAt)` core. The public `tapeViewport(snapshot, width, blank)` signature is unchanged — it passes a snapshot-bounds-checking `cellAt`; `Tape.viewport` passes its own `(i) => alphabet.get(this.#cellAt(i))`. The two public surfaces serve different inputs (wire-data `TapeSnapshot` vs live int-encoded `Tape`) but the centering math lives once.
+
 ### Compatibility
 
 - **Consumers importing `TapeSnapshot` or `tapeViewport` from `@turing-machine-js/visuals` are unaffected** — visuals re-exports both from the engine.
-- **Engine's `Tape.viewport` getter is unchanged.** It operates on the live, internally-int-encoded tape via `Alphabet.get` — different data shape from the wire-data `TapeSnapshot`. The two surfaces serve different inputs and are not direct duplicates; the move was about locality (`TapeSnapshot` lives next to `Tape`), not internal dedup.
+- `Tape.viewport`'s public contract (returns a fresh `string[]` of length `viewportWidth`, head at `Math.floor(viewportWidth/2)`) is unchanged.
+- The internal `tapeViewportFromAccess` helper is `@internal` — not exported from the package root.
 
 ## [7.0.0-alpha.7] - 2026-05-30
 

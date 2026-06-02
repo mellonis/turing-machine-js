@@ -3,11 +3,7 @@
  * index into them. Pure data; no library handles.
  *
  * Produced by callers serializing a live `Tape` for transmission (worker
- * boundaries, snippet recording, snapshot tests). The engine's own
- * `Tape.viewport` getter operates on the live, internally-int-encoded
- * tape rather than on a `TapeSnapshot` — so it doesn't currently call
- * `tapeViewport` internally. The two surfaces serve different inputs
- * (string snapshot vs live int-encoded tape) and are not direct duplicates.
+ * boundaries, snippet recording, snapshot tests).
  */
 export type TapeSnapshot = {
   symbols: string[];
@@ -15,12 +11,40 @@ export type TapeSnapshot = {
 };
 
 /**
+ * @internal — centering loop shared by the public `tapeViewport(snapshot, …)`
+ * helper AND the engine's `Tape.viewport` getter. Snapshot consumers pass a
+ * bounds-checking lambda over `symbols` + a `blank` fallback; the live `Tape`
+ * passes its own internal `cellAt` that does int → string via `Alphabet.get`.
+ *
+ * Each path picks its own data shape; the centering math lives once here.
+ */
+export function tapeViewportFromAccess(
+  position: number,
+  width: number,
+  cellAt: (idx: number) => string,
+): { cells: string[]; headIndex: number } {
+  if (!Number.isInteger(width) || width <= 0) {
+    throw new RangeError(
+      `tapeViewport: width must be a positive integer (got ${width})`,
+    );
+  }
+  const half = Math.floor(width / 2);
+  const startTapeIdx = position - half;
+  const cells: string[] = new Array(width);
+  for (let i = 0; i < width; i += 1) {
+    cells[i] = cellAt(startTapeIdx + i);
+  }
+  return { cells, headIndex: half };
+}
+
+/**
  * Compute a fixed-width window of tape cells centered on the head.
  *
  * The engine's `Tape` class exposes a `viewport` getter that does this for
- * the live tape; `tapeViewport` is the equivalent for the wire-data
- * `TapeSnapshot`. Cells outside the snapshot's `symbols` array are padded
- * with `blank`, so the result always has exactly `width` entries.
+ * the live tape (sharing the same internal centering core); `tapeViewport`
+ * is the equivalent for the wire-data `TapeSnapshot`. Cells outside the
+ * snapshot's `symbols` array are padded with `blank`, so the result always
+ * has exactly `width` entries.
  *
  * The returned `headIndex` is the head's index within `cells` —
  * deterministic at `Math.floor(width / 2)`, but exposed for callers that
@@ -34,20 +58,7 @@ export function tapeViewport(
   width: number,
   blank: string,
 ): { cells: string[]; headIndex: number } {
-  if (!Number.isInteger(width) || width <= 0) {
-    throw new RangeError(
-      `tapeViewport: width must be a positive integer (got ${width})`,
-    );
-  }
-  const half = Math.floor(width / 2);
-  const startTapeIdx = snapshot.position - half;
-  const cells: string[] = new Array(width);
-  for (let i = 0; i < width; i += 1) {
-    const tapeIdx = startTapeIdx + i;
-    cells[i] =
-      tapeIdx >= 0 && tapeIdx < snapshot.symbols.length
-        ? snapshot.symbols[tapeIdx]
-        : blank;
-  }
-  return { cells, headIndex: half };
+  return tapeViewportFromAccess(snapshot.position, width, (i) =>
+    i >= 0 && i < snapshot.symbols.length ? snapshot.symbols[i] : blank,
+  );
 }
