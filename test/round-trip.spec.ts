@@ -104,10 +104,12 @@ describe('toGraph / toMermaid / fromMermaid / fromGraph round trip', () => {
   //
   // Uses the `scanToX(eraseHere)` example from #139's issue body — a simple
   // single-wrapper case. Shared-bare cases (like minusOne, where the same
-  // bare appears in two wrapper contexts via per-context duplication) have
-  // ids that depend on the wrapper's runtime `#id`; those ids reorder under
-  // sort-by-id across rebuild, which is a separate limitation not in #139's
-  // scope.
+  // bare backs two wrappers) emit a single de-duped node with `&`-joined
+  // call arrows — the sharing survives the round-trip. What doesn't survive
+  // bytewise is the serialization: node ids are runtime `State` ids, and a
+  // shared bare's post-rebuild id no longer follows the original emission
+  // order, so ids reorder under sort-by-id across rebuild. That's a separate
+  // limitation not in #139's scope.
   test('toMermaid round-trip is bytewise stable for wrapped states (regression for #139)', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);

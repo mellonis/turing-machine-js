@@ -268,7 +268,7 @@ const plusOne = new State({
   },
 }, 'plusOne');
 
-// minusOne — 15 nodes (the largest in this library, per `summarize().stateCount`)
+// minusOne — 18 nodes (the largest in this library, per `summarize().stateCount`)
 //
 // Computes x − 1 via the two's-complement identity:  x − 1 == ~(~x + 1)
 // (every step is a state we already have), composed with three nested
@@ -277,7 +277,7 @@ const plusOne = new State({
 // inner end is the terminal override target, not another wrapper level.
 //
 // This is *deliberately* the heavy version. It exists side-by-side with
-// minusOneFast (8 nodes, direct borrow) to make the cost of "compose existing
+// minusOneFast (10 nodes, direct borrow) to make the cost of "compose existing
 // pieces" vs "write a dedicated algorithm" visible. See ../states.md for the
 // dotted onHalt edges that show the three-deep wrapper chain.
 const minusOne = new State({
@@ -301,7 +301,7 @@ const minusOne = new State({
   },
 }, 'minusOne');
 
-// minusOneFast — 8 nodes (direct borrow propagation)
+// minusOneFast — 10 nodes (direct borrow propagation)
 //
 // Walks left from the LSB: 0→1 keeps borrowing; 1→0 stops; ^ is underflow.
 // Falls through to normalizeNumber to strip the leading zero introduced when the
