@@ -1,5 +1,4 @@
-import { movements, symbolCommands, type MachineState, type TapeCommand } from '@turing-machine-js/machine';
-import type { TapeSnapshot } from './types';
+import { movements, symbolCommands, type MachineState, type TapeCommand, type TapeSnapshot } from '@turing-machine-js/machine';
 
 /**
  * Plain per-tape command shape consumed by `formatStepNotation`. Distinct

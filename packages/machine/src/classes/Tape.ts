@@ -1,4 +1,5 @@
 import Alphabet from './Alphabet';
+import { tapeViewportFromAccess } from '../utilities/tapeViewport';
 
 type TapeConstructorParameter = { alphabet: Alphabet, symbols?: string[], position?: number, viewportWidth?: number };
 
@@ -86,12 +87,12 @@ export default class Tape {
 
   get viewport() {
     if (this.#viewportDirty) {
-      const start = this.#position - this.extraCellsCount;
-
-      for (let i = 0; i < this.#viewportWidth; i += 1) {
-        this.#viewportBuffer[i] = this.#alphabet.get(this.#cellAt(start + i));
-      }
-
+      const { cells } = tapeViewportFromAccess(
+        this.#position,
+        this.#viewportWidth,
+        (i) => this.#alphabet.get(this.#cellAt(i)),
+      );
+      this.#viewportBuffer = cells;
       this.#viewportDirty = false;
     }
 

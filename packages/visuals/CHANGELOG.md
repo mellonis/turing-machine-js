@@ -4,6 +4,20 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.8] - 2026-06-02
+
+`TapeSnapshot` type and `tapeViewport` helper moved to `@turing-machine-js/machine` ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — they live next to the live `Tape` class now. **Consumers importing them from `@turing-machine-js/visuals` are unaffected**: visuals re-exports both from the engine, so existing `import { TapeSnapshot, tapeViewport } from '@turing-machine-js/visuals'` continues to work.
+
+### Changed
+
+- `TapeSnapshot` type — local definition removed from `visuals/src/types.ts`; re-exported from `@turing-machine-js/machine` via `visuals/src/index.ts`.
+- `tapeViewport` helper — local implementation removed from `visuals/src/tapeViewport.ts` (file deleted); re-exported from `@turing-machine-js/machine`.
+
+### Compatibility
+
+- Re-aligned to lockstep at `7.0.0-alpha.8` (last visuals-only patch was `7.0.0-alpha.7.1`).
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.7` → `^7.0.0-alpha.8`.
+
 ## [7.0.0-alpha.7.1] - 2026-05-30
 
 ### Added

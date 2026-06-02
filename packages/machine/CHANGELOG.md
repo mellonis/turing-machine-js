@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.8] - 2026-06-02
+
+Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symbols, position}`) and `tapeViewport` (fixed-width centered window over a `TapeSnapshot`) from `@turing-machine-js/visuals` into the engine, next to the `Tape` class. Resolves [#227](https://github.com/mellonis/turing-machine-js/issues/227). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+
+**Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.8`.
+
+### Added
+
+- **`TapeSnapshot` type** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — `{ symbols: string[]; position: number }`. The per-tape wire-data shape — what callers serialize a live `Tape` into for transmission (worker boundaries, snippet recording, snapshot tests). Previously lived in `@turing-machine-js/visuals`'s `types.ts` and was re-imported by the engine for `Frame.tape`-style fields. Now sits in the engine next to the live `Tape` class; `@turing-machine-js/visuals` re-exports it for consumer-import stability (so `import { TapeSnapshot } from '@turing-machine-js/visuals'` keeps working).
+- **`tapeViewport(snapshot, width, blank): { cells, headIndex }`** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — pure helper: fixed-width window over a `TapeSnapshot`, centered on the head, padded with `blank` for out-of-bounds cells. `headIndex` is deterministic at `Math.floor(width / 2)`. Throws `RangeError` on non-positive or non-integer width. Visuals re-exports.
+
+### Changed
+
+- **`Tape.viewport` getter now shares its centering loop with `tapeViewport`** via an internal `tapeViewportFromAccess(position, width, cellAt)` core. The public `tapeViewport(snapshot, width, blank)` signature is unchanged — it passes a snapshot-bounds-checking `cellAt`; `Tape.viewport` passes its own `(i) => alphabet.get(this.#cellAt(i))`. The two public surfaces serve different inputs (wire-data `TapeSnapshot` vs live int-encoded `Tape`) but the centering math lives once.
+
+### Compatibility
+
+- **Consumers importing `TapeSnapshot` or `tapeViewport` from `@turing-machine-js/visuals` are unaffected** — visuals re-exports both from the engine.
+- `Tape.viewport`'s public contract (returns a fresh `string[]` of length `viewportWidth`, head at `Math.floor(viewportWidth/2)`) is unchanged.
+- The internal `tapeViewportFromAccess` helper is `@internal` — not exported from the package root.
+
 ## [7.0.0-alpha.7] - 2026-05-30
 
 Seventh v7 pre-release. Lands the `CallFrame` extraction ([#213](https://github.com/mellonis/turing-machine-js/issues/213), [PR #218](https://github.com/mellonis/turing-machine-js/pull/218)) and a `toMermaid` framed-wrapper emit fix ([#223](https://github.com/mellonis/turing-machine-js/issues/223), [PR #224](https://github.com/mellonis/turing-machine-js/pull/224)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
