@@ -1,4 +1,4 @@
-import type { Graph } from '@turing-machine-js/machine';
+import type { Graph, TapeSnapshot } from '@turing-machine-js/machine';
 
 /**
  * State-graph highlight descriptor (machines-demo#10). MachineView derives it
@@ -30,15 +30,6 @@ export type GraphHighlight = {
    * trigger.
    */
   paused: boolean;
-};
-
-/**
- * Per-tape snapshot: the cells visible/usable plus the head's index into them.
- * Same shape as machines-demo's TapeSnapshot. Pure data — no library handles.
- */
-export type TapeSnapshot = {
-  symbols: string[];
-  position: number;
 };
 
 /**

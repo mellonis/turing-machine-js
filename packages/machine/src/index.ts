@@ -23,3 +23,4 @@ export {
   type EquivalenceResult,
   type EquivalenceReport,
 } from './utilities/equivalence';
+export { tapeViewport, type TapeSnapshot } from './utilities/tapeViewport';

@@ -1,22 +1,33 @@
-import type { TapeSnapshot } from './types';
+/**
+ * Per-tape wire-data snapshot — the cells visible/usable plus the head's
+ * index into them. Pure data; no library handles.
+ *
+ * Produced by callers serializing a live `Tape` for transmission (worker
+ * boundaries, snippet recording, snapshot tests). The engine's own
+ * `Tape.viewport` getter operates on the live, internally-int-encoded
+ * tape rather than on a `TapeSnapshot` — so it doesn't currently call
+ * `tapeViewport` internally. The two surfaces serve different inputs
+ * (string snapshot vs live int-encoded tape) and are not direct duplicates.
+ */
+export type TapeSnapshot = {
+  symbols: string[];
+  position: number;
+};
 
 /**
  * Compute a fixed-width window of tape cells centered on the head.
  *
  * The engine's `Tape` class exposes a `viewport` getter that does this for
  * the live tape; `tapeViewport` is the equivalent for the wire-data
- * `TapeSnapshot` carried in `Frame.tape`. Cells outside the snapshot's
- * `symbols` array are padded with `blank`, so the result always has
- * exactly `width` entries.
+ * `TapeSnapshot`. Cells outside the snapshot's `symbols` array are padded
+ * with `blank`, so the result always has exactly `width` entries.
  *
  * The returned `headIndex` is the head's index within `cells` —
  * deterministic at `Math.floor(width / 2)`, but exposed for callers that
  * want to avoid recomputing it (and to leave room for future non-centered
  * policies without a signature break).
  *
- * Pass the tape's blank symbol from `Snippet.alphabets[i]` (by convention
- * the first entry per tape in the visuals/engine pipeline — verify against
- * how the snippet was recorded).
+ * Pass the alphabet's blank symbol as `blank`.
  */
 export function tapeViewport(
   snapshot: TapeSnapshot,

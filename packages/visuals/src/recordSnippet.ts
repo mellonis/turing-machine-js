@@ -3,11 +3,12 @@ import {
   type Graph,
   type MachineState,
   type State,
+  type TapeSnapshot,
   type TuringMachine,
 } from '@turing-machine-js/machine';
 import { MOVEMENT_LETTER } from './format';
 import { bareIdOf } from './graphUtils';
-import type { Frame, GraphHighlight, Snippet, TapeSnapshot } from './types';
+import type { Frame, GraphHighlight, Snippet } from './types';
 
 export type RecordSnippetOptions = {
   machine: TuringMachine;

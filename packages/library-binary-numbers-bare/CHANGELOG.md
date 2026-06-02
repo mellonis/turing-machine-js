@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-alpha.8] - 2026-06-02
+
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.8 — lifts `TapeSnapshot` + `tapeViewport` from `@turing-machine-js/visuals` into the engine ([#227](https://github.com/mellonis/turing-machine-js/issues/227)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.7` → `^7.0.0-alpha.8`.
+
 ## [7.0.0-alpha.7] - 2026-05-30
 
 Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.7 — adds `CallFrame` as a first-class `State` subclass ([#213](https://github.com/mellonis/turing-machine-js/issues/213)) and fixes a `toMermaid` framed-wrapper emit asymmetry ([#223](https://github.com/mellonis/turing-machine-js/issues/223)). No source or behavior changes in this package — `states.md` is unaffected (no diagram here uses an inner-wrapper-call pattern). Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.
