@@ -49,7 +49,7 @@ type GraphHighlight = {
 type GraphIndexes = { /* node→frame, frame→wrappers, frame→label, etc. */ };
 
 // Recording artifact
-type TapeSnapshot = { symbols: string[]; position: number };
+type TapeSnapshot = { symbols: string[]; position: number };  // re-exported from @turing-machine-js/machine (alpha.8+); canonical home is the engine package, next to the Tape class
 type StepCommand = { movement: 'L' | 'R' | 'S'; symbol: string | null };
 type Frame = {
   step: number;
