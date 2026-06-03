@@ -1,8 +1,66 @@
-import State, {haltState, type DebugConfig} from './State';
+import State, {CallFrame, haltState, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
 type RunParameter = { initialState: State, stepsLimit?: number };
+
+/**
+ * Descriptor attached to a `DebugSession` `pause` event. Lives ONLY on the
+ * pause-event payload (`PausedMachineState`) — never on a raw `runStepByStep`
+ * yield, which is a minimal `MachineState` with no debug concern.
+ *
+ * - `side` — exactly one of `'before'` / `'after'`. DebugSession dispatches the
+ *   two timings as separate `pause` events, so a single descriptor is always
+ *   one-sided (the v6 "both timings on one yield" set no longer exists, because
+ *   detection moved out of the generator).
+ * - `cause` — pause origin:
+ *   - `'breakpoint'` — a `state.debug[when]` filter or `haltState.debug === true` matched.
+ *   - `'step'` — a step-mode endpoint fired (stepIn / stepOver / stepOut).
+ *   - `'manual'` — a `DebugSession.pause()` call fired.
+ *
+ * Precedence when an iter satisfies more than one trigger: `breakpoint > step >
+ * manual`. `'step'` / `'manual'` only ever fire on the `'before'` side.
+ */
+export type PauseInfo = {
+  side: 'before' | 'after';
+  cause: 'breakpoint' | 'step' | 'manual';
+};
+
+/**
+ * @internal — directive returned from a DebugSession's internal pause coordination
+ * to drive step-mode bookkeeping. NOT part of the public API; exported only for
+ * sibling-module use inside `packages/machine/src/classes/DebugSession.ts`.
+ */
+export type ResumeDirective = 'continue' | 'step-in' | 'step-over' | 'step-out';
+
+/**
+ * @internal — package-private accessor key for `MachineState` instances yielded
+ * by `runStepByStep`. Calling `machineState[MACHINE_STATE_INTERNAL]()` returns a
+ * frozen snapshot of the engine's halt-stack at yield time (BEFORE this iter's
+ * applyCommand / pop / push). Consumed by `DebugSession` for step-over /
+ * step-out endpoint detection without exposing the stack to public API.
+ *
+ * Re-exported from this module so the sibling `DebugSession` module can import
+ * it; intentionally NOT re-exported from the package's public `index.ts` —
+ * downstream consumers shouldn't reach for the stack. Same pattern as
+ * `STATE_INTERNAL` (#180).
+ */
+export const MACHINE_STATE_INTERNAL = Symbol('MachineState.internal');
+
+export type MachineStateInternal = {
+  /** Frozen pre-iter halt-stack snapshot. Consumers must not mutate. */
+  stack: readonly State[];
+  /** The interned symbol the engine matched for this iter (the result of
+   *  `state.getSymbol(tapeBlock)`). DebugSession uses it to evaluate
+   *  `state.debug` filters without re-reading the tape. */
+  matchedSymbol: symbol;
+  /** Whether this iter's transition leads to halt — computed on the RAW
+   *  next-state (before any halt-pop redirect to a continuation). The yielded
+   *  `MachineState.nextState` shows the post-pop continuation, so consumers
+   *  can't recover halt-imminence from it; DebugSession reads this flag to
+   *  honor `haltState.debug` on subroutine-return (halt-pop) iters. */
+  haltImminent: boolean;
+};
 
 export type MachineState = {
   step: number;
@@ -12,25 +70,44 @@ export type MachineState = {
   movements: symbol[];
   nextState: State;
   /**
-   * Set only when this iteration is a debug break point.
-   * Field is OMITTED entirely when no break fires (no `debugBreak: undefined`).
-   * At least one of `before` / `after` is `true` when the field is present.
+   * The transition the engine picked for this iter (#205). Always present
+   * — `runStepByStep` resolves it at the very start of every iter via
+   * `state.getMatchedTransition(symbol)`, well before any callback fires.
    *
-   * Both flags refer to THIS iter — `before` means the iter's `state.debug.before`
-   * matched, `after` means the iter's `state.debug.after` matched. `run()`
-   * dispatches the two timings as separate `onPause` calls (before-call has
-   * `debugBreak: {before: true}` only; after-call has `debugBreak: {after: true}`
-   * only) so consumers can distinguish without ambiguity.
+   * - `id` — resolvable in `toGraph`'s output: `graph.nodes[…].transitions`
+   *   contains a `GraphTransition` whose `.id` equals this value. Format is
+   *   `${stateId}.${transitionIx}`. **For wrapper-entry iters (`state` is
+   *   produced by `withOverriddenHaltState`): the wrapper's own
+   *   `transitions` array in `toGraph` is empty because wrappers delegate
+   *   to the bare; this field carries the BARE's transition id, where the
+   *   pattern actually lives.** Consumers can detect this case by
+   *   comparing `id.split('.')[0]` against `state.id` — different = wrapper
+   *   delegation.
+   * - `matchKinds` — per-tape match kind for the picked transition's
+   *   pattern at each tape position. `'wildcard'` if the matched
+   *   alternative had `ifOtherSymbol` at that position, `'literal'`
+   *   otherwise. Length equals tape count.
    */
-  debugBreak?: {
-    before?: true;
-    after?: true;
+  matchedTransition: {
+    id: string;
+    matchKinds: ('wildcard' | 'literal')[];
   };
 };
 
-// True iff `filter` matches `symbol` per the DebugConfig semantics.
-// undefined / [] -> never; true -> always; symbol[] -> exact membership.
-function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
+/**
+ * The payload of a `DebugSession` `pause` event: a `MachineState` plus the
+ * one-sided `pause` descriptor. Raw `runStepByStep` yields are plain
+ * `MachineState` (no `pause` field) — only DebugSession produces this shape.
+ */
+export type PausedMachineState = MachineState & { pause: PauseInfo };
+
+/**
+ * @internal — true iff `filter` matches `symbol` per the DebugConfig semantics.
+ * undefined / [] -> never; true -> always; symbol[] -> exact membership.
+ * Exported for sibling-module use in `DebugSession` (which now owns breakpoint
+ * detection); NOT re-exported from the package's public `index.ts`.
+ */
+export function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
   if (filter === undefined) return false;
   if (filter === true) return true;
   return filter.includes(symbol);
@@ -38,7 +115,6 @@ function matchFilter(filter: DebugConfig['before'], symbol: symbol): boolean {
 
 export default class TuringMachine {
   readonly #tapeBlock: TapeBlock;
-  readonly #stack: State[] = [];
 
   constructor({
                 tapeBlock,
@@ -54,89 +130,27 @@ export default class TuringMachine {
     return this.#tapeBlock;
   }
 
-  async run({
-    initialState,
-    stepsLimit = 1e5,
-    onStep,
-    onPause,
-    onIter,
-    debug = true,
-  }: RunParameter & {
-    /**
-     * Sync, ~free hook fired on every iteration. Use for logging/tracing —
-     * the hot loop runs this without a microtask boundary, so it must not
-     * be async.
-     *
-     * For per-iter throttle / coordination ("wait between iters" UIs):
-     * use `onIter` (v6.4.0+, awaited at end-of-iter).
-     */
-    onStep?: (machineState: MachineState) => void;
-    /**
-     * Async hook fired when `state.debug[when]` matches at the current
-     * iteration. The promise is awaited inline, so the consumer can suspend
-     * execution by deferring its resolution. Use for pause-capable inspection
-     * (debugger UIs, conditional breakpoints in tests).
-     *
-     * Renamed from `onDebugBreak` in v5.0.0. In v6.0.0 the dispatch order
-     * was changed so that `before` and `after` for the SAME iter fire on the
-     * same yield (per-iter lifecycle: before → step → after); previously the
-     * `after` of iter K fired on iter K+1's tick with a substituted source
-     * view. The `m.debugBreak` payload field keeps its name (it describes the
-     * engine's reason for pausing).
-     */
-    onPause?: (machineState: MachineState) => void | Promise<void>;
-    /**
-     * Awaited hook fired ONCE at the end of every iteration (v6.4.0+), AFTER
-     * any `onPause(after, K)` dispatch on the same yield. Use for per-iter
-     * coordination that needs to suspend the run loop — throttling between
-     * iters (interactive debugger UIs), prev-state bookkeeping that must
-     * observe iter K's final state once all `onPause` hooks have read their
-     * own snapshots, yield-to-other-work in batched runs.
-     *
-     * Three-hook contract recap:
-     * - `onStep`: sync, microtask-free — tracing/logging during the iter
-     * - `onPause`: awaited, conditional on `state.debug[when]` match — user
-     *   breakpoints with iter-correct payload
-     * - `onIter`: awaited, unconditional — once per iter, at end-of-iter
-     *
-     * `onIter` is unaffected by the `debug` master switch — it fires on
-     * every iter regardless. Sync consumers should prefer `onStep` to avoid
-     * the per-iter microtask boundary `onIter` carries.
-     */
-    onIter?: (machineState: MachineState) => void | Promise<void>;
-    /**
-     * Master switch for `onPause` dispatch. When `false`, suppresses all
-     * pause-fires (before and after) regardless of `state.debug` assignments.
-     * `onStep` is unaffected. Defaults to `true`.
-     *
-     * The `m.debugBreak` field is still populated on yields by the underlying
-     * generator (it's a property of the iteration, not of the consumer); only
-     * `run()`'s hook dispatch is gated. Direct `runStepByStep` consumers see
-     * the metadata regardless.
-     */
-    debug?: boolean;
-  }): Promise<void> {
-    const generator = this.runStepByStep({initialState, stepsLimit});
-
-    for (const machineState of generator) {
-      // Per-iter lifecycle: before → step → after. All three operate on the
-      // same yielded MachineState, so the consumer sees a coherent ordering
-      // within each iteration without cross-tick coordination.
-      if (debug && machineState.debugBreak?.before && onPause) {
-        await onPause({...machineState, debugBreak: {before: true}});
-      }
-
-      if (onStep) {
-        onStep(machineState);
-      }
-
-      if (debug && machineState.debugBreak?.after && onPause) {
-        await onPause({...machineState, debugBreak: {after: true}});
-      }
-
-      if (onIter) {
-        await onIter(machineState);
-      }
+  /**
+   * Run the machine to halt. Pure execution — synchronous, no observation
+   * callbacks, no debug overhead. For breakpoint-driven interactive debugging
+   * use `DebugSession`; for per-iter tracing use `runStepByStep`'s generator
+   * directly.
+   *
+   * Breakpoint metadata (`state.debug` / `haltState.debug` matches) is still
+   * resolved and attached to each yielded MachineState by the underlying
+   * generator — `run()` simply doesn't dispatch on it. A consumer that wants
+   * to dispatch on it constructs a `DebugSession` instead.
+   *
+   * Symmetric reversal of v4's `run` → `async run` change: v4 made the method
+   * async to support awaited `onPause`; with callbacks moved to `DebugSession`
+   * there's no async work left, so the method returns `void` again.
+   */
+  run({initialState, stepsLimit = 1e5}: RunParameter): void {
+    // Drain the generator. We don't care about the yielded values — the
+    // generator's job is to advance the tape; only side effects matter here.
+    // Casting to unknown so eslint doesn't flag the unused `_` variable.
+    for (const machineState of this.runStepByStep({initialState, stepsLimit})) {
+      void machineState;
     }
   }
 
@@ -148,11 +162,15 @@ export default class TuringMachine {
       this.#tapeBlock[lockSymbol].lock(executionSymbol);
 
 
-      const stack = this.#stack;
+      // Halt-stack is run-scoped, not machine-scoped (#196) — local
+      // declaration prevents leftover entries from a previous
+      // `runStepByStep` call (e.g. a build-time peek that never drained
+      // the generator) from leaking into a subsequent halt-bound transition.
+      const stack: State[] = [];
       let state = initialState;
 
-      if (state.overrodeHaltState) {
-        stack.push(state.overrodeHaltState);
+      if (state.overriddenHaltState) {
+        stack.push(state.overriddenHaltState);
       }
 
       let i = 0;
@@ -166,16 +184,22 @@ export default class TuringMachine {
 
         const symbol = state.getSymbol(this.#tapeBlock);
         const command = state.getCommand(symbol);
-        let nextState = state.getNextState(symbol).ref;
+        const matched = state.getMatchedTransition(symbol);
+        let nextState = matched.nextState.ref;
+        // For wrapper-entry iters, a CallFrame's own transitions in `toGraph`
+        // are empty (it delegates lookups to its bare); the resolvable
+        // transition id lives under the bare's stateId.
+        const resolvableStateId = state instanceof CallFrame ? state.bare.id : state.id;
+        const matchedTransition: MachineState['matchedTransition'] = {
+          id: `${resolvableStateId}.${matched.ix}`,
+          matchKinds: this.#tapeBlock.patternKinds(matched.matchedSymbol),
+        };
 
         try {
-          // Both before and after refer to THIS iter (#119 / v6.0.0).
-          // The halting iter's after-fire just rides along on the iter's
-          // own yield — no post-loop drain needed.
-          const beforeMatch = matchFilter(state.debug?.before, symbol)
-            || (nextState.isHalt && nextState.debug?.before === true);
-          const afterMatch = matchFilter(state.debug?.after, symbol);
-
+          // `runStepByStep` is the minimal execution primitive: it advances the
+          // machine and reports state. It does NO breakpoint detection — that's
+          // a debug concern that lives entirely in `DebugSession`. The yielded
+          // `MachineState` has no `pause` / `debugBreak` field.
           const nextStateForYield = nextState.isHalt && stack.length
             ? stack.slice(-1)[0]
             : nextState;
@@ -200,14 +224,25 @@ export default class TuringMachine {
             }),
             movements: command.tapesCommands.map((tapeCommand) => tapeCommand.movement),
             nextState: nextStateForYield,
+            matchedTransition,
           };
 
-          if (beforeMatch || afterMatch) {
-            const dbg: { before?: true; after?: true } = {};
-            if (beforeMatch) dbg.before = true;
-            if (afterMatch) dbg.after = true;
-            yielded.debugBreak = dbg;
-          }
+          // #102: expose the pre-iter halt-stack + the matched symbol to
+          // DebugSession via a Symbol-keyed accessor (non-enumerable, so it
+          // doesn't leak into serialization / spread / toEqual). The stack
+          // snapshot is frozen so a consumer holding a reference can't mutate
+          // the engine's stack. DebugSession reads `matchedSymbol` to evaluate
+          // `state.debug` filters — keeping breakpoint detection out of this
+          // primitive.
+          const stackSnapshot: readonly State[] = Object.freeze(stack.slice());
+          // Snapshot halt-imminence on the RAW nextState NOW, before the
+          // post-yield pop reassigns `nextState` — so the closure can't capture
+          // the mutated value.
+          const haltImminent = nextState === haltState;
+          Object.defineProperty(yielded, MACHINE_STATE_INTERNAL, {
+            value: (): MachineStateInternal => ({stack: stackSnapshot, matchedSymbol: symbol, haltImminent}),
+            enumerable: false,
+          });
 
           yield yielded;
 
@@ -217,8 +252,8 @@ export default class TuringMachine {
             nextState = stack.pop()!;
           }
 
-          if (state !== nextState && nextState.overrodeHaltState) {
-            stack.push(nextState.overrodeHaltState);
+          if (state !== nextState && nextState.overriddenHaltState) {
+            stack.push(nextState.overriddenHaltState);
           }
 
           state = nextState;

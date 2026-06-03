@@ -1,4 +1,3 @@
-import Alphabet from './Alphabet';
 import Command from './Command';
 import Reference from './Reference';
 import TapeBlock from './TapeBlock';
@@ -6,20 +5,47 @@ import TapeCommand from './TapeCommand';
 import {id} from '../utilities/functions';
 import {
   type Graph,
-  type GraphNode,
   decodeMovement,
-  decodePatternDescription,
   decodeWriteSymbol,
-  parseMovementLabel,
-  parsePatternString,
-  parseWriteSymbolLabel,
 } from '../utilities/graph';
+// Aliased so the delegating static methods can keep their canonical names
+// without clashing. The import cycle with stateGraph.ts is resolved by
+// ESM live bindings — see the bottom-of-file note in that module.
+import {
+  type StateMap,
+  collectStates as collectStatesImpl,
+  fromGraph as fromGraphImpl,
+  toGraph as toGraphImpl,
+} from '../utilities/stateGraph';
 
 export const ifOtherSymbol = Symbol('other symbol');
 
 // Module-private symbol used by DebugConfig setters to call State's validator
 // without exposing the validator on the public surface.
 const validateDebugFilter = Symbol('validateDebugFilter');
+
+/**
+ * @internal
+ *
+ * Package-private accessor key for sibling modules in
+ * `packages/machine/src` (e.g. `utilities/stateGraph.ts`, and the planned
+ * `utilities/stateCollect.ts` for #195). Re-exported from this module so
+ * sibling files can import it; intentionally NOT re-exported from the
+ * package's public `index.ts`, so downstream consumers don't see it on
+ * the supported surface.
+ *
+ * Calling `state[STATE_INTERNAL]()` returns a getter/setter view onto the
+ * State's private fields. Reads are live (they close over `this`), so the
+ * view stays in sync with subsequent mutations on the State. There's one
+ * mutating setter on the view — `name` — used exclusively by
+ * `fromGraph` to assign graph-sourced composite names (e.g. `A(target)`)
+ * that the public name validator would reject; see the JSDoc on the
+ * accessor itself.
+ *
+ * Designed in #180 with #195 in mind so its surface doesn't need to grow
+ * when `collectStates` lands.
+ */
+export const STATE_INTERNAL = Symbol('State.internal');
 
 export class DebugConfig {
   readonly #ownerState: State;
@@ -72,19 +98,45 @@ export class DebugConfig {
 }
 
 export default class State {
+  // Memoization cache for `withOverriddenHaltState`. Keyed by
+  // (bare, override) — same args return the same wrapper instance (#175).
+  // Two-level WeakMap so the outer entry is GC'd when the bare is collected;
+  // WeakRef values let wrappers themselves be GC'd when nothing else holds
+  // them, with cache misses simply reconstructing fresh wrappers.
+  static #wrapperCache = new WeakMap<State, WeakMap<State, WeakRef<CallFrame>>>();
+
   readonly #id: number = id(this);
 
-  readonly #name: string;
-
-  #overrodeHaltState: State | null = null;
+  // Not `readonly` because `withOverriddenHaltState` and `fromGraph` set the
+  // composed name on a no-arg `new State()` to bypass the constructor's
+  // user-facing name validation (composite names contain `(` and `)`).
+  #name: string;
 
   #symbolToDataMap = new Map<symbol, { command: Command, nextState: State | Reference }>();
 
-  // Shared mutable cell — withOverrodeHaltState wrappers reference the same
+  // Shared mutable cell — withOverriddenHaltState wrappers reference the same
   // object so that `state.debug = ...` (and nullings) propagate across them.
   // Note: toGraph / fromGraph deliberately do not serialize debug — debug is
   // a runtime concern, not part of the structural graph.
   #debugRef: { current: DebugConfig | null } = {current: null};
+
+  // Storage for `haltState.debug` (#207). haltState is a singleton terminal
+  // state — it has no iter of its own, so the per-side `{ before, after }`
+  // DebugConfig shape doesn't model anything meaningful for it. Instead the
+  // halt breakpoint is a single boolean ("enabled / disabled"). The pause
+  // anchors on the iter whose transition LEADS to halt, fired at end-of-iter
+  // (after that iter's own after-pause if armed). Only used when `isHalt`;
+  // ignored on every other State (whose `#debugRef` flow is unchanged).
+  #haltDebug: boolean = false;
+
+  // Out-of-band tags applied to this State (#186). Tags are visualization
+  // and debugger-tooling metadata — they don't affect runtime transition
+  // lookup or `equivalentOn` comparisons. Stored as a Set for de-duplication;
+  // exposed via the `tags` getter as a frozen array snapshot. Lives on the
+  // State INSTANCE so wrappers (from `withOverriddenHaltState`) carry tags
+  // independently of their bare's tag set — see the #175 sharing test in
+  // State.spec.ts.
+  #tags: Set<string> = new Set();
 
   constructor(stateDefinition: Record<string | symbol, {
     command?: Command | ConstructorParameters<typeof TapeCommand>[0] | ConstructorParameters<typeof TapeCommand>[0][],
@@ -144,6 +196,10 @@ export default class State {
       });
     }
 
+    if (name !== undefined && /[()]/.test(name)) {
+      throw new Error(`invalid state name "${name}": must not contain '(' or ')' (reserved as wrapper-composition delimiters in withOverriddenHaltState)`);
+    }
+
     this.#name = name ?? `id:${this.#id}`;
   }
 
@@ -159,8 +215,10 @@ export default class State {
     return this.#id === 0;
   }
 
-  get overrodeHaltState() {
-    return this.#overrodeHaltState;
+  // Plain States never override the halt state — only a `CallFrame` (produced
+  // by `withOverriddenHaltState`) carries an override, via its own getter.
+  get overriddenHaltState(): State | null {
+    return null;
   }
 
   get ref() {
@@ -168,6 +226,18 @@ export default class State {
   }
 
   get debug(): DebugConfig {
+    // haltState (#207): the canonical access path is the `haltState` singleton
+    // export, which is typed `HaltState` — its `debug` getter is narrowed to
+    // `boolean`. Generic `State` references statically see `DebugConfig` and
+    // (in practice) never refer to haltState — the run loop's `state` is
+    // never haltState because halt is terminal and doesn't iterate. The cast
+    // below makes the runtime boolean return type-compatible with the
+    // declared `DebugConfig` for any rare caller that holds a State
+    // reference happening to be haltState.
+    if (this.isHalt) {
+      return this.#haltDebug as unknown as DebugConfig;
+    }
+
     // Lazy-init: `state.debug` is never null at read time, so chained writes
     // like `state.debug.before = true` work on a fresh state without a prior
     // whole-object assignment. The setter still accepts `null` to reset the
@@ -180,46 +250,105 @@ export default class State {
     return this.#debugRef.current;
   }
 
+  // TS signature: non-halt callers (generic `State` reference) get the
+  // `DebugConfig | object | null` surface; boolean is rejected statically.
+  // The `HaltState` typed alias on the singleton export overrides this to
+  // `boolean | null` for the canonical halt access path. Runtime checks
+  // below are defensive against type-bypass / mixed-source callers.
   set debug(
     value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
   ) {
-    if (value === null) {
+    // Defensive runtime cast: TS signature excludes boolean for the generic
+    // State surface, but haltState (via the HaltState alias) DOES accept
+    // boolean, and the runtime needs to handle it for the singleton path.
+    const v = value as DebugConfig | { before?: unknown; after?: unknown } | boolean | null;
+    // haltState (#207): only `boolean | null` is accepted. `null` aliases
+    // to `false` (reset). Any object-shaped write throws at write-time so
+    // misuse surfaces immediately rather than silently no-op'ing — the
+    // `{before, after}` shape doesn't model anything meaningful for halt
+    // (no own iter to anchor on; halt is terminal).
+    if (this.isHalt) {
+      if (v === null || typeof v === 'boolean') {
+        this.#haltDebug = v === true;
+        return;
+      }
+
+      throw new Error(
+        'haltState.debug only accepts boolean (or null to reset). Use '
+        + '`haltState.debug = true` to enable the halt breakpoint, false to '
+        + 'disable. The pause fires after the iter whose transition leads to '
+        + 'halt (post-iter, before halt processing).',
+      );
+    }
+
+    // Non-halt states: boolean writes are rejected — the per-side
+    // `{before, after}` granularity is the contract. A boolean shortcut
+    // would hide the asymmetry between before / after.
+    if (typeof v === 'boolean') {
+      throw new Error(
+        'state.debug only accepts a DebugConfig or `{ before, after }` object '
+        + '(or null to reset). Boolean assignment is reserved for `haltState`.',
+      );
+    }
+
+    if (v === null) {
       this.#debugRef.current = null;
       return;
     }
 
-    if (value instanceof DebugConfig) {
-      this.#debugRef.current = value;
+    if (v instanceof DebugConfig) {
+      this.#debugRef.current = v;
       return;
     }
 
-    this.#debugRef.current = new DebugConfig(this, value);
+    this.#debugRef.current = new DebugConfig(this, v as { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true });
   }
 
-  /** @internal — invoked by DebugConfig setters via module-private symbol. */
+  /**
+   * Add one or more tags to this State (#186). Tags are out-of-band metadata
+   * used by visualization (`toMermaid` emits `classDef`/`class` lines) and
+   * debugger tooling — they don't affect runtime transition lookup,
+   * `equivalentOn` comparisons, or any structural identity. Chainable.
+   */
+  tag(...tags: string[]): this {
+    for (const t of tags) {
+      this.#tags.add(t);
+    }
+
+    return this;
+  }
+
+  /**
+   * Remove one or more tags from this State (#186). Untagging a tag the
+   * State doesn't carry is a no-op. Chainable.
+   */
+  untag(...tags: string[]): this {
+    for (const t of tags) {
+      this.#tags.delete(t);
+    }
+
+    return this;
+  }
+
+  /**
+   * Frozen snapshot of this State's current tags (#186). The returned array
+   * is `Object.freeze`d — mutating it throws in strict mode (which TS-emitted
+   * code uses). Order matches insertion order of the underlying Set.
+   */
+  get tags(): readonly string[] {
+    return Object.freeze([...this.#tags]);
+  }
+
+  /** @internal — invoked by DebugConfig setters via module-private symbol.
+   *  haltState's `debug` setter rejects object writes before reaching
+   *  DebugConfig, so this validator only sees non-halt states. */
   [validateDebugFilter](
     fieldName: 'before' | 'after',
     filter: readonly symbol[] | true | undefined,
   ): void {
     if (filter === undefined) return;
 
-    // #108 part 2: `.after` on haltState has no semantic anchor — halt is
-    // terminal, so there is no iteration-after-halt for an after-fire to
-    // attach to. Reject any truthy assignment (true OR list) at write time
-    // so misuse surfaces immediately rather than silently no-op'ing.
-    if (this.isHalt && fieldName === 'after') {
-      throw new Error(
-        'haltState.debug.after is not supported: halt is terminal, so there is '
-        + 'no iteration-after-halt for an after-fire to anchor on. Use '
-        + '{ before: true } to pause on halt entry.',
-      );
-    }
-
     if (filter === true) return;
-
-    // haltState has no own transitions; symbol-list filters on `before` are
-    // silent no-ops at the engine level (spec §8.6), so accept any list shape.
-    if (this.isHalt) return;
 
     for (const sym of filter) {
       if (sym !== ifOtherSymbol && !this.#symbolToDataMap.has(sym)) {
@@ -244,30 +373,142 @@ export default class State {
     return ifOtherSymbol;
   }
 
-  getCommand(symbol: symbol) {
-    if (this.#symbolToDataMap.has(symbol)) {
-      return this.#symbolToDataMap.get(symbol)!.command;
+  // Single lookup + throw site shared by `getCommand`, `getNextState`, and
+  // `getMatchedTransition`. Returns the symbol's entry `{command, nextState}`
+  // (one map-get, no `.has()` pre-check); throws a unified message when no
+  // entry exists.
+  #getEntry(symbol: symbol) {
+    const entry = this.#symbolToDataMap.get(symbol);
+
+    if (entry === undefined) {
+      throw new Error(`No transition for symbol at state named ${this.#name}`);
     }
 
-    throw new Error(`No command for symbol at state named ${this.#name}`);
+    return entry;
+  }
+
+  getCommand(symbol: symbol) {
+    return this.#getEntry(symbol).command;
   }
 
   getNextState(symbol: symbol) {
-    if (this.#symbolToDataMap.has(symbol)) {
-      return this.#symbolToDataMap.get(symbol)!.nextState;
-    }
-
-    throw new Error(`No nextState for symbol at state named ${this.#id}`);
+    return this.#getEntry(symbol).nextState;
   }
 
-  withOverrodeHaltState(overrodeHaltState: State) {
-    const state = new State(null, `${this.name}>${overrodeHaltState.name}`);
+  /**
+   * Like `getNextState`, but also returns the matched Symbol and its index
+   * in this State's transition declaration order (= the `K` in `toGraph`'s
+   * `${stateId}.${K}` transition ids). Used by `TuringMachine.runStepByStep`
+   * to populate `MachineState.matchedTransition` for #205 — exposes which
+   * transition fired so consumers (UIs, log tools, coverage maps) can
+   * resolve the firing edge without re-deriving from `(source, nextState)`,
+   * which is ambiguous when multiple transitions on the same source go to
+   * the same destination.
+   *
+   * Throws (matching `getNextState` / `getCommand`) when no entry exists for
+   * the symbol. For wrappers (states produced by `withOverriddenHaltState`):
+   * the symbol-to-data map is shared with the bare via `bareState`, so the
+   * returned `ix` is a valid position into BOTH the wrapper's and the
+   * bare's transition iteration order — they're the same map.
+   */
+  getMatchedTransition(symbol: symbol): {
+    nextState: State | Reference,
+    matchedSymbol: symbol,
+    ix: number,
+  } {
+    const entry = this.#getEntry(symbol);
 
-    state.#symbolToDataMap = this.#symbolToDataMap;
-    state.#overrodeHaltState = overrodeHaltState;
-    state.#debugRef = this.#debugRef;
+    // Iteration order on a Map is insertion order; index lookup is O(N),
+    // acceptable since this fires at most once per iter and N (transitions
+    // per state) is typically tiny. If hot-path measurement ever flags it,
+    // cache as `#symbolToIxMap` mirror.
+    let ix = 0;
 
-    return state;
+    for (const key of this.#symbolToDataMap.keys()) {
+      if (key === symbol) break;
+      ix += 1;
+    }
+
+    return {nextState: entry.nextState, matchedSymbol: symbol, ix};
+  }
+
+  withOverriddenHaltState(overriddenHaltState: State): CallFrame {
+    // Unwrap `this` if it's itself a CallFrame — the chain's inner overrides
+    // are dead at runtime anyway (only the outermost `.wohs()`'s override is
+    // pushed onto the halt-stack on entry; verified empirically). Composite
+    // name reflects runtime behavior, not construction history. See #176.
+    const bare = this instanceof CallFrame ? this.bare : this;
+
+    // Memoize by (bare, override) so identical args return the same instance
+    // (#175). The cache uses WeakMaps + WeakRefs so cached frames can be
+    // GC'd when nothing else holds them. Compounds with the chain-collapse
+    // above: `A.wohs(t1).wohs(t2)` keys as (A, t2) after the unwrap, hitting
+    // the same cache slot as a direct `A.wohs(t2)`.
+    let innerCache = State.#wrapperCache.get(bare);
+
+    if (innerCache !== undefined) {
+      const ref = innerCache.get(overriddenHaltState);
+
+      if (ref !== undefined) {
+        const cached = ref.deref();
+
+        if (cached !== undefined) {
+          return cached;
+        }
+      }
+    } else {
+      innerCache = new WeakMap();
+      State.#wrapperCache.set(bare, innerCache);
+    }
+
+    const frame = new CallFrame(bare, overriddenHaltState);
+
+    innerCache.set(overriddenHaltState, new WeakRef(frame));
+
+    return frame;
+  }
+
+  /**
+   * @internal
+   *
+   * Package-private getter/setter view onto this State's private fields,
+   * for sibling modules in `packages/machine/src` (currently `stateGraph.ts`
+   * for `toGraph` / `fromGraph`, and the planned `stateCollect.ts` for
+   * #195's `collectStates`).
+   *
+   * Read access is live — the getters close over `this`, so the view
+   * stays in sync with subsequent mutations on this State. There's a
+   * single mutating setter on the view, `name`, which exists to let
+   * `fromGraph` assign graph-sourced composite names (e.g. `A(target)`)
+   * to freshly-constructed bare States. The constructor's name validator
+   * rejects parens (reserved as wrapper-composition delimiters in
+   * `withOverriddenHaltState`); the setter intentionally bypasses that
+   * check because the same delimiters appear in legitimate wrapper-bare
+   * names round-tripped through the graph.
+   *
+   * Returns a fresh view object on every call — cheap enough for the
+   * BFS-once-per-build callers, and avoids holding a reference object on
+   * every State instance. Keep this surface tight: callers should only
+   * read what they need. Adding fields here is a deliberate decision —
+   * each adds to the implicit contract sibling modules can rely on.
+   */
+  [STATE_INTERNAL]() {
+    // Aliasing `this` so the nested object-literal getters/setters below
+    // can read/write the enclosing State's private fields — getters in an
+    // object literal can't be arrow functions, so the standard arrow-
+    // captures-`this` trick doesn't apply here.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+
+    return {
+      get id(): number { return self.#id; },
+      get name(): string { return self.#name; },
+      set name(v: string) { self.#name = v; },
+      get bareState(): State | null { return null; },
+      get overriddenHaltState(): State | null { return null; },
+      get symbolToDataMap() { return self.#symbolToDataMap; },
+      get tags(): ReadonlySet<string> { return self.#tags; },
+    };
   }
 
   // Single-state introspection — no traversal, no tapeBlock required.
@@ -279,20 +520,25 @@ export default class State {
     id: number;
     name: string;
     isHalt: boolean;
-    overrodeHaltState: { id: number; name: string } | null;
+    overriddenHaltState: { id: number; name: string } | null;
     transitions: Array<{
       rawPatternDescription: string | undefined;
       command: Array<{ symbol: string; movement: string }>;
       nextState: { id: number; name: string } | null;
     }>;
   } {
+    // Route through the STATE_INTERNAL view so a CallFrame reports its bare's
+    // transitions and its own override — the view delegates those to the bare
+    // / the frame's #override, whereas the raw private fields on a CallFrame
+    // are empty/null.
+    const internal = state[STATE_INTERNAL]();
     const transitions: Array<{
       rawPatternDescription: string | undefined;
       command: Array<{ symbol: string; movement: string }>;
       nextState: { id: number; name: string } | null;
     }> = [];
 
-    for (const [sym, {command, nextState}] of state.#symbolToDataMap) {
+    for (const [sym, {command, nextState}] of internal.symbolToDataMap) {
       let target: State | null = null;
 
       try {
@@ -311,191 +557,167 @@ export default class State {
       });
     }
 
+    const override = internal.overriddenHaltState;
+
     return {
-      id: state.#id,
-      name: state.#name,
+      id: internal.id,
+      name: internal.name,
       isHalt: state.isHalt,
-      overrodeHaltState: state.#overrodeHaltState
-        ? {id: state.#overrodeHaltState.id, name: state.#overrodeHaltState.name}
+      overriddenHaltState: override
+        ? {id: override.id, name: override.name}
         : null,
       transitions,
     };
   }
 
+
+  /**
+   * Walks the reachable State graph from `initialState` and returns a
+   * serializable `Graph`. Thin delegate to `utilities/stateGraph.ts`'s
+   * `toGraph` (extracted in #180); see that module for the BFS shape and
+   * v7 callable-subtree emit semantics.
+   */
   static toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
-    const nodes: Record<number, GraphNode> = {};
-    const queue: State[] = [initialState];
-    const alphabets = tapeBlock.alphabets.map((alphabet) => alphabet.symbols);
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-
-      if (current.#id in nodes) {
-        continue;
-      }
-
-      const node: GraphNode = {
-        id: current.#id,
-        name: current.#name,
-        isHalt: current.isHalt,
-        transitions: [],
-        overrodeHaltStateId: current.#overrodeHaltState?.id ?? null,
-      };
-
-      nodes[current.#id] = node;
-
-      if (current.#overrodeHaltState) {
-        queue.push(current.#overrodeHaltState);
-      }
-
-      for (const [sym, {command, nextState}] of current.#symbolToDataMap) {
-        let target: State;
-
-        try {
-          target = nextState instanceof State ? nextState : nextState.ref;
-        } catch {
-          continue;
-        }
-
-        node.transitions.push({
-          pattern: decodePatternDescription(sym.description, alphabets),
-          command: command.tapesCommands.map((tc) => ({
-            symbol: decodeWriteSymbol(tc.symbol),
-            movement: decodeMovement((tc.movement as symbol).description),
-          })),
-          nextStateId: target.id,
-        });
-
-        queue.push(target);
-      }
-    }
-
-    return {initialId: initialState.#id, alphabets, nodes};
+    return toGraphImpl(initialState, tapeBlock);
   }
 
-  // Inverse of toGraph: rebuilds a State graph (and a fresh TapeBlock with the
-  // graph's alphabets) from a serialized Graph. Round-trips with toGraph in
-  // the sense that running the rebuilt machine on the same input gives the
-  // same output, but the rebuilt State instances have *new* internal IDs.
+  /**
+   * Inverse of `toGraph`: rebuilds a State graph and a fresh TapeBlock
+   * from a serialized `Graph`. Thin delegate to `utilities/stateGraph.ts`'s
+   * `fromGraph` (extracted in #180); see that module for the
+   * reconstruction pass shape (Reference pre-create, bare build, wrapper
+   * resolution via `withOverriddenHaltState`, ref binding).
+   */
   static fromGraph(graph: Graph): {
     start: State;
     tapeBlock: TapeBlock;
     states: Record<number, State>;
   } {
-    const alphabetObjs = graph.alphabets.map((syms) => new Alphabet(syms));
-    const tapeBlock = TapeBlock.fromAlphabets(alphabetObjs);
-    const ids = Object.keys(graph.nodes).map(Number);
+    return fromGraphImpl(graph);
+  }
 
-    // Pass 1: pre-create a Reference for each non-halt node so transitions can
-    // forward-declare their targets.
-    const refs: Record<number, Reference> = {};
-
-    for (const nodeId of ids) {
-      if (!graph.nodes[nodeId].isHalt) {
-        refs[nodeId] = new Reference();
-      }
-    }
-
-    // Convert a parsed pattern back to the symbol key the State expects.
-    const patternToKey = (parsed: ReturnType<typeof parsePatternString>): symbol => {
-      if (parsed === null) {
-        return ifOtherSymbol;
-      }
-
-      const flat: (string | symbol)[] = [];
-
-      for (const row of parsed) {
-        for (const cell of row) {
-          flat.push(cell === null ? ifOtherSymbol : cell);
-        }
-      }
-
-      return tapeBlock.symbol(flat);
-    };
-
-    // Pass 2: build a "bare" State for each non-halt node (no override yet).
-    // nextState entries point at refs so cycles work; haltState is used directly.
-    const bareStates: Record<number, State> = {};
-
-    for (const nodeId of ids) {
-      const node = graph.nodes[nodeId];
-
-      if (node.isHalt) {
-        continue;
-      }
-
-      const stateDefinition: ConstructorParameters<typeof State>[0] = {};
-
-      for (const t of node.transitions) {
-        const key = patternToKey(parsePatternString(t.pattern, graph.alphabets));
-        const target = graph.nodes[t.nextStateId];
-        const nextState: State | Reference = target.isHalt ? haltState : refs[t.nextStateId];
-
-        stateDefinition![key] = {
-          command: t.command.map((c) => ({
-            symbol: parseWriteSymbolLabel(c.symbol),
-            movement: parseMovementLabel(c.movement),
-          })) as ConstructorParameters<typeof TapeCommand>[0][],
-          nextState,
-        };
-      }
-
-      bareStates[nodeId] = new State(stateDefinition, node.name);
-    }
-
-    // Pass 3: apply overrideHaltStates transitively.
-    const finalStates: Record<number, State> = {};
-    const inProgress = new Set<number>();
-
-    const getFinal = (nodeId: number): State => {
-      if (finalStates[nodeId]) {
-        return finalStates[nodeId];
-      }
-
-      const node = graph.nodes[nodeId];
-
-      if (node.isHalt) {
-        finalStates[nodeId] = haltState;
-
-        return haltState;
-      }
-
-      if (inProgress.has(nodeId)) {
-        throw new Error(`override-halt cycle at state #${nodeId}`);
-      }
-
-      inProgress.add(nodeId);
-
-      let state = bareStates[nodeId];
-
-      if (node.overrodeHaltStateId !== null) {
-        state = bareStates[nodeId].withOverrodeHaltState(getFinal(node.overrodeHaltStateId));
-      }
-
-      inProgress.delete(nodeId);
-      finalStates[nodeId] = state;
-
-      return state;
-    };
-
-    for (const nodeId of ids) {
-      getFinal(nodeId);
-    }
-
-    // Pass 4: bind each ref to the FINAL (possibly wrapped) state so transitions
-    // resolve to the version that has its override-halt set.
-    for (const nodeId of ids) {
-      if (!graph.nodes[nodeId].isHalt) {
-        refs[nodeId].bind(finalStates[nodeId]);
-      }
-    }
-
-    return {
-      start: finalStates[graph.initialId],
-      tapeBlock,
-      states: finalStates,
-    };
+  /**
+   * Returns a `Map<number, {state, transitionSymbols}>` keyed by engine
+   * `GraphNode.id`, exposing the live `State` instance + per-pattern
+   * Symbol references for each node so downstream tooling can mutate
+   * `state.debug` by numeric id and set per-pattern breakpoints by
+   * `GraphTransition.id` (#195). Thin delegate to
+   * `utilities/stateGraph.ts`'s `collectStates`; see that module for
+   * the alignment contract, coverage rules, and halt-singleton warning.
+   */
+  static collectStates(initialState: State, tapeBlock: TapeBlock): StateMap {
+    return collectStatesImpl(initialState, tapeBlock);
   }
 }
 
-export const haltState = new State(null);
+/**
+ * Typed alias for the haltState singleton (#207). Narrows `debug` from
+ * the generic-State `DebugConfig | boolean` union to plain `boolean`,
+ * giving compile-time type-safety at the singleton's call sites:
+ *
+ * ```ts
+ * haltState.debug = true;            // ok
+ * haltState.debug = false;           // ok
+ * haltState.debug = { before: true } // TS error
+ * const isOn = haltState.debug;      // typed `boolean`
+ * ```
+ *
+ * Anyone holding a `State` reference that happens to BE the singleton (e.g.
+ * via `state.getNextState(sym).ref === haltState`) sees the wider `State`
+ * type; runtime throws guide them to the right shape. The singleton export
+ * is the canonical access path.
+ */
+export type HaltState = State & {
+  get debug(): boolean;
+  set debug(value: boolean | null);
+};
+
+export const haltState: HaltState = new State(null) as HaltState;
+
+/**
+ * A first-class call frame produced by `State.withOverriddenHaltState`
+ * (#213). A `CallFrame` is a `State` — `instanceof State` holds, so it flows
+ * anywhere a `State` does (as a `nextState`, through `toGraph`/`fromGraph`,
+ * etc.) — but it carries its own `bare` (the wrapped State) and `override`
+ * (the continuation pushed onto the run-stack on entry). `instanceof
+ * CallFrame` is the explicit wrapper discriminator.
+ *
+ * It owns no transitions of its own: lookups (`getSymbol`/`getCommand`/
+ * `getNextState`/`getMatchedTransition`) and `debug` DELEGATE to the bare,
+ * replacing the v6 field-aliasing (where a wrapper was a plain `State` whose
+ * private `#symbolToDataMap`/`#debugRef` were physically shared with the
+ * bare). `id`, `name` (composite `bare(override)`), and `tags` are its own
+ * (inherited State fields) — so memoized frames sharing a bare keep
+ * independent tags (#186), and the frame is never the halt singleton
+ * (fresh nonzero `#id` → `isHalt === false`).
+ */
+export class CallFrame extends State {
+  readonly #bare: State;
+
+  readonly #override: State;
+
+  constructor(bare: State, override: State) {
+    super(null);
+    this.#bare = bare;
+    this.#override = override;
+    // Composite name contains `(` / `)`, which the constructor's user-facing
+    // name validator rejects; the STATE_INTERNAL name setter bypasses it
+    // (writes the inherited #name). `super[...]` reaches State's own view so
+    // we don't recurse through this subclass's override below.
+    super[STATE_INTERNAL]().name = `${bare.name}(${override.name})`;
+  }
+
+  get bare(): State {
+    return this.#bare;
+  }
+
+  get overriddenHaltState(): State {
+    return this.#override;
+  }
+
+  getSymbol(tapeBlock: TapeBlock) {
+    return this.#bare.getSymbol(tapeBlock);
+  }
+
+  getCommand(symbol: symbol) {
+    return this.#bare.getCommand(symbol);
+  }
+
+  getNextState(symbol: symbol) {
+    return this.#bare.getNextState(symbol);
+  }
+
+  getMatchedTransition(symbol: symbol) {
+    return this.#bare.getMatchedTransition(symbol);
+  }
+
+  get debug(): DebugConfig {
+    return this.#bare.debug;
+  }
+
+  set debug(
+    value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
+  ) {
+    this.#bare.debug = value;
+  }
+
+  [STATE_INTERNAL]() {
+    // Own id / name / tags come from the inherited State fields (via super's
+    // view); bareState / overriddenHaltState / the transition map delegate to
+    // #bare / #override so sibling modules (stateGraph, inspect) see the
+    // frame's true shape.
+    const own = super[STATE_INTERNAL]();
+    const bare = this.#bare;
+    const override = this.#override;
+
+    return {
+      get id(): number { return own.id; },
+      get name(): string { return own.name; },
+      set name(v: string) { own.name = v; },
+      get bareState(): State | null { return bare; },
+      get overriddenHaltState(): State | null { return override; },
+      get symbolToDataMap() { return bare[STATE_INTERNAL]().symbolToDataMap; },
+      get tags(): ReadonlySet<string> { return own.tags; },
+    };
+  }
+}

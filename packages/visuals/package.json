@@ -1,0 +1,45 @@
+{
+  "name": "@turing-machine-js/visuals",
+  "version": "7.0.0",
+  "description": "Pure highlight + graph-indexing logic for @turing-machine-js/machine — no DOM, no renderer.",
+  "engines": {
+    "npm": ">=7.0.0"
+  },
+  "author": "Ruslan Gilmullin <mellonis@yandex.ru>",
+  "homepage": "https://github.com/mellonis/turing-machine-js#readme",
+  "license": "GPL-3.0-or-later",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mellonis/turing-machine-js.git",
+    "directory": "packages/visuals"
+  },
+  "bugs": {
+    "url": "https://github.com/mellonis/turing-machine-js/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3A%22pkg%3A+visuals%22+label%3Abug"
+  },
+  "keywords": [
+    "turing",
+    "machine",
+    "visualization"
+  ],
+  "peerDependencies": {
+    "@turing-machine-js/machine": "^7.0.0"
+  },
+  "scripts": {
+    "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/visuals",
+    "prepublishOnly": "npm run build"
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    }
+  }
+}

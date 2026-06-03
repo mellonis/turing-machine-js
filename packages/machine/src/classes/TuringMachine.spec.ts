@@ -1,9 +1,9 @@
-import {vi} from 'vitest';
 import Alphabet from './Alphabet';
 import State, {haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MachineState} from './TuringMachine';
+import DebugSession from './DebugSession';
 import {movements, symbolCommands} from './TapeCommand';
 import Reference from './Reference';
 
@@ -45,6 +45,21 @@ describe('run tests', () => {
       },
     });
 
+    // #205 matchedTransition. Transition declaration order on
+    // `initialState`:
+    //   ix 0 → `[symbol(symbolList)]` (specific symbol-list pattern)
+    //   ix 1 → `[ifOtherSymbol]` (catch-all)
+    // Iters 1-3 read concrete alphabet symbols matched by ix 0 (literal).
+    // Iter 4 reads blank, falls through to ix 1 (wildcard).
+    const transitionListMatch = {
+      id: `${initialState.id}.0`,
+      matchKinds: ['literal' as const],
+    };
+    const transitionWildcardMatch = {
+      id: `${initialState.id}.1`,
+      matchKinds: ['wildcard' as const],
+    };
+
     expectedSteps = [
       {
         step: 1,
@@ -53,6 +68,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 2,
@@ -61,6 +77,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 3,
@@ -69,6 +86,7 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.right],
         nextState: initialState,
+        matchedTransition: transitionListMatch,
       },
       {
         step: 4,
@@ -77,48 +95,37 @@ describe('run tests', () => {
         nextSymbols: [alphabet.blankSymbol],
         movements: [movements.stay],
         nextState: haltState,
+        matchedTransition: transitionWildcardMatch,
       },
     ];
   });
 
-  test('run', async () => {
-    const steps: MachineState[] = [];
-
-    await machine.run({initialState, stepsLimit: 1e5, onStep: (step) => { steps.push(step); }});
-
-    expect(steps)
-      .toEqual(expectedSteps);
-    expect(tape.symbols.join('').trim().length)
-      .toBe(0);
+  test('run (sync, no observation) drains to halt', () => {
+    machine.run({initialState, stepsLimit: 1e5});
+    expect(tape.symbols.join('').trim().length).toBe(0);
   });
 
-  test('stepsLimit', async () => {
-    const onStepsLimit0Mock = vi.fn();
+  test('run with DebugSession observes every step in order', async () => {
+    const steps: MachineState[] = [];
+    const session = new DebugSession(machine, {initialState, stepsLimit: 1e5});
+    session.on('step', (m) => { steps.push(m); });
+    await session.start();
+    // DebugSession's step listener fires once per iter — matches the v6
+    // onStep contract.
+    expect(steps.length).toBe(expectedSteps.length);
+    for (let i = 0; i < steps.length; i++) {
+      // step listener gets the live MachineState. expectedSteps were captured
+      // from the pre-v7 run({onStep}) shape; the visible MachineState fields
+      // are the same. matchObject ignores the internal MACHINE_STATE_INTERNAL.
+      expect(steps[i]).toMatchObject(expectedSteps[i] as object);
+    }
+  });
 
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 0,
-      onStep: () => onStepsLimit0Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit0Mock.mock.calls.length).toEqual(0);
-
-    const onStepsLimit1Mock = vi.fn();
-
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 1,
-      onStep: () => onStepsLimit1Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit1Mock.mock.calls.length).toEqual(1);
-
-    const onStepsLimit2Mock = vi.fn();
-
-    await expect(machine.run({
-      initialState,
-      stepsLimit: 2,
-      onStep: () => onStepsLimit2Mock()
-    })).rejects.toThrow('Long execution');
-    expect(onStepsLimit2Mock.mock.calls.length).toEqual(2);
+  test('stepsLimit throws "Long execution" after N iters', () => {
+    // run() is sync — `throws`, not `rejects`.
+    expect(() => machine.run({initialState, stepsLimit: 0})).toThrow('Long execution');
+    expect(() => machine.run({initialState, stepsLimit: 1})).toThrow('Long execution');
+    expect(() => machine.run({initialState, stepsLimit: 2})).toThrow('Long execution');
   });
 
   test('stepByStep', () => {
@@ -156,66 +163,41 @@ describe('run tests', () => {
     expect(generator.next().done).toBe(true);
   });
 
-  test('onIter fires once per iter, awaited, after both pause dispatches (#163)', async () => {
+  test('per-iter lifecycle: pause-before → step → pause-after → iter (#163)', async () => {
     // Arm both before+after on the initial state so the dispatch order
-    // before(K) → step(K) → after(K) → iter(K) is observable per iter.
+    // before(K) → step(K) → after(K) → iter(K) is observable per iter via
+    // DebugSession's events.
     initialState.debug = {before: true, after: true};
 
     const order: string[] = [];
-    const yieldToMicrotask = () => new Promise<void>((r) => queueMicrotask(r));
 
-    await machine.run({
-      initialState,
-      stepsLimit: 1e5,
-      onStep: (m) => { order.push(`step-${m.step}`); },
-      onPause: (m) => {
-        const when = m.debugBreak?.before ? 'before' : 'after';
-        order.push(`pause-${when}-${m.step}`);
-      },
-      onIter: async (m) => {
-        order.push(`iter-pre-${m.step}`);
-        await yieldToMicrotask();
-        order.push(`iter-post-${m.step}`);
-      },
+    const session = new DebugSession(machine, {initialState, stepsLimit: 1e5});
+    session.on('step', (m) => { order.push(`step-${m.step}`); });
+    session.on('pause', (m) => {
+      order.push(`pause-${m.pause.side}-${m.step}`);
+      session.continue();
     });
+    session.on('iter', (m) => { order.push(`iter-${m.step}`); });
+    await session.start();
 
     initialState.debug = null; // reset for other tests
 
-    // For every iter K we must see:
-    //   pause-before-K, step-K, pause-after-K, iter-pre-K, iter-post-K
-    // …adjacent and in that order, never interleaved across iters
-    // (which would mean onIter wasn't awaited).
+    // For every iter K we must see (in order):
+    //   pause-before-K, step-K, pause-after-K, iter-K
     expect(order.length).toBeGreaterThan(0);
-    expect(order.length % 5).toBe(0);
-    for (let i = 0; i < order.length; i += 5) {
+    expect(order.length % 4).toBe(0);
+    for (let i = 0; i < order.length; i += 4) {
       const k = order[i].split('-').pop();
       expect(order[i]).toBe(`pause-before-${k}`);
       expect(order[i + 1]).toBe(`step-${k}`);
       expect(order[i + 2]).toBe(`pause-after-${k}`);
-      expect(order[i + 3]).toBe(`iter-pre-${k}`);
-      expect(order[i + 4]).toBe(`iter-post-${k}`);
+      expect(order[i + 3]).toBe(`iter-${k}`);
     }
   });
-
-  test('onIter fires unconditionally (not gated by debug flag) (#163)', async () => {
-    // No state.debug armed AND `debug: false` master switch — onPause must
-    // never fire, but onIter still fires every iter.
-    const iters: number[] = [];
-
-    await machine.run({
-      initialState,
-      stepsLimit: 1e5,
-      debug: false,
-      onIter: (m) => { iters.push(m.step); },
-    });
-
-    expect(iters.length).toBeGreaterThan(0);
-    // Strictly increasing — one onIter per iter.
-    for (let i = 1; i < iters.length; i++) {
-      expect(iters[i]).toBeGreaterThan(iters[i - 1]);
-    }
-  });
-
+  // NOTE: The v6 `debug: false` master-switch test is dropped — v7 removes
+  // the master switch (along with the rest of the run() callback surface).
+  // DebugSession's iter event already covers "fires regardless of breakpoint
+  // configuration" via the buildWalker tests in DebugSession.spec.ts.
 });
 
 describe('properties', () => {
@@ -298,5 +280,120 @@ describe('TuringMachine constructor', () => {
     // without arguments hits the validator's "no tapeBlock" branch.
     expect(() => new TuringMachine()).toThrow(/invalid tapeBlock/);
     expect(() => new TuringMachine({} as never)).toThrow(/invalid tapeBlock/);
+  });
+});
+
+// Regression for #196: halt-stack must be run-scoped, not machine-scoped, so
+// a peeked-then-disposed generator doesn't leak a stack entry into the next
+// run. Builds a wrapper whose bare halts on blank and whose override also
+// halts immediately — the minimal shape that surfaces the bug.
+describe('halt-stack reset between calls (regression for #196)', () => {
+  // Helper: build a fresh scenario per call so each subtest has independent
+  // State/Tape/TapeBlock instances (the engine's symbol patterns are
+  // tapeBlock-scoped — sharing across scenarios would throw "invalid symbol").
+  function buildWrapperOverWalkToBlank() {
+    const wAlphabet = new Alphabet([' ', 'a', 'b', '*']);
+    const tape = new Tape({alphabet: wAlphabet, symbols: ['a', 'b', 'a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+    const walkToBlank = new State({
+      [symbol([wAlphabet.blankSymbol])]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+      [ifOtherSymbol]: {
+        command: [{movement: movements.right}],
+      },
+    }, 'walkToBlank');
+    const writeMarker = new State({
+      [ifOtherSymbol]: {
+        command: [{symbol: '*', movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'writeMarker');
+    const initialState = walkToBlank.withOverriddenHaltState(writeMarker);
+    return {machine, initialState, tape};
+  }
+
+  test('runStepByStep peek + return + run produces no extra iterations', async () => {
+    const {machine, initialState, tape} = buildWrapperOverWalkToBlank();
+
+    // Caller peeks at iter 1 then disposes the generator without draining.
+    const gen = machine.runStepByStep({initialState});
+    gen.next();
+    gen.return(undefined);
+
+    const iters: Array<{step: number; name: string}> = [];
+    for (const m of machine.runStepByStep({initialState})) {
+      iters.push({step: m.step, name: m.state.name ?? ''});
+    }
+
+    expect(iters).toEqual([
+      {step: 1, name: 'walkToBlank(writeMarker)'},
+      {step: 2, name: 'walkToBlank'},
+      {step: 3, name: 'walkToBlank'},
+      {step: 4, name: 'walkToBlank'},
+      {step: 5, name: 'writeMarker'},
+    ]);
+    expect(tape.symbols).toEqual(['a', 'b', 'a', '*']);
+  });
+
+  test('runStepByStep and DebugSession iter event produce identical sequences', async () => {
+    const a = buildWrapperOverWalkToBlank();
+    const fromGen: Array<{step: number; name: string}> = [];
+    for (const m of a.machine.runStepByStep({initialState: a.initialState})) {
+      fromGen.push({step: m.step, name: m.state.name ?? ''});
+    }
+
+    const b = buildWrapperOverWalkToBlank();
+    const fromSession: Array<{step: number; name: string}> = [];
+    const session = new DebugSession(b.machine, {initialState: b.initialState});
+    session.on('iter', (m) => {
+      fromSession.push({step: m.step, name: m.state.name ?? ''});
+    });
+    await session.start();
+
+    expect(fromSession).toEqual(fromGen);
+  });
+
+  test('two consecutive runs on the same machine produce identical iter sequences', async () => {
+    // A self-loop-free machine — both runs traverse the same iter shape
+    // because the input alphabet is wide enough that the head moves off the
+    // initial cells and the post-run tape doesn't influence the next run.
+    // The point of this test is the #stack accumulation, not tape state.
+    const wAlphabet = new Alphabet([' ', 'a', 'b']);
+    const tape = new Tape({alphabet: wAlphabet, symbols: ['a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    // A wrapper around a single-iter halt-on-anything bare. Each run pushes
+    // its own override; a leaking machine-scoped stack would see a stale
+    // override on the second run and produce one extra iter.
+    const bare = new State({
+      [ifOtherSymbol]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'bare');
+    const continuation = new State({
+      [ifOtherSymbol]: {
+        command: [{movement: movements.stay}],
+        nextState: haltState,
+      },
+    }, 'continuation');
+    const initialState = bare.withOverriddenHaltState(continuation);
+
+    const first: Array<{step: number; name: string}> = [];
+    for (const m of machine.runStepByStep({initialState})) {
+      first.push({step: m.step, name: m.state.name ?? ''});
+    }
+
+    const second: Array<{step: number; name: string}> = [];
+    for (const m of machine.runStepByStep({initialState})) {
+      second.push({step: m.step, name: m.state.name ?? ''});
+    }
+
+    expect(first.length).toBe(2); // wrapper-iter + continuation-iter
+    expect(second).toEqual(first);
   });
 });

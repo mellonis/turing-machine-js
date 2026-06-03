@@ -418,3 +418,51 @@ describe('TapeBlock.clone', () => {
     expect(clonedSymbol).toBe(original);
   });
 });
+
+describe('TapeBlock.patternKinds (#205)', () => {
+  // Public method (used internally by TuringMachine.runStepByStep to populate
+  // `MachineState.matchedTransition.matchKinds`). Engine-internal callers
+  // always pass a registered symbol whose patternList matches the current
+  // head; the two defensive fallbacks below exist so external callers
+  // (debugger tools, custom dispatchers) get safe "all literal" results
+  // for unrecognized symbols / no-match cases instead of crashing.
+
+  test('ifOtherSymbol returns all `wildcard` (length = tape count)', () => {
+    const a = new Alphabet([' ', 'a', 'b']);
+    const tb = TapeBlock.fromAlphabets([a, a]);
+    expect(tb.patternKinds(ifOtherSymbol)).toEqual(['wildcard', 'wildcard']);
+  });
+
+  test('registered specific-symbol pattern returns per-position kinds', () => {
+    const a = new Alphabet([' ', 'a', 'b']);
+    const tape1 = new Tape({alphabet: a, symbols: ['a']});
+    const tape2 = new Tape({alphabet: a, symbols: ['b']});
+    const tb = TapeBlock.fromTapes([tape1, tape2]);
+    // Mixed-kind pattern: position 0 wildcard, position 1 literal.
+    const sym = tb.symbol([ifOtherSymbol, 'b']);
+    expect(tb.patternKinds(sym)).toEqual(['wildcard', 'literal']);
+  });
+
+  test('unregistered symbol falls back to all `literal`', () => {
+    // Defensive: an alien symbol that was never interned via tb.symbol(...)
+    // should not crash patternKinds — engine-internal callers never pass
+    // such a symbol, but external API callers might.
+    const a = new Alphabet([' ', 'a']);
+    const tb = TapeBlock.fromAlphabets([a, a]);
+    const alien = Symbol('alien');
+    expect(tb.patternKinds(alien)).toEqual(['literal', 'literal']);
+  });
+
+  test('registered symbol with no matching pattern falls back to all `literal`', () => {
+    // Defensive: pass a registered symbol whose pattern doesn't match the
+    // supplied currentSymbols. Pattern is `['a', 'a']`; head is `['b', 'b']`.
+    // Internally unreachable (engine fires the pattern only when head matches),
+    // but exposed via the public method's `currentSymbols` parameter.
+    const a = new Alphabet([' ', 'a', 'b']);
+    const tape1 = new Tape({alphabet: a, symbols: ['a']});
+    const tape2 = new Tape({alphabet: a, symbols: ['a']});
+    const tb = TapeBlock.fromTapes([tape1, tape2]);
+    const sym = tb.symbol(['a', 'a']);
+    expect(tb.patternKinds(sym, ['b', 'b'])).toEqual(['literal', 'literal']);
+  });
+});

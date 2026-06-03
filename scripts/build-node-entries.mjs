@@ -35,6 +35,11 @@ const allPackages = [
     dir: 'packages/library-binary-numbers-bare',
     external: ['@turing-machine-js/machine'],
   },
+  {
+    name: '@turing-machine-js/visuals',
+    dir: 'packages/visuals',
+    external: ['@turing-machine-js/machine'],
+  },
 ];
 
 const packages = requestedPkg

@@ -1,0 +1,7 @@
+src/
+jest.config.mjs
+babel.config.js
+tsconfig.json
+tsconfig.build.json
+*.tsbuildinfo
+dist/**/*.js

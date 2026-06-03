@@ -1,5 +1,6 @@
 import {
   Alphabet,
+  DebugSession,
   haltState,
   ifOtherSymbol,
   movements,
@@ -95,7 +96,9 @@ describe('README.md — Debugging breakpoints', () => {
     myState.debug = {before: true};
     let breakCount = 0;
 
-    await machine.run({initialState: myState, onPause: () => { breakCount += 1; }});
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', () => { breakCount += 1; session.continue(); });
+    await session.start();
 
     expect(breakCount).toBe(VISIT_COUNT);
   });
@@ -106,13 +109,13 @@ describe('README.md — Debugging breakpoints', () => {
     let symASeen = 0;
     let nonASeen = 0;
 
-    await machine.run({
-      initialState: myState,
-      onPause: (m) => {
-        if (m.currentSymbols[0] === 'A') symASeen += 1;
-        else nonASeen += 1;
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', (m) => {
+      if (m.currentSymbols[0] === 'A') symASeen += 1;
+      else nonASeen += 1;
+      session.continue();
     });
+    await session.start();
 
     expect(symASeen).toBe(A_VISIT_COUNT);
     expect(nonASeen).toBe(0);
@@ -123,40 +126,40 @@ describe('README.md — Debugging breakpoints', () => {
     myState.debug = {before: [symA], after: [symA]};
     const order: Array<'before' | 'after'> = [];
 
-    await machine.run({
-      initialState: myState,
-      onPause: (m) => {
-        if (m.debugBreak?.before) order.push('before');
-        if (m.debugBreak?.after) order.push('after');
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('pause', (m) => {
+      if (m.pause.side === 'before') order.push('before');
+      if (m.pause.side === 'after') order.push('after');
+      session.continue();
     });
+    await session.start();
 
     // Only visit 1 (head=A) matches; per-iter lifecycle is before → after.
     // Visit 2 (head=B) doesn't match, no fires.
     expect(order).toEqual(['before', 'after']);
   });
 
-  test('haltState.debug.before pauses on halt entry — fires once at the final visit', async () => {
+  test('haltState.debug = true pauses on halt entry — fires once at the final visit (#207)', async () => {
     const {machine, myState} = buildExampleMachine();
-    haltState.debug = {before: true};
+    haltState.debug = true;
     const haltPauses: Array<{atVisit: number}> = [];
     let visitIx = 0;
 
-    await machine.run({
-      initialState: myState,
-      onStep: () => { visitIx += 1; }, // increments before onPause for this visit
-      onPause: (m) => {
-        if (m.nextState === haltState && m.debugBreak?.before) {
-          haltPauses.push({atVisit: visitIx});
-        }
-      },
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('step', () => { visitIx += 1; });
+    session.on('pause', (m) => {
+      if (m.nextState === haltState && m.pause.side === 'after') {
+        haltPauses.push({atVisit: visitIx});
+      }
+      session.continue();
     });
+    await session.start();
 
     expect(haltPauses).toHaveLength(HALT_TRANSITION_COUNT);
-    // Note: per-iter dispatch order is `before → step → after` — onPause for
-    // before fires BEFORE onStep increments visitIx, so the recorded visit
-    // index is one less than the human-readable visit count.
-    expect(haltPauses[0].atVisit).toBe(VISIT_COUNT - 1);
+    // Per-iter dispatch order: pause(before) → step → pause(after) → iter.
+    // step increments visitIx; pause for after reads the just-incremented
+    // value, matching the human-readable visit count.
+    expect(haltPauses[0].atVisit).toBe(VISIT_COUNT);
   });
 
   test('Reset filters by assigning null', () => {
@@ -196,14 +199,61 @@ describe('README.md — Debugging breakpoints', () => {
     let stepCount = 0;
     let breakCount = 0;
 
-    await machine.run({
-      initialState: myState,
-      onStep: () => { stepCount += 1; },
-      onPause: () => { breakCount += 1; },
-    });
+    const session = new DebugSession(machine, {initialState: myState});
+    session.on('step', () => { stepCount += 1; });
+    session.on('pause', () => { breakCount += 1; session.continue(); });
+    await session.start();
 
     expect(stepCount).toBe(VISIT_COUNT);
     expect(breakCount).toBe(VISIT_COUNT);
+  });
+});
+
+describe('README.md — Matched transition', () => {
+  test('onStep logs transition id and per-tape wildcard positions (#205)', async () => {
+    const alphabet = new Alphabet([' ', 'a', 'b', 'c', '*']);
+    const tape = new Tape({alphabet, symbols: ['a', 'b', 'c', 'b', 'a']});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+
+    // Same fixture as "An example" — patterns declared in this order:
+    //   ix 0: literal 'b'  → write '*', right
+    //   ix 1: literal ' '  → left, halt
+    //   ix 2: ifOtherSymbol → right
+    // Tape walk: a, b, c, b, a, blank → 6 iters total.
+    const initialState = new State({
+      [tapeBlock.symbol(['b'])]: {
+        command: [{symbol: '*', movement: movements.right}],
+      },
+      [tapeBlock.symbol([tape.alphabet.blankSymbol])]: {
+        command: [{movement: movements.left}],
+        nextState: haltState,
+      },
+      [ifOtherSymbol]: {
+        command: [{movement: movements.right}],
+      },
+    });
+
+    const logged: string[] = [];
+
+    // Verbatim from README's "Matched transition" section, with console.log
+    // replaced by capture for assertion.
+    for (const m of machine.runStepByStep({initialState})) {
+      const wildcardPositions = m.matchedTransition.matchKinds
+        .map((k, i) => k === 'wildcard' ? i : -1)
+        .filter((i) => i >= 0);
+      logged.push(`step ${m.step}: fired transition ${m.matchedTransition.id} (wildcards at tapes: ${wildcardPositions.join(',') || 'none'})`);
+    }
+
+    const sid = initialState.id;
+    expect(logged).toEqual([
+      `step 1: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'a' → ifOther
+      `step 2: fired transition ${sid}.0 (wildcards at tapes: none)`, // 'b' → literal
+      `step 3: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'c' → ifOther
+      `step 4: fired transition ${sid}.0 (wildcards at tapes: none)`, // 'b' → literal
+      `step 5: fired transition ${sid}.2 (wildcards at tapes: 0)`,  // 'a' → ifOther
+      `step 6: fired transition ${sid}.1 (wildcards at tapes: none)`, // blank → halt
+    ]);
   });
 });
 
@@ -276,9 +326,9 @@ describe('README.md — Building from a state table', () => {
   });
 });
 
-// Pin the withOverrodeHaltState subroutine-composition example from the README.
-describe('README.md — Subroutine composition with withOverrodeHaltState', () => {
-  test('scanToX.withOverrodeHaltState(eraseHere) erases the first X and lands on it', async () => {
+// Pin the withOverriddenHaltState subroutine-composition example from the README.
+describe('README.md — Subroutine composition with withOverriddenHaltState', () => {
+  test('scanToX.withOverriddenHaltState(eraseHere) erases the first X and lands on it', async () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -292,7 +342,7 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
       [ifOtherSymbol]: {command: {symbol: symbolCommands.erase}, nextState: haltState},
     }, 'eraseHere');
 
-    const scanThenErase = scanToX.withOverrodeHaltState(eraseHere);
+    const scanThenErase = scanToX.withOverriddenHaltState(eraseHere);
 
     const tape = new Tape({alphabet, symbols: ['a', 'b', 'X', 'b', 'a']});
     tapeBlock.replaceTape(tape);
@@ -303,7 +353,7 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
     expect(tape.position).toBe(2); // head landed where the X used to be
   });
 
-  test('the original scanToX is left unmodified by withOverrodeHaltState', async () => {
+  test('the original scanToX is left unmodified by withOverriddenHaltState', async () => {
     const alphabet = new Alphabet([' ', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -318,9 +368,9 @@ describe('README.md — Subroutine composition with withOverrodeHaltState', () =
     }, 'eraseHere');
 
     // Wrapping doesn't mutate the original.
-    scanToX.withOverrodeHaltState(eraseHere);
+    scanToX.withOverriddenHaltState(eraseHere);
 
-    expect(scanToX.overrodeHaltState).toBeNull();
+    expect(scanToX.overriddenHaltState).toBeNull();
 
     // Running scanToX standalone (no wrapper) just halts at the X — the
     // X is NOT erased.

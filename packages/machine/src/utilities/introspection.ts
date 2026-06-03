@@ -5,7 +5,7 @@ import {type Graph} from './graph';
 // Quantitative summary of a state graph — designed to help a student compare
 // two implementations of the same algorithm and answer questions like:
 //   - "How many states does each version have?"
-//   - "Does either use withOverrodeHaltState composition?"
+//   - "Does either use withOverriddenHaltState composition?"
 //   - "How deep is that composition?"
 //   - "Are there cycles? self-loops?"
 //   - "What's the alphabet size for each tape?"
@@ -17,16 +17,16 @@ import {type Graph} from './graph';
 //
 //   const a = summarize(binaryNumbers.states.minusOne, binaryNumbers.getTapeBlock());
 //   const b = summarize(binaryNumbersBare.states.minusOne, binaryNumbersBare.getTapeBlock());
-//   // a.stateCount === 17, b.stateCount === 3
+//   // a.stateCount === 15, b.stateCount === 3
 //   // a.maxCompositionDepth === 4, b.maxCompositionDepth === 0
 export type GraphSummary = {
   // Counts
   stateCount: number;
   transitionCount: number;
 
-  // Composition via withOverrodeHaltState
-  compositionEdgeCount: number;     // states with an overrodeHaltStateId set
-  maxCompositionDepth: number;      // longest chain of withOverrodeHaltState (0 if none)
+  // Composition via withOverriddenHaltState
+  compositionEdgeCount: number;     // states with an overriddenHaltStateId set
+  maxCompositionDepth: number;      // longest chain of withOverriddenHaltState (0 if none)
 
   // Structural
   selfLoopCount: number;            // transitions where nextStateId === own id
@@ -40,6 +40,12 @@ export type GraphSummary = {
 export function summarizeGraph(graph: Graph): GraphSummary {
   const nodes = Object.values(graph.nodes);
 
+  // `isHaltMarker` nodes are visualization sentinels — one per wrapper context,
+  // all corresponding to the singleton `haltState` at runtime. They don't
+  // count as distinct runtime states; matches the per-algorithm header in
+  // `library-binary-numbers/states.md`.
+  const runtimeStateCount = nodes.filter((n) => !n.isHaltMarker).length;
+
   let transitionCount = 0;
   let compositionEdgeCount = 0;
   let selfLoopCount = 0;
@@ -47,7 +53,7 @@ export function summarizeGraph(graph: Graph): GraphSummary {
   for (const node of nodes) {
     transitionCount += node.transitions.length;
 
-    if (node.overrodeHaltStateId !== null) {
+    if (node.overriddenHaltStateId !== null) {
       compositionEdgeCount += 1;
     }
 
@@ -58,7 +64,7 @@ export function summarizeGraph(graph: Graph): GraphSummary {
     }
   }
 
-  // Longest withOverrodeHaltState chain. Walks node → overrodeHaltState recursively;
+  // Longest withOverriddenHaltState chain. Walks node → overriddenHaltState recursively;
   // a Set guards against cycles in the override graph (which throw at construction
   // time anyway, but being defensive costs little).
   const overrideDepthFrom = (id: number, visited: Set<number>): number => {
@@ -70,11 +76,11 @@ export function summarizeGraph(graph: Graph): GraphSummary {
 
     const node = graph.nodes[id];
 
-    if (!node || node.overrodeHaltStateId === null) {
+    if (!node || node.overriddenHaltStateId === null) {
       return 0;
     }
 
-    return 1 + overrideDepthFrom(node.overrodeHaltStateId, visited);
+    return 1 + overrideDepthFrom(node.overriddenHaltStateId, visited);
   };
 
   const maxCompositionDepth = nodes.reduce(
@@ -95,10 +101,10 @@ export function summarizeGraph(graph: Graph): GraphSummary {
   let hasCycles = false;
 
   const visit = (id: number): void => {
-    // No `if (hasCycles) return` guard at function entry: the recursive call
-    // pattern (outer for-loop checks before calling, inner loop checks after
-    // each recursive call) ensures visit() is never invoked when hasCycles
-    // is already true. Static analysis confirmed the guard was unreachable.
+    // No `if (hasCycles) return` guard at function entry: the call pattern
+    // (outer for-loop checks before calling, inner loop checks after each
+    // recursive call) ensures visit() is never invoked when hasCycles is
+    // already true.
     if (color.get(id) === GREY) {
       hasCycles = true;
       return;
@@ -134,7 +140,7 @@ export function summarizeGraph(graph: Graph): GraphSummary {
   }
 
   return {
-    stateCount: nodes.length,
+    stateCount: runtimeStateCount,
     transitionCount,
     compositionEdgeCount,
     maxCompositionDepth,

@@ -1,0 +1,87 @@
+{
+  "initialId": 2,
+  "alphabets": [
+    [
+      "␣",
+      "a",
+      "b"
+    ],
+    [
+      "␣",
+      "a",
+      "b"
+    ]
+  ],
+  "nodes": {
+    "0": {
+      "id": 0,
+      "name": "id:0",
+      "isHalt": true,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "2": {
+      "id": 2,
+      "name": "id:2",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "'a',*",
+          "command": [
+            {
+              "symbol": "'a'",
+              "movement": "R"
+            },
+            {
+              "symbol": "'a'",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 2,
+          "id": "2.0"
+        },
+        {
+          "pattern": "'b',*",
+          "command": [
+            {
+              "symbol": "'b'",
+              "movement": "R"
+            },
+            {
+              "symbol": "'b'",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 2,
+          "id": "2.1"
+        },
+        {
+          "pattern": "B,*",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "S"
+            },
+            {
+              "symbol": "K",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": 0,
+          "id": "2.2"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    }
+  }
+}

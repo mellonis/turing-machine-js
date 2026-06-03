@@ -1,0 +1,108 @@
+{
+  "initialId": 5,
+  "alphabets": [
+    [
+      " ",
+      "a",
+      "b",
+      "*"
+    ]
+  ],
+  "nodes": {
+    "0": {
+      "id": 0,
+      "name": "id:0",
+      "isHalt": true,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "3": {
+      "id": 3,
+      "name": "walkToBlank",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": 3,
+      "transitions": [
+        {
+          "pattern": "B",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": -3,
+          "id": "3.0"
+        },
+        {
+          "pattern": "*",
+          "command": [
+            {
+              "symbol": "K",
+              "movement": "R"
+            }
+          ],
+          "nextStateId": 3,
+          "id": "3.1"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "4": {
+      "id": 4,
+      "name": "writeMarker",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": null,
+      "transitions": [
+        {
+          "pattern": "*",
+          "command": [
+            {
+              "symbol": "'*'",
+              "movement": "S"
+            }
+          ],
+          "nextStateId": 0,
+          "id": "4.0"
+        }
+      ],
+      "overriddenHaltStateId": null,
+      "tags": []
+    },
+    "5": {
+      "id": 5,
+      "name": "walkToBlank(writeMarker)",
+      "isHalt": false,
+      "isHaltMarker": false,
+      "isWrapper": true,
+      "bareStateId": 3,
+      "frameId": null,
+      "transitions": [],
+      "overriddenHaltStateId": 4,
+      "tags": []
+    },
+    "-3": {
+      "id": -3,
+      "name": "halt",
+      "isHalt": true,
+      "isHaltMarker": true,
+      "isWrapper": false,
+      "bareStateId": null,
+      "frameId": 3,
+      "transitions": [],
+      "overriddenHaltStateId": null,
+      "tags": []
+    }
+  }
+}
