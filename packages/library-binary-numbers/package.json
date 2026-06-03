@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/library-binary-numbers",
-  "version": "7.0.0-alpha.8",
+  "version": "7.0.0",
   "description": "A standard library for working with binary numbers",
   "engines": {
     "npm": ">=7.0.0"
@@ -27,7 +27,7 @@
     "numbers"
   ],
   "peerDependencies": {
-    "@turing-machine-js/machine": "^7.0.0-alpha.8"
+    "@turing-machine-js/machine": "^7.0.0"
   },
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/library-binary-numbers",

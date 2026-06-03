@@ -4,6 +4,21 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2026-06-03
+
+Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. First stable cut of the visuals companion package. See the machine package CHANGELOG for the cumulative v7 trajectory.
+
+### Added (cumulative across the v7 alpha cycle)
+
+- **Highlight + graph-indexing surface** (alpha.6): `applyHighlight`, `applyIndicator`, `indexGraph`, `bareIdOf`, `highlightExpand`, `equivalentIds`, `recordingOps`, plus types `HighlightOps` / `IndicatorOps` / `RecordedOp` / `NodeKey` / `HighlightClass` / `GraphIndexes` / `GraphHighlight`. 16-rule contract doc at `docs/graph-highlight-and-breakpoints.md`.
+- **Snippet recording + playback** (alpha.6, alpha.7.1): `recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }) => Snippet` (engine-agnostic — works with `@turing-machine-js/machine` or `@post-machine-js/machine`), `SnippetPlayer` class with `currentFrame` / `frameIndex` / `done` getters + `forward()` / `back()` / `reset()` / `goTo(idx)`. `Frame.commands` carries per-tape `{ movement, read, write }` so consumers step bi-directionally without recomputing deltas. Types: `Snippet`, `Frame`, `StepCommand`, `RecordSnippetOptions`.
+- **Engine-edge-label formatter primitives** (alpha.6.1): `formatStepNotation(reads, commands, blanks, matchKinds?)` (byte-identical to `toMermaid` edge labels, with `'X'` / `B` / `*='X'` / `K='X'` / `K=B` / `E` shortcuts), `tokenizeStep(...) → StepTokens` (renderer-agnostic structured tokens — discriminated-union `ReadToken` / `WriteToken` per cell, moves as letters; consumers wanting non-string rendering walk tokens themselves), `formatTape(snapshot)` (head bracketed in place, `a[b]c`). Earlier `formatCommand` / `formatStep` continue to work.
+- **`TapeSnapshot` + `tapeViewport` re-exports** (alpha.8) — moved into `@turing-machine-js/machine` and re-exported from visuals for consumer-import stability. `import { TapeSnapshot, tapeViewport } from '@turing-machine-js/visuals'` keeps working.
+
+### Changed
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.8` → `^7.0.0`.
+
 ## [7.0.0-alpha.8] - 2026-06-02
 
 `TapeSnapshot` type and `tapeViewport` helper moved to `@turing-machine-js/machine` ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — they live next to the live `Tape` class now. **Consumers importing them from `@turing-machine-js/visuals` are unaffected**: visuals re-exports both from the engine, so existing `import { TapeSnapshot, tapeViewport } from '@turing-machine-js/visuals'` continues to work.

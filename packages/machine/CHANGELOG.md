@@ -4,6 +4,87 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2026-06-03
+
+Stable v7. The composition-representation overhaul. See alpha.1 through alpha.8 entries below for the detailed step-by-step trajectory; this entry summarizes the cumulative API changes from v6.4.0.
+
+### Added
+
+- **`DebugSession`** — `new DebugSession(machine, { initialState })`. The sole interactive-debugging surface (there is no `debugRun()` factory on `TuringMachine`). Emits `pause` / `step` / `iter` / `halt` events via `session.on(event, listener)`; `iter` listeners are awaited (the per-iter throttle / coordination point), `pause` / `step` / `halt` are fire-and-forget. Drive controls: `continue()`, `stepIn()`, `stepOver()`, `stepOut()`, external `pause()`, `stop()`, and `setRunInterval(ms)` for a per-iter throttle. Breakpoint detection (`state.debug` filters, `haltState.debug`) lives entirely here. Concurrent sessions on one machine are rejected (the underlying `TapeBlock` lock is single-active-run). Depth-based step controls mirror Chrome DevTools: `stepIn` = next iter at any depth; `stepOver` = next iter at `depth ≤ click-time depth`; `stepOut` = next iter at `depth < click-time depth` (throws at depth 0).
+- **`CallFrame extends State`** — `withOverriddenHaltState`'s wrapper is now a first-class `State` subclass instead of an instance aliasing the bare's private `#symbolToDataMap` / `#debugRef`. Transition lookups and `debug` access delegate to the bare. `instanceof State` is preserved; `instanceof CallFrame` is the wrapper discriminator. Exported additively from the package root.
+- **`TapeSnapshot` type + `tapeViewport` helper** — the per-tape wire-data shape `{ symbols: string[]; position: number }` and a pure helper providing a fixed-width centered window over it. Live next to the `Tape` class; `@turing-machine-js/visuals` re-exports both for consumer-import stability.
+- **First-class State tags** — `state.tag(...) / .untag(...) / .tags` for attaching string metadata. Out-of-band — no effect on transition lookup, `equivalentOn`, or runtime semantics. Live on the State instance, so memoized wrappers don't leak tags across sharers of a bare. `GraphNode.tags: string[]` survives `toGraph` / `fromGraph` round-trip; `toMermaid` emits tags inline (`<br>`) AND as `classDef` + `class` color-group lines.
+- **`withOverriddenHaltState` memoization** — calls with the same `(bare, override)` pair return the literally-same `State` instance. Backed by a `WeakMap` keyed by the bare with `WeakRef`-valued entries.
+- **`MachineState.matchedTransition`** — every yielded `MachineState` carries `{ id: string, matchKinds: ('wildcard' | 'literal')[] }`. `id` is `${stateId}.${transitionIx}` and resolves directly in `toGraph` output. `matchKinds` is per-tape; `'wildcard'` iff the winning alternative held `ifOtherSymbol` at that position. Eliminates `(source, nextState)` resolution ambiguity for exact-edge highlighting and per-transition coverage maps.
+- **`State.getMatchedTransition(symbol)`** — returns `{ nextState, matchedSymbol, ix }`, exposing the index used by `matchedTransition.id`.
+- **`State.collectStates(initialState, tapeBlock)`** — returns `Map<number, { state: State; transitionSymbols: symbol[] }>` keyed by engine `GraphNode.id`. The K-th `transitionSymbols` slot is positionally aligned with the GraphTransition whose id is `${stateId}.${K}`. `StateMap` and `StateMapEntry` types exported.
+- **`TapeBlock.patternKinds(symbol, currentSymbols?)`** — per-tape `'wildcard' | 'literal'` for the matched alternative's selector.
+- **`HaltState` typed alias** — narrows `haltState.debug` to `boolean` at the canonical access path.
+- **`@turing-machine-js/visuals` companion package** — pure highlight + graph-indexing logic for the engine `Graph` (peer dep on `machine`, no runtime deps). Includes `applyHighlight` / `applyIndicator` / `indexGraph` / `bareIdOf` / `highlightExpand` / `equivalentIds` / `recordingOps`, the engine-edge-label formatter primitives (`formatStepNotation` / `tokenizeStep` / `formatTape`), the snippet-recording surface (`recordSnippet` + `SnippetPlayer`), and a 16-rule contract doc.
+
+### Changed
+
+- **`State.prototype.withOverrodeHaltState` renamed to `withOverriddenHaltState`** — grammar fix. Hard cutover, no deprecated alias. Renames in lockstep: public method, `state.overriddenHaltState` getter, the `#overriddenHaltState` private field, and the serialized `Graph` field `node.overriddenHaltStateId`.
+- **Wrapped-state composite name format flipped from `bare>override` to `bare(override)`** — paren-nested keeps structurally-distinct wrap-trees distinct (`A.with(B.with(A))` is `A(B(A))`; `A.with(B).with(A)` is `A(B)(A)`). As a consequence, **user-provided state names must not contain `(` or `)`** (the constructor throws). `>` is no longer reserved.
+- **`run()` is synchronous and callback-free** — signature is `run({ initialState, stepsLimit? }): void` (was `async … : Promise<void>` with `onPause` / `onStep` / `onIter` callbacks). All callback machinery has moved to `DebugSession`. **Breaking** for callers awaiting `run()` or passing callbacks.
+- **`runStepByStep` is the minimal pure-iteration primitive** — advances the machine and yields a plain `MachineState`. Evaluates no `state.debug` filters and stamps no pause field. Breakpoint detection moved to `DebugSession`. **Breaking** for consumers that read a pause / breakpoint field off raw yields.
+- **`haltState.debug` is a `boolean`** — was `DebugConfig` with per-side `{ before?, after? }`. `haltState.debug = true` enables (pauses on every halt entry); `false` / `null` disables. Object-shaped writes throw. The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state. **Breaking** — pre-v7 consumers using `haltState.debug = { before: true }` / `{ after: true }` must switch to `haltState.debug = true`. ⚠️ Chained-form `haltState.debug.before = true` silently no-ops in non-strict mode (primitive-property assignment). Use the whole-object form.
+- **`toMermaid` callable-subtree emit** — wrapper and bare are separate graph nodes. Wrapper sits OUTSIDE any subgraph as `[[composite-name]]` (call site). Bare lives INSIDE its callable subtree subgraph as a regular `[name]` node. Subgraph label is `"callable subtree of NAME"` (single bare) or `"callable scope: A ∪ B"` (multi-bare union frame computed via union-find on bare-reachability). Halt marker is per-frame. Arrow vocabulary: solid `-->` for regular transitions AND wrapper's post-return `--> override`; bold `==> "call"` is RESERVED for wrapper-to-bare (`&` ribbon collapses multiple wrappers sharing a bare); dotted `-.->` is reserved for frame-level dispatch (`w_N -. "return" .-> wrapper`, `w_N -. "halt" .-> s0`, `idle -. enter .-> sN`). `GraphNode` field changes: `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null`; `overriddenHaltStateId` lives on wrapper nodes only. Bytewise round-trip stability holds for all wrapped states, including shared-bare cases.
+- **`toMermaid` framed-wrapper emit fix** — `toGraph`'s reach-set now pushes the wrapper itself AND tunnels through `overriddenHaltStateId`, so framed-wrapper-continuations join the caller's frame instead of emitting at the top level.
+- **`toMermaid` user-content escape** — alphabet symbols, state names, tag names, and frame bare names are HTML-entity-escaped at the leaf (`&`, `"`, `<`, `>` to named entities; statement terminators, C0 controls, DEL, bidi controls, lone surrogates to numeric entities). `fromMermaid` mirrors with a single-pass entity decoder. Fixes parse errors on alphabets containing literal `"`, `<`, `>`, etc.
+- **Edge-label vocabulary rewritten** — `[reads] → [writes]/[moves]`, each role wrapped in `[…]` (tape-block indicator; always present, even single-tape). Read cells: `'X'` literal-quoted, `*` (ifOtherSymbol catch-all), `B` (tape's blank). Write cells: literal-quoted, `K` (keep), `E` (erase). Move cells: `L` / `R` / `S`. Alternation per-pattern bracket (`['^']|['1']`, never compact in-bracket form).
+- **`GraphTransition.id` separator: `-` → `.`** — was `${stateId}-${patternIx}`, now `${stateId}.${patternIx}`. Aligns with `matchedTransition.id` and makes the id splittable without colliding with user-defined state names containing `-`.
+- **Nested `.wohs()` chain collapse** — `A.wohs(t1).wohs(t2)` is equivalent to `A.wohs(t2)` (the inner override is dead at runtime). Composite name now reflects runtime behavior: `A(t2)`, not the misleading `A(t1)(t2)`.
+- **`runStepByStep` halt-stack is run-scoped, not machine-scoped** — fixes a "ghost iteration" / memory leak on consecutive `runStepByStep` calls when the previous generator wasn't drained to halt.
+- **Graph serialization extracted to `utilities/stateGraph.ts`** — `State.toGraph` / `State.fromGraph` / `State.collectStates` live in a sibling module. Public surface preserved via thin static delegates.
+- **`Tape.viewport` getter shares its centering loop with `tapeViewport`** via an internal `tapeViewportFromAccess` core — the centering math lives once.
+- **`summarize().stateCount` filters `isHaltMarker` nodes** — halt markers are visualization sentinels (all map back to singleton `haltState` at runtime).
+
+### Removed
+
+- **`MachineState.debugBreak`** — the per-yield `{ before?, after?, cause }` descriptor from the v4–v6 debugger. Replaced by the one-sided `m.pause: { side: 'before' | 'after', cause: 'breakpoint' | 'step' | 'manual' }` carried ONLY on a `DebugSession` `pause` event (`PausedMachineState`); raw `runStepByStep` yields carry no pause field.
+- **`withOverrodeHaltState` (the misspelled alias)** — no deprecated alias retained.
+- **The `-. onHalt .->` Mermaid arrow** — wrapper-to-override is now an ordinary solid `--> override` arrow; dotted `-.->` is reserved for frame-level dispatch.
+- **`GraphNode.isWrapped`** — replaced by `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null`.
+- **`run()` callbacks (`onPause`, `onStep`, `onIter`)** — moved to `DebugSession` events.
+- **Hand-drawn pedagogical Mermaid blocks in READMEs** — the v7 `toMermaid` output is the primary illustration; no more vocabulary mismatch between hand-drawn and engine-rendered diagrams.
+
+### Migration
+
+Mechanical identifier rename:
+
+```sh
+git grep -l 'OverrodeHaltState\|overrodeHaltState' | xargs sed -i '' \
+  -e 's/OverrodeHaltState/OverriddenHaltState/g' \
+  -e 's/overrodeHaltState/overriddenHaltState/g'
+```
+
+`await`-on-`run()` and callback users move to `DebugSession`:
+
+```ts
+// before
+await machine.run({ initialState, onPause: (m) => { ... } });
+
+// after
+const session = new DebugSession(machine, { initialState });
+session.on('pause', (m) => { /* m.pause.side, m.pause.cause */ });
+await session.continue();
+```
+
+`m.debugBreak.before` / `.after` / `.cause` consumers move to `m.pause.side` / `m.pause.cause` on `DebugSession` `pause` events.
+
+`haltState.debug = { after: true }` writes throw — use `haltState.debug = true` (always after-side).
+
+Code that pattern-matches `state.name` for wrapper composites switches from `>`-split to paren-parse: `'A>B'` is now `'A(B)'`.
+
+If you render `toMermaid` output programmatically, the edge-label vocabulary changed completely — see the engine README's §Diagram conventions.
+
+If you store serialized `Graph` JSON: `node.overrodeHaltStateId` → `node.overriddenHaltStateId`, `GraphNode.isWrapped` → `isWrapper` + `bareStateId` + `frameId`, `GraphTransition.id` separator `-` → `.`.
+
+### Compatibility
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.8` → `^7.0.0` on `@turing-machine-js/builder`, `@turing-machine-js/library-binary-numbers`, `@turing-machine-js/library-binary-numbers-bare`, `@turing-machine-js/visuals`.
+
 ## [7.0.0-alpha.8] - 2026-06-02
 
 Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symbols, position}`) and `tapeViewport` (fixed-width centered window over a `TapeSnapshot`) from `@turing-machine-js/visuals` into the engine, next to the `Tape` class. Resolves [#227](https://github.com/mellonis/turing-machine-js/issues/227). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.

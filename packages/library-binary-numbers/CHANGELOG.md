@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2026-06-03
+
+Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. See the machine package CHANGELOG for the cumulative v7 trajectory.
+
+### Changed
+
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.8` → `^7.0.0`.
+
 ## [7.0.0-alpha.8] - 2026-06-02
 
 Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.8 — lifts `TapeSnapshot` + `tapeViewport` from `@turing-machine-js/visuals` into the engine ([#227](https://github.com/mellonis/turing-machine-js/issues/227)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.7` → `^7.0.0-alpha.8`.
