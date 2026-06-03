@@ -1,6 +1,6 @@
 {
   "name": "@turing-machine-js/visuals",
-  "version": "7.0.0-alpha.8",
+  "version": "7.0.0",
   "description": "Pure highlight + graph-indexing logic for @turing-machine-js/machine — no DOM, no renderer.",
   "engines": {
     "npm": ">=7.0.0"
@@ -25,7 +25,7 @@
     "visualization"
   ],
   "peerDependencies": {
-    "@turing-machine-js/machine": "^7.0.0-alpha.8"
+    "@turing-machine-js/machine": "^7.0.0"
   },
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/visuals",

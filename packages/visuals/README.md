@@ -14,13 +14,7 @@ Pure highlight + graph-indexing logic for [`@turing-machine-js/machine`](../mach
 npm install @turing-machine-js/visuals @turing-machine-js/machine
 ```
 
-Both prereleases on npm `next`:
-
-```sh
-npm install @turing-machine-js/visuals@next @turing-machine-js/machine@next
-```
-
-Peer-deps on `@turing-machine-js/machine@^7.0.0-alpha.6` — visuals follows engine v7 alphas with occasional visuals-only patches (`7.0.0-alpha.6.1` added the formatter primitives + token surface on top of the lockstep alpha.6 engine release).
+Peer-deps on `@turing-machine-js/machine@^7.0.0`. First published as v7-only — released alongside the engine v7.0.0 stable cut. Visuals follows the engine in lockstep with occasional visuals-only patches (e.g. `7.0.0-alpha.6.1` and `7.0.0-alpha.7.1` during the v7 prerelease cycle).
 
 ## Public API
 
