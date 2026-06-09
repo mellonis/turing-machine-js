@@ -294,6 +294,30 @@ replayBtn.addEventListener('click', () => { player.reset();     applyFrame(); },
 
 `SnippetPlayer` is pure state — no timers, no events. Consumers wire `setInterval` / `requestAnimationFrame` / `IntersectionObserver` and call `forward()` / `back()` / `goTo(idx)`. Two players over the same `Snippet` are independent (frame storage is shared and read-only). Mirrors the engine's `DebugSession` shape — stateful playback driver for live runs vs prerecorded runs.
 
+### Renderer contract: clearing highlights at end of playback
+
+`recordSnippet` captures **one `Frame` per iter** plus a `Frame 0` initial-state snapshot. The last frame is the halt-triggering iter — its `highlight` has `toId === 0` (the engine's `haltState` id) with `strong: 'from'`, meaning "source state strong, edge to halt." This is faithful to what the engine yielded; it is NOT a "settled" frame.
+
+If your renderer applies highlight classes via `applyHighlight` (or any equivalent mutation), it must **clear those classes when playback ends** — otherwise the source state stays painted on the graph after `forward()` stops returning `true`, and the run reads as "frozen mid-transition" instead of "halted." The contract:
+
+```ts
+const id = setInterval(() => {
+  if (!player.forward()) {
+    // Playback reached the last frame on the previous tick. Clear residual
+    // highlight classes so the graph returns to neutral before the renderer
+    // sits idle on it.
+    clearHighlightClasses(ops);
+    clearInterval(id);
+    return;
+  }
+  applyFrame();
+}, 800);
+```
+
+`clearHighlightClasses` is whatever DOM-cleanup helper your renderer already runs before each `applyHighlight` call to drop the previous frame's classes. The recorder leaves this to the renderer on purpose: a recording shouldn't dictate "and now clear" — that's an animation-loop concern, not a recording concern. The same applies to non-auto-play paths (`back()` reaching 0, manual `goTo(idx)` to the final frame, etc.): clear whenever the player has settled on a frame and no further `applyHighlight` call is pending.
+
+Reduced-motion variant: if you skip the timer and jump straight to the final frame as a static snapshot, you can choose to either keep the halt-iter highlight (as a "this is what just happened" affordance) or clear it (the snapshot becomes the post-halt resting state). The recorder doesn't choose for you.
+
 ## Versioning
 
 Engine + builder + libraries bump in **lockstep** via `lerna version`. **Visuals breaks lockstep for additive consumer-package patches** (e.g., `7.0.0-alpha.6.1` added formatter primitives + the token surface without bumping the engine — there were no engine changes to justify ghost releases). Semver-prerelease caret semantics make this safe: peer `^7.0.0-alpha.6` accepts `7.0.0-alpha.6.1+` without consumers having to widen anything. When the next engine alpha needs to ship, all 5 packages bump back to lockstep.
