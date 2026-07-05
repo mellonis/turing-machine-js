@@ -901,6 +901,8 @@ gh pr create --title "abortState: non-overridable terminal for abnormal terminat
 - visuals: peer dependency on `@turing-machine-js/machine` raised to `^7.1.0` (runtime import of `mermaidIdFor`).
 ```
 
+**Release-PR checklist item (MUST, do in the v-bump PR itself):** raise `packages/visuals/package.json` peer `@turing-machine-js/machine` `^7.0.0` → `^7.1.0` **after** `lerna version 7.1.0` sets the workspace versions, then `npm install --package-lock-only`. Doing the peer raise on the feature branch pre-bump breaks CI's `npm ci` with ERESOLVE (workspace machine is still 7.0.0 there) — it was applied and deliberately reverted on `feat/239-abort-state` for exactly that reason. Without the raise, visuals 7.1.0 + engine 7.0.0 crashes at module load (missing `mermaidIdFor` export).
+
 ## Self-review notes
 
 - Spec coverage: §2 → Tasks 3-4; §3 → Tasks 1, 6; §4 → Task 7; §5 → Tasks 6-7; §6 → Task 4; §7 → Tasks 2, 5; §8 → Tasks 6-9; §9 → Tasks 7-9 fixture steps; §10 is out of repo scope (post#112 filed).

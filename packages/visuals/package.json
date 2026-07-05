@@ -25,7 +25,7 @@
     "visualization"
   ],
   "peerDependencies": {
-    "@turing-machine-js/machine": "^7.1.0"
+    "@turing-machine-js/machine": "^7.0.0"
   },
   "scripts": {
     "build": "tsc --build --verbose tsconfig.build.json && node ../../scripts/build-node-entries.mjs --package=@turing-machine-js/visuals",
