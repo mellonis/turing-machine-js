@@ -287,9 +287,11 @@ export default class State {
         return;
       }
 
+      const label = this.isHalt ? 'haltState' : this.isAbort ? 'abortState' : this.name;
+
       throw new Error(
-        `${this.name}.debug only accepts boolean (or null to reset). Use `
-        + `\`${this.name}.debug = true\` to enable the ${this.name} breakpoint, false to `
+        `${label}.debug only accepts boolean (or null to reset). Use `
+        + `\`${label}.debug = true\` to enable the ${label} breakpoint, false to `
         + 'disable it.',
       );
     }

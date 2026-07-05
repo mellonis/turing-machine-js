@@ -770,6 +770,16 @@ describe('abortState.debug (#239, mirrors #207)', () => {
       .toThrow(/only accepts boolean/);
   });
 
+  it('error message for haltState uses canonical export name, not id:0', () => {
+    expect(() => { (haltState as unknown as State).debug = { before: true } as never; })
+      .toThrow('haltState.debug only accepts boolean (or null to reset). Use `haltState.debug = true` to enable the haltState breakpoint, false to disable it.');
+  });
+
+  it('error message for abortState uses canonical export name, not id:-1', () => {
+    expect(() => { (abortState as unknown as State).debug = { before: true } as never; })
+      .toThrow('abortState.debug only accepts boolean (or null to reset). Use `abortState.debug = true` to enable the abortState breakpoint, false to disable it.');
+  });
+
   it('is independent from haltState.debug', () => {
     abortState.debug = true;
     expect(haltState.debug).toBe(false);
