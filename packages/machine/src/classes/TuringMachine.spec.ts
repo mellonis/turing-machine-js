@@ -1,5 +1,5 @@
 import Alphabet from './Alphabet';
-import State, {abortState, haltState, ifOtherSymbol} from './State';
+import State, {abortState, CallFrame, haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
 import TuringMachine, {MachineState, type RunResult} from './TuringMachine';
@@ -445,10 +445,11 @@ describe('abortState run semantics (#239)', () => {
 
   it('halt returns outcome halted with empty stack', () => {
     // tape 'b' → inner falls to ifOtherSymbol → halt pops to cont → cont halts.
-    const {machine, outer} = buildAbortFixture('b');
+    const {machine, cont, outer} = buildAbortFixture('b');
     const result = machine.run({initialState: outer});
 
     expect(result.outcome).toBe('halted');
+    expect(result.state).toBe(cont);
     expect(result.stack).toEqual([]);
   });
 
@@ -480,5 +481,17 @@ describe('abortState run semantics (#239)', () => {
     const result = machine.run({initialState: abortState});
 
     expect(result).toMatchObject({outcome: 'aborted', state: abortState, step: 0});
+  });
+
+  it('halted result unwraps CallFrame to bare', () => {
+    // inner wrapped directly with haltState halts on any char.
+    // Result.state must be the bare (inner), not the CallFrame wrapper.
+    const {machine, inner} = buildAbortFixture('b');
+    const wrapped = inner.withOverriddenHaltState(haltState);
+    const result = machine.run({initialState: wrapped});
+
+    expect(result.outcome).toBe('halted');
+    expect(result.state).toBe(inner);
+    expect(result.state).not.toBeInstanceOf(CallFrame);
   });
 });

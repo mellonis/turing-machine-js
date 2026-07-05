@@ -338,9 +338,13 @@ export default class TuringMachine {
       // `state.isAbort` ternary only matters for the zero-iteration
       // `initialState === abortState` case; mid-run aborts already returned
       // above from inside the loop.
+      // For wrapper-entry halts, unwrap the CallFrame to its bare (same
+      // discipline as the abort path above) — unless the loop never ran
+      // (lastIterState === null), in which case return the sentinel as-is.
+      const haltTriggeringState = lastIterState instanceof CallFrame ? lastIterState.bare : lastIterState;
       return {
         outcome: state.isAbort ? 'aborted' : 'halted',
-        state: lastIterState ?? state,
+        state: haltTriggeringState ?? state,
         stack: Object.freeze(stack.slice()),
         step: i,
       };
