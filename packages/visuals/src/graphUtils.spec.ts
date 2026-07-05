@@ -19,7 +19,7 @@ import type { Graph } from '@turing-machine-js/machine';
  *   4  → `writeMarker` (override)
  *   5  → wrapper `walkToBlank(writeMarker)` (bareStateId 3)
  *   0  → halt singleton
- *   -3 → halt marker for frame 3
+ *   -6 → halt marker for frame 3 (id = -2 * frameId, #239)
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,7 +43,7 @@ describe('bareIdOf', () => {
   });
 
   it('collapses halt markers (negative ids) to the halt singleton (0)', () => {
-    expect(bareIdOf(-3, g)).toBe(0);
+    expect(bareIdOf(-6, g)).toBe(0);
   });
 
   it('returns 0 for the halt singleton itself', () => {
@@ -52,7 +52,7 @@ describe('bareIdOf', () => {
 
   it('returns the id unchanged when graph is null', () => {
     expect(bareIdOf(5, null)).toBe(5);
-    expect(bareIdOf(-3, null)).toBe(-3);
+    expect(bareIdOf(-6, null)).toBe(-6);
   });
 
   it('returns the id unchanged when no node entry exists', () => {
@@ -97,12 +97,12 @@ describe('equivalentIds (symmetric class lookup)', () => {
 
   it('halt singleton (0) → [0, ...all halt markers]', () => {
     const ids = equivalentIds(0, g).sort((a, b) => a - b);
-    expect(ids).toEqual([-3, 0]);
+    expect(ids).toEqual([-6, 0]);
   });
 
-  it('halt marker (-3) → same class as halt singleton (symmetric)', () => {
-    const ids = equivalentIds(-3, g).sort((a, b) => a - b);
-    expect(ids).toEqual([-3, 0]);
+  it('halt marker (-6) → same class as halt singleton (symmetric)', () => {
+    const ids = equivalentIds(-6, g).sort((a, b) => a - b);
+    expect(ids).toEqual([-6, 0]);
   });
 
   it('returns [id] when graph is null', () => {

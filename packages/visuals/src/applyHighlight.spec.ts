@@ -24,7 +24,15 @@ import type { Graph } from '@turing-machine-js/machine';
  *   writeMarker (override)       = 4
  *   wrapper walkToBlank(writeMarker) = 5  (bareStateId 3, overriddenHaltStateId 4)
  *   halt singleton               = 0
- *   frame halt marker            = -3  (id = -frameId)
+ *   frame halt marker            = -6  (id = -2 * frameId; #239 namespacing —
+ *                                       even negatives are halt markers, odd
+ *                                       negatives are reserved for sentinels
+ *                                       like `abortState`)
+ *
+ * Mermaid id scheme (#239, `mermaidIdFor`/`parseMermaidId` from
+ * `@turing-machine-js/machine`): positive N → `uN`; 0 → `s0`; even negative
+ * `-2f` → `s0-f` (frame f's halt marker); odd negative → `s{(1-id)/2}`
+ * (sentinel, e.g. `abortState` at id -1 → `s1`).
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,15 +65,27 @@ describe('applyHighlight', () => {
   });
 
   describe('§5 halt-target retargeting', () => {
-    it('rewrites toId=0 to -frameId when fromId is in a frame', () => {
+    it('rewrites toId=0 to -2*frameId when fromId is in a frame', () => {
       const g = loadGraph('turing-callable-subtree');
       // Bare walkToBlank (id 3, frameId 3) halts → engine reports toId=0,
-      // should retarget to -3 (frame halt marker).
+      // should retarget to -6 (frame halt marker, id = -2 * frameId).
       const { ops } = run({ fromId: 3, toId: 0, strong: 'from', paused: false }, g);
       const classOps = ops.filter((o) => o.op === 'addNodeClass');
-      // halt marker -3 gets highlight-to; halt singleton 0 does not.
-      expect(classOps).toContainEqual({ op: 'addNodeClass', id: -3, cls: 'mg-highlight-to' });
+      // halt marker -6 gets highlight-to; halt singleton 0 does not.
+      expect(classOps).toContainEqual({ op: 'addNodeClass', id: -6, cls: 'mg-highlight-to' });
       expect(classOps).not.toContainEqual({ op: 'addNodeClass', id: 0, cls: 'mg-highlight-to' });
+    });
+
+    it('emits u-prefixed keys for user states and s0-f for halt markers (#239)', () => {
+      const g = loadGraph('turing-callable-subtree');
+      // Same scenario: bare(3) retargets to its frame's halt marker. The
+      // bare→marker edge is the one place this fixture emits both new
+      // prefixes in a single call: fromKey uses the 'u' (user-state)
+      // namespace, toKey uses 's0-f' (frame-f halt marker).
+      const { ops } = run({ fromId: 3, toId: 0, strong: 'from', paused: false }, g);
+      const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u3', toKey: 's0-3' }); // was 's3' / 'c3'
+      expect(edgeOps.some((o) => /^s0-\d+$/.test(o.toKey))).toBe(true);
     });
 
     it('does NOT retarget when fromId is outside any frame', () => {
@@ -106,17 +126,18 @@ describe('applyHighlight', () => {
   describe('§6 source return chain (toId < 0)', () => {
     it('lights up return arrow + wrapper + override edge + override target', () => {
       const g = loadGraph('turing-callable-subtree');
-      // Just-fired halt-bound transition: from=bare(3), to=halt-marker(-3),
+      // Just-fired halt-bound transition: from=bare(3), to=halt-marker(-6),
       // strong=from (pause-after-style).
-      const { ops } = run({ fromId: 3, toId: -3, strong: 'from', paused: true }, g);
+      const { ops } = run({ fromId: 3, toId: -6, strong: 'from', paused: true }, g);
       const classOps = ops.filter((o) => o.op === 'addNodeClass');
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
-      // Return arrow w_3 → wrapper(5).
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 's5' });
+      // Return arrow w_3 → wrapper(5). Frame subgraph ids (`w_N`) are
+      // unchanged by #239; wrapper/bare keys move 's'→'u' (#239).
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 'u5' });
       // Wrapper gets highlight-to.
       expect(classOps).toContainEqual({ op: 'addNodeClass', id: 5, cls: 'mg-highlight-to' });
       // Wrapper → override edge.
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 's5', toKey: 's4' });
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u5', toKey: 'u4' });
       // Override (writeMarker) gets highlight-to.
       expect(classOps).toContainEqual({ op: 'addNodeClass', id: 4, cls: 'mg-highlight-to' });
     });
@@ -133,16 +154,17 @@ describe('applyHighlight', () => {
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
       const frameOps = ops.filter((o) => o.op === 'markFrameActive');
 
-      // Halt marker lit.
-      expect(classOps).toContainEqual({ op: 'addNodeClass', id: -3, cls: 'mg-highlight-to' });
-      // bare → halt-marker edge.
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 's3', toKey: 'c3' });
+      // Halt marker lit (real graph id -6 = -2 * frameId).
+      expect(classOps).toContainEqual({ op: 'addNodeClass', id: -6, cls: 'mg-highlight-to' });
+      // bare → halt-marker edge. 'u' for the user state, 's0-f' for the
+      // frame's halt marker (was 's3' / 'c3').
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u3', toKey: 's0-3' });
       // Return arrow.
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 's5' });
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 'u5' });
       // Wrapper highlight-to.
       expect(classOps).toContainEqual({ op: 'addNodeClass', id: 5, cls: 'mg-highlight-to' });
       // Wrapper → override edge.
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 's5', toKey: 's4' });
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u5', toKey: 'u4' });
       // Frame active (override sits outside frame, but the chain fired so
       // we still mark the frame to show "we came out of THIS subtree").
       expect(frameOps).toContainEqual({ op: 'markFrameActive', frameId: 3 });
@@ -153,8 +175,8 @@ describe('applyHighlight', () => {
       // From idle → writeMarker(4): no frame on the from side, no chain.
       const { ops } = run({ fromId: 'idle', toId: 4, strong: 'to', paused: true }, g);
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
-      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 's3', toKey: 'c3' });
-      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 's5' });
+      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 'u3', toKey: 's0-3' });
+      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 'u5' });
     });
   });
 
@@ -201,15 +223,15 @@ describe('applyHighlight', () => {
       const g = loadGraph('turing-callable-subtree');
       const { ops } = run({ fromId: 'idle', toId: 5, strong: 'to', paused: true }, g);
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
-      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 's5', toKey: 's3' });
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u5', toKey: 'u3' });
     });
 
     it('does NOT highlight a call edge when to-side is bare only', () => {
       const g = loadGraph('turing-callable-subtree');
       const { ops } = run({ fromId: 3, toId: 3, strong: 'to', paused: true }, g);
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
-      // No s5→s3 call edge (bare doesn't expand to include wrapper).
-      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 's5', toKey: 's3' });
+      // No u5→u3 call edge (bare doesn't expand to include wrapper).
+      expect(edgeOps).not.toContainEqual({ op: 'highlightEdge', fromKey: 'u5', toKey: 'u3' });
     });
   });
 
@@ -267,15 +289,15 @@ describe('applyHighlight', () => {
       const g = loadGraph('turing-callable-subtree');
       const { indicator, record } = recordingOps();
       // BP set has the bare id (3). Both wrapper (5) and bare (3) should turn on.
-      applyIndicator(new Set([3]), g, [3, 4, 5, -3, 0, 'idle'], indicator);
+      applyIndicator(new Set([3]), g, [3, 4, 5, -6, 0, 'idle'], indicator);
       const onIds = record
         .filter((r): r is Extract<RecordedOp, { op: 'setBreakpoint' }> => r.op === 'setBreakpoint' && r.on)
         .map((r) => r.id);
       expect(onIds).toContain(3);
       expect(onIds).toContain(5);
-      // writeMarker (4), halt-marker (-3), halt (0), idle: never on.
+      // writeMarker (4), halt-marker (-6), halt (0), idle: never on.
       expect(onIds).not.toContain(4);
-      expect(onIds).not.toContain(-3);
+      expect(onIds).not.toContain(-6);
       expect(onIds).not.toContain(0);
       expect(onIds).not.toContain('idle');
     });
@@ -297,12 +319,12 @@ describe('applyHighlight', () => {
     it('marks halt singleton AND every halt marker when 0 is in the set', () => {
       const g = loadGraph('turing-callable-subtree');
       const { indicator, record } = recordingOps();
-      applyIndicator(new Set([0]), g, [3, 4, 5, -3, 0, 'idle'], indicator);
+      applyIndicator(new Set([0]), g, [3, 4, 5, -6, 0, 'idle'], indicator);
       const onIds = record
         .filter((r): r is Extract<RecordedOp, { op: 'setBreakpoint' }> => r.op === 'setBreakpoint' && r.on)
         .map((r) => r.id);
       expect(onIds).toContain(0); // halt singleton
-      expect(onIds).toContain(-3); // halt marker for frame 3
+      expect(onIds).toContain(-6); // halt marker for frame 3
       // Regular and wrapper / bare nodes: never on.
       expect(onIds).not.toContain(3);
       expect(onIds).not.toContain(4);
