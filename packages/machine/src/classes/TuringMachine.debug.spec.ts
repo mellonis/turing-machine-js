@@ -232,10 +232,15 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
 describe('TuringMachine — run() with onPause', () => {
   afterEach(() => { haltState.debug = null; });
 
-  test('run() is synchronous (returns void, not a Promise)', () => {
+  test('run() is synchronous (returns a RunResult, not a Promise) (#239)', () => {
+    // Obsoletes the pre-#239 `toBeUndefined()` assertion — `run()` now
+    // returns a `RunResult` synchronously instead of `void`; the still-valid
+    // intent ("sync, not a Promise") is preserved via the `not.toBeInstanceOf`
+    // check.
     const {machine, state} = buildMachine();
     const result = machine.run({initialState: state});
-    expect(result).toBeUndefined();
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.outcome).toBe('halted');
   });
 
   test('without DebugSession, breakpoints fire-and-resume invisibly', () => {

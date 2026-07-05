@@ -1,4 +1,4 @@
-import State, {CallFrame, haltState, type DebugConfig} from './State';
+import State, {CallFrame, abortState, haltState, type DebugConfig} from './State';
 import TapeBlock, {lockSymbol} from './TapeBlock';
 import {symbolCommands} from './TapeCommand';
 
@@ -60,6 +60,12 @@ export type MachineStateInternal = {
    *  can't recover halt-imminence from it; DebugSession reads this flag to
    *  honor `haltState.debug` on subroutine-return (halt-pop) iters. */
   haltImminent: boolean;
+  /** Whether this iter's transition targets `abortState` (#239) — computed
+   *  on the RAW next-state, same timing discipline as `haltImminent`. Unlike
+   *  halt, abort never pops the stack, so there's no post-pop redirect to
+   *  worry about; the flag exists for symmetry so a `DebugSession` consumer
+   *  can react to an imminent abort the same way it reacts to imminent halt. */
+  abortImminent: boolean;
 };
 
 export type MachineState = {
@@ -100,6 +106,31 @@ export type MachineState = {
  * `MachineState` (no `pause` field) — only DebugSession produces this shape.
  */
 export type PausedMachineState = MachineState & { pause: PauseInfo };
+
+/**
+ * The return value of `run()` / `runStepByStep()` (#239). A run always ends
+ * one of two ways: it reaches `haltState` (the normal terminal case, `stack`
+ * is `[]` by construction — every subroutine frame already popped) or it
+ * punches through to `abortState` (the call stack is NOT unwound; `stack`
+ * is the frozen backtrace of continuations abort short-circuited past).
+ *
+ * - `state` — the state whose transition triggered the sentinel. For a
+ *   wrapper-entry iter (a `CallFrame` delegating to its bare), this is the
+ *   BARE — the state whose transition table actually matched — not the
+ *   transient wrapper, mirroring `MachineState.matchedTransition`'s same
+ *   unwrap.
+ * - `stack` — frozen; `[]` for `'halted'` by construction (halt always pops
+ *   to empty before the run ends); for `'aborted'`, the continuations still
+ *   pending when abort fired.
+ * - `step` — the 1-based iter count at the moment of termination; `0` if
+ *   `initialState` was itself a sentinel (zero iterations ran).
+ */
+export type RunResult = {
+  outcome: 'halted' | 'aborted';
+  state: State;
+  stack: readonly State[];
+  step: number;
+};
 
 /**
  * @internal — true iff `filter` matches `symbol` per the DebugConfig semantics.
@@ -144,17 +175,24 @@ export default class TuringMachine {
    * Symmetric reversal of v4's `run` → `async run` change: v4 made the method
    * async to support awaited `onPause`; with callbacks moved to `DebugSession`
    * there's no async work left, so the method returns `void` again.
+   *
+   * As of #239, `run()` returns a `RunResult` — the generator's `return`
+   * value, captured by draining it manually instead of a `for...of` (which
+   * discards the return). Additive: existing callers that ignored the
+   * previous `void` return stay valid.
    */
-  run({initialState, stepsLimit = 1e5}: RunParameter): void {
-    // Drain the generator. We don't care about the yielded values — the
-    // generator's job is to advance the tape; only side effects matter here.
-    // Casting to unknown so eslint doesn't flag the unused `_` variable.
-    for (const machineState of this.runStepByStep({initialState, stepsLimit})) {
-      void machineState;
+  run({initialState, stepsLimit = 1e5}: RunParameter): RunResult {
+    const generator = this.runStepByStep({initialState, stepsLimit});
+    let result = generator.next();
+
+    while (!result.done) {
+      result = generator.next();
     }
+
+    return result.value;
   }
 
-  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState> {
+  * runStepByStep({initialState, stepsLimit = 1e5}: RunParameter): Generator<MachineState, RunResult> {
     const executionSymbol = Symbol('execution');
 
     try {
@@ -174,8 +212,16 @@ export default class TuringMachine {
       }
 
       let i = 0;
+      // Triggering state of the most recently completed iter (#239) — used
+      // by the post-loop halted-result return. Stays `null` when the loop
+      // never runs (`initialState` is itself a sentinel), in which case the
+      // result falls back to `state` (= initialState) directly.
+      let lastIterState: State | null = null;
 
-      while (!state.isHalt) {
+      // `isHalt` -> `isSentinel` (#239): covers a caller passing `abortState`
+      // (or any future sentinel) directly as `initialState` without trying
+      // to iterate a transitionless sentinel.
+      while (!state.isSentinel) {
         if (i === stepsLimit) {
           throw new Error('Long execution');
         }
@@ -188,10 +234,13 @@ export default class TuringMachine {
         let nextState = matched.nextState.ref;
         // For wrapper-entry iters, a CallFrame's own transitions in `toGraph`
         // are empty (it delegates lookups to its bare); the resolvable
-        // transition id lives under the bare's stateId.
-        const resolvableStateId = state instanceof CallFrame ? state.bare.id : state.id;
+        // transition id lives under the bare's stateId. The same unwrap is
+        // used below (#239) to report the triggering state on an abort
+        // punch-through — the wrapper is call-stack plumbing, not the state
+        // whose transition actually fired.
+        const resolvableState = state instanceof CallFrame ? state.bare : state;
         const matchedTransition: MachineState['matchedTransition'] = {
-          id: `${resolvableStateId}.${matched.ix}`,
+          id: `${resolvableState.id}.${matched.ix}`,
           matchKinds: this.#tapeBlock.patternKinds(matched.matchedSymbol),
         };
 
@@ -239,14 +288,29 @@ export default class TuringMachine {
           // post-yield pop reassigns `nextState` — so the closure can't capture
           // the mutated value.
           const haltImminent = nextState === haltState;
+          // Same timing discipline as haltImminent (#239) — snapshotted on
+          // the RAW nextState before anything downstream can change it.
+          const abortImminent = nextState === abortState;
           Object.defineProperty(yielded, MACHINE_STATE_INTERNAL, {
-            value: (): MachineStateInternal => ({stack: stackSnapshot, matchedSymbol: symbol, haltImminent}),
+            value: (): MachineStateInternal => ({
+              stack: stackSnapshot, matchedSymbol: symbol, haltImminent, abortImminent,
+            }),
             enumerable: false,
           });
 
           yield yielded;
 
           this.#tapeBlock.applyCommand(command, executionSymbol);
+
+          if (nextState.isAbort) {
+            // Punch-through (#239): the stack is NOT popped — it becomes the
+            // backtrace in the result. Freeze so the caller can't mutate
+            // engine internals (same discipline as the #102 stack snapshot).
+            // `state` is reported via `resolvableState` so a wrapper-entry
+            // abort reports the bare — the state whose own transition table
+            // matched — rather than the transient CallFrame.
+            return {outcome: 'aborted', state: resolvableState, stack: Object.freeze(stack.slice()), step: i};
+          }
 
           if (nextState.isHalt && stack.length) {
             nextState = stack.pop()!;
@@ -256,6 +320,7 @@ export default class TuringMachine {
             stack.push(nextState.overriddenHaltState);
           }
 
+          lastIterState = state;
           state = nextState;
         } catch (error) {
           if (error !== haltState) {
@@ -265,6 +330,20 @@ export default class TuringMachine {
           break;
         }
       }
+
+      // Terminal return (#239): reached when the loop condition falls false
+      // (state became a sentinel — halt via the normal pop-to-empty path, or
+      // `initialState` itself was a sentinel and the loop never ran) or the
+      // `catch` above breaks out on an externally-thrown `haltState`. The
+      // `state.isAbort` ternary only matters for the zero-iteration
+      // `initialState === abortState` case; mid-run aborts already returned
+      // above from inside the loop.
+      return {
+        outcome: state.isAbort ? 'aborted' : 'halted',
+        state: lastIterState ?? state,
+        stack: Object.freeze(stack.slice()),
+        step: i,
+      };
     } finally {
       this.#tapeBlock[lockSymbol].unlock(executionSymbol);
     }

@@ -1,8 +1,8 @@
 import Alphabet from './Alphabet';
-import State, {haltState, ifOtherSymbol} from './State';
+import State, {abortState, haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
-import TuringMachine, {MachineState} from './TuringMachine';
+import TuringMachine, {MachineState, type RunResult} from './TuringMachine';
 import DebugSession from './DebugSession';
 import {movements, symbolCommands} from './TapeCommand';
 import Reference from './Reference';
@@ -320,9 +320,12 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     const {machine, initialState, tape} = buildWrapperOverWalkToBlank();
 
     // Caller peeks at iter 1 then disposes the generator without draining.
+    // `.return()` now needs a `RunResult` argument (#239's generator return
+    // type) — the disposal doesn't care about the value, so cast through
+    // `unknown` rather than fabricate a meaningless RunResult.
     const gen = machine.runStepByStep({initialState});
     gen.next();
-    gen.return(undefined);
+    gen.return(undefined as unknown as RunResult);
 
     const iters: Array<{step: number; name: string}> = [];
     for (const m of machine.runStepByStep({initialState})) {
@@ -395,5 +398,87 @@ describe('halt-stack reset between calls (regression for #196)', () => {
 
     expect(first.length).toBe(2); // wrapper-iter + continuation-iter
     expect(second).toEqual(first);
+  });
+});
+
+// #239: abortState punch-through semantics on run()/runStepByStep()'s
+// RunResult. Helper builds a fresh fixture per call (tapeBlock symbol
+// patterns are tapeBlock-scoped, matching the #196 helper above): a single
+// bare `inner` whose 'a'-transition targets `abortState` directly (a legal
+// transition TARGET — only wohs composition with abort is banned) and whose
+// fallback halts; `outer` wraps it with a legal continuation `cont` via
+// `withOverriddenHaltState`, so running `outer` pushes `cont` onto the
+// halt-stack before `inner`'s own transition fires.
+describe('abortState run semantics (#239)', () => {
+  function buildAbortFixture(tapeSymbol: string) {
+    const abortAlphabet = new Alphabet([' ', 'a', 'b']);
+    const tape = new Tape({alphabet: abortAlphabet, symbols: [tapeSymbol]});
+    const tapeBlock = TapeBlock.fromTapes([tape]);
+    const machine = new TuringMachine({tapeBlock});
+    const {symbol} = tapeBlock;
+
+    const cont = new State({
+      [ifOtherSymbol]: {nextState: haltState},
+    }, 'cont');
+
+    const inner = new State({
+      [symbol(['a'])]: {nextState: abortState},
+      [ifOtherSymbol]: {nextState: haltState},
+    }, 'inner');
+
+    const outer = inner.withOverriddenHaltState(cont);
+
+    return {machine, inner, cont, outer};
+  }
+
+  it('abort punches through the subroutine stack', () => {
+    // tape 'a', start at outer → inner reads 'a' → abortState.
+    const {machine, inner, cont, outer} = buildAbortFixture('a');
+    const result = machine.run({initialState: outer});
+
+    expect(result.outcome).toBe('aborted');
+    expect(result.state).toBe(inner); // the triggering state (the bare)
+    expect(result.stack).toEqual([cont]);
+    expect(Object.isFrozen(result.stack)).toBe(true);
+    expect(result.step).toBe(1);
+  });
+
+  it('halt returns outcome halted with empty stack', () => {
+    // tape 'b' → inner falls to ifOtherSymbol → halt pops to cont → cont halts.
+    const {machine, outer} = buildAbortFixture('b');
+    const result = machine.run({initialState: outer});
+
+    expect(result.outcome).toBe('halted');
+    expect(result.stack).toEqual([]);
+  });
+
+  it('the generator return value carries the outcome', () => {
+    const {machine, outer} = buildAbortFixture('a');
+    const gen = machine.runStepByStep({initialState: outer});
+    let r = gen.next();
+
+    while (!r.done) {
+      r = gen.next();
+    }
+
+    expect(r.value.outcome).toBe('aborted');
+  });
+
+  it('the final yield shows nextState === abortState (canonical step-level signal)', () => {
+    const {machine, outer} = buildAbortFixture('a');
+    let last: MachineState | undefined;
+
+    for (const m of machine.runStepByStep({initialState: outer})) {
+      last = m;
+    }
+
+    expect(last!.nextState).toBe(abortState);
+  });
+
+  it('initialState === abortState ends immediately as aborted at step 0', () => {
+    const {machine} = buildAbortFixture('a');
+    const result = machine.run({initialState: abortState});
+
+    expect(result).toMatchObject({outcome: 'aborted', state: abortState, step: 0});
   });
 });

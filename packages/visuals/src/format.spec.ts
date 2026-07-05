@@ -9,6 +9,7 @@ import {
   haltState,
   movements,
   symbolCommands,
+  type MachineState,
 } from '@turing-machine-js/machine';
 import {
   formatCommand,
@@ -60,7 +61,10 @@ describe('formatStep', () => {
       },
     });
     const gen = machine.runStepByStep({ initialState });
-    const m = gen.next().value!;
+    // The first `next()` call always yields (never returns) — narrow past
+    // the `MachineState | RunResult` union `runStepByStep`'s generator type
+    // carries since #239 gave it a non-void return value.
+    const m = gen.next().value as MachineState;
 
     expect(formatStep(m)).toBe("['a'] → ['b']/[R]");
   });
@@ -77,7 +81,7 @@ describe('formatStep', () => {
       },
     });
     const gen = machine.runStepByStep({ initialState });
-    const m = gen.next().value!;
+    const m = gen.next().value as MachineState;
 
     // keep → nextSymbols[0] === currentSymbols[0], so write cell is K
     expect(formatStep(m)).toBe("['a'] → [K]/[S]");
@@ -100,7 +104,7 @@ describe('formatStep', () => {
       },
     });
     const gen = machine.runStepByStep({ initialState });
-    const m = gen.next().value!;
+    const m = gen.next().value as MachineState;
 
     expect(formatStep(m)).toBe("['a','x'] → ['b',K]/[R,L]");
   });
