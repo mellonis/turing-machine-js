@@ -560,6 +560,7 @@ export function fromMermaid(text: string): Graph {
         id,
         name: opts.name ?? mermaidIdFor(id),
         isHalt: opts.isHalt ?? false,
+        isAbort: false,
         isHaltMarker: opts.isHaltMarker ?? false,
         isWrapper: opts.isWrapper ?? false,
         bareStateId: opts.bareStateId ?? null,
