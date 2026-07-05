@@ -14,7 +14,7 @@ export {
 } from './classes/DebugSession';
 export { type Graph, type GraphNode, type GraphTransition, type GraphCommand } from './utilities/graph';
 export { type StateMap, type StateMapEntry } from './utilities/stateGraph';
-export { toMermaid, fromMermaid } from './utilities/graphFormats';
+export { toMermaid, fromMermaid, mermaidIdFor, parseMermaidId } from './utilities/graphFormats';
 export { summarize, summarizeGraph, type GraphSummary } from './utilities/introspection';
 export {
   equivalentOn,
