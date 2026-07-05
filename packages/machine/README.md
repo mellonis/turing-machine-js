@@ -492,7 +492,7 @@ s.tags; // readonly ['subroutine-entry']
 
 **Scoped to the wrapper instance.** Under [`withOverriddenHaltState` memoization (#175)](https://github.com/mellonis/turing-machine-js/issues/175), `A.wohs(t1)` and `A.wohs(t2)` are distinct `CallFrame` instances even though both delegate to the same bare `A`. Tags live on the frame instance, so tagging one wrapper doesn't propagate to siblings sharing the same bare. Wrappers from `withOverriddenHaltState` start with an empty tag set (do not inherit from bare); the caller tags explicitly as needed.
 
-**Round-trip preserved.** `state.toGraph` writes the tag set to `GraphNode.tags`; `state.fromGraph` reads it back and reapplies. `toMermaid` renders tags two ways: inline in the node label (`sN["name<br>tag1, tag2"]`, universal Mermaid line break) and as `classDef tag_<sanitized>` + `class sN tag_<sanitized>` lines for color grouping. `fromMermaid` splits the label on `<br>` as source of truth; the `class` lines are decorative and discarded on parse.
+**Round-trip preserved.** `state.toGraph` writes the tag set to `GraphNode.tags`; `state.fromGraph` reads it back and reapplies. `toMermaid` renders tags two ways: inline in the node label (`uN["name<br>tag1, tag2"]`, universal Mermaid line break) and as `classDef tag_<sanitized>` + `class uN tag_<sanitized>` lines for color grouping. `fromMermaid` splits the label on `<br>` as source of truth; the `class` lines are decorative and discarded on parse.
 
 See [§Diagram conventions § Tags](#tags) for the full emit shape.
 
@@ -905,8 +905,8 @@ The `&` ribbon syntax (`s_W1 & s_W2 == "call" ==> s_A`) collapses multiple wrapp
 
 Tagged states (via `state.tag('hot', 'sampled')` — see [§State tags](#state-tags)) render two ways simultaneously:
 
-- **Inline in the node label**: `sN["name<br>tag1, tag2"]` — the `<br>` is Mermaid's universal line break, so the tags display as a second line under the state name in any renderer.
-- **As a color class**: `classDef tag_<sanitized> fill:#...,stroke:#...` per unique tag (6-color palette selected by tag-name hash), plus `class sN,sM tag_<sanitized>` listing all nodes carrying the tag. Lets the eye group related states by color even when their names are scattered across the diagram.
+- **Inline in the node label**: `uN["name<br>tag1, tag2"]` — the `<br>` is Mermaid's universal line break, so the tags display as a second line under the state name in any renderer.
+- **As a color class**: `classDef tag_<sanitized> fill:#...,stroke:#...` per unique tag (6-color palette selected by tag-name hash), plus `class uN,uM tag_<sanitized>` listing all nodes carrying the tag. Lets the eye group related states by color even when their names are scattered across the diagram.
 
 The `<br>`-embedded label is the source of truth for `fromMermaid` round-trip; the `classDef`/`class` lines are decorative and regenerate on the next `toMermaid` emit. Tag-name sanitization in `classDef` identifiers: any char outside `[A-Za-z0-9_-]` is replaced with `_`. Labels preserve the raw tag names.
 
