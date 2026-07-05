@@ -1,9 +1,9 @@
 import {describe, it, expect} from 'vitest';
 import Alphabet from './Alphabet';
-import State, {haltState, ifOtherSymbol} from './State';
+import State, {abortState, haltState, ifOtherSymbol} from './State';
 import Tape from './Tape';
 import TapeBlock from './TapeBlock';
-import TuringMachine, {MACHINE_STATE_INTERNAL, type MachineStateInternal} from './TuringMachine';
+import TuringMachine, {MACHINE_STATE_INTERNAL, type MachineStateInternal, type RunResult} from './TuringMachine';
 import {movements, symbolCommands} from './TapeCommand';
 import DebugSession from './DebugSession';
 
@@ -555,6 +555,24 @@ describe('DebugSession: pause event + continue()', () => {
     expect(pauseCount).toBe(1);
   });
 
+  it('stop() releases the TapeBlock lock so a fresh session on the same machine can start (#239 #drive rewrite regression check)', async () => {
+    // The `for...of` this replaced (see #drive) called the generator's
+    // `.return()` implicitly on an early exit (IteratorClose), which drives
+    // `runStepByStep`'s own `finally { unlock(...) }`. The manual-iteration
+    // rewrite reproduces that via its own wrapping `finally` — if it didn't,
+    // this second session would reject with the "already in progress"
+    // remapped error instead of completing normally.
+    const {machine, state} = buildWalker(['A', 'A']);
+    state.debug = {before: true};
+    const sessionA = new DebugSession(machine, {initialState: state});
+    sessionA.on('pause', () => { sessionA.stop(); });
+    await sessionA.start();
+
+    state.debug = null; // avoid re-arming the same breakpoint on sessionB
+    const sessionB = new DebugSession(machine, {initialState: state});
+    await expect(sessionB.start()).resolves.toBeUndefined();
+  });
+
   it('multiple listeners on the same event all fire', async () => {
     const {machine, haltWrapper} = buildSimple();
     const session = new DebugSession(machine, {initialState: haltWrapper});
@@ -683,5 +701,97 @@ describe('DebugSession: step granularity under genuine nesting (DevTools parity)
 
   it('stepOut exits the current frame — pauses at iter 4', async () => {
     expect(await endpointOf('stepOut')).toBe(4);
+  });
+});
+
+// #239: DebugSession 'abort' event + abort breakpoint. Fixture mirrors
+// TuringMachine.spec.ts's `buildAbortFixture` — a bare `inner` whose
+// 'a'-transition targets `abortState` directly (a legal transition TARGET)
+// and whose fallback halts, wrapped `inner.withOverriddenHaltState(cont)` so
+// running `outer` pushes `cont` onto the halt-stack before `inner`'s own
+// transition fires.
+const buildAbortFixture = (tapeSymbol: string) => {
+  const alphabet = new Alphabet([' ', 'a', 'b']);
+  const tape = new Tape({alphabet, symbols: [tapeSymbol]});
+  const tapeBlock = TapeBlock.fromTapes([tape]);
+  const machine = new TuringMachine({tapeBlock});
+  const {symbol} = tapeBlock;
+
+  const cont = new State({[ifOtherSymbol]: {nextState: haltState}}, 'cont');
+  const inner = new State({
+    [symbol(['a'])]: {nextState: abortState},
+    [ifOtherSymbol]: {nextState: haltState},
+  }, 'inner');
+  const outer = inner.withOverriddenHaltState(cont);
+
+  return {machine, inner, cont, outer};
+};
+
+describe("DebugSession 'abort' event (#239)", () => {
+  it('fires abort (not halt) with the RunResult payload', async () => {
+    const halts: RunResult[] = [];
+    const aborts: RunResult[] = [];
+    const {machine, inner, outer} = buildAbortFixture('a');  // 'a' tape → aborts
+    const session = new DebugSession(machine, {initialState: outer});
+    session.on('halt', (r) => { halts.push(r); });
+    session.on('abort', (r) => { aborts.push(r); });
+    await session.start();
+    expect(halts).toHaveLength(0);
+    expect(aborts).toHaveLength(1);
+    expect(aborts[0]).toMatchObject({outcome: 'aborted', state: inner});
+  });
+
+  it('halt listeners now receive the RunResult (additive)', async () => {
+    let got: RunResult | undefined;
+    const {machine, outer} = buildAbortFixture('b');  // 'b' tape → halts
+    const session = new DebugSession(machine, {initialState: outer});
+    session.on('halt', (r) => { got = r; });
+    await session.start();
+    expect(got).toMatchObject({outcome: 'halted', stack: []});
+  });
+
+  it('abortState.debug pauses on the after side before the abort event', async () => {
+    abortState.debug = true;
+    try {
+      const order: string[] = [];
+      const {machine, outer} = buildAbortFixture('a');
+      const session = new DebugSession(machine, {initialState: outer});
+      session.on('pause', (m) => {
+        order.push(`pause:${m.pause.side}:${m.pause.cause}`);
+        session.continue();
+      });
+      session.on('abort', () => { order.push('abort'); });
+      await session.start();
+      expect(order).toEqual(['pause:after:breakpoint', 'abort']);
+    } finally {
+      abortState.debug = null;
+    }
+  });
+
+  it('no terminal event after stop() (existing stop()-from-pause pattern, applied to the abort-armed pause)', async () => {
+    // Mirrors "stop() called from inside a pause listener terminates
+    // immediately" above: arm the abort breakpoint so the pause fires, call
+    // stop() from inside that pause listener, and assert the #stopped guard
+    // suppresses BOTH terminal events (not just halt).
+    abortState.debug = true;
+    try {
+      const {machine, outer} = buildAbortFixture('a');
+      const session = new DebugSession(machine, {initialState: outer});
+      let haltFired = false;
+      let abortFired = false;
+      let pauseCount = 0;
+      session.on('pause', () => {
+        pauseCount += 1;
+        session.stop();
+      });
+      session.on('halt', () => { haltFired = true; });
+      session.on('abort', () => { abortFired = true; });
+      await session.start();
+      expect(pauseCount).toBe(1);
+      expect(haltFired).toBe(false);
+      expect(abortFired).toBe(false);
+    } finally {
+      abortState.debug = null;
+    }
   });
 });
