@@ -447,6 +447,20 @@ export default class State {
   }
 
   withOverriddenHaltState(overriddenHaltState: State): CallFrame {
+    if (this.isAbort) {
+      throw new Error(
+        'abortState cannot be overridden — it is non-composable by definition; '
+        + 'it punches through the call stack and terminates the run (#239)',
+      );
+    }
+
+    if (overriddenHaltState instanceof State && overriddenHaltState.isAbort) {
+      throw new Error(
+        'abortState cannot be used as a withOverriddenHaltState continuation — '
+        + 'abort never sits on the subroutine stack; transition to abortState directly (#239)',
+      );
+    }
+
     // Unwrap `this` if it's itself a CallFrame — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
     // pushed onto the halt-stack on entry; verified empirically). Composite

@@ -17,7 +17,7 @@ Prompted by the Rust toolchain (`machines/toolchains`), where PM-1 distinguishes
 > `abortState` is **never popped by the subroutine halt-stack and never composed by `withOverriddenHaltState`** — it punches straight through call/return and terminates the run.
 
 - Run loop: transition into `abortState` ends the run regardless of the subroutine stack; the stack is NOT popped.
-- `withOverriddenHaltState(abortState)` (and any wrapper chain reaching it) is a **validation error**.
+- Both composition directions are validation errors: `abortState.withOverriddenHaltState(x)` (overriding abort) and `x.withOverriddenHaltState(abortState)` (abort as continuation). Abort never appears on the subroutine stack, in wrapper composites, or in frame membership — transition to it directly.
 - Aborting is a legitimate program outcome, not a host failure — no `Error` is thrown.
 
 ## 3. Identity scheme

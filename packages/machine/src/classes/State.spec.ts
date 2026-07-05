@@ -297,6 +297,20 @@ describe('State.withOverriddenHaltState', () => {
   });
 });
 
+describe('withOverriddenHaltState × abortState (#239)', () => {
+  it('cannot override abortState', () => {
+    const cont = new State(null);
+    expect(() => abortState.withOverriddenHaltState(cont))
+      .toThrow(/abortState cannot be overridden/);
+  });
+
+  it('cannot use abortState as the continuation', () => {
+    const bare = new State(null);
+    expect(() => bare.withOverriddenHaltState(abortState))
+      .toThrow(/cannot be used as a withOverriddenHaltState continuation/);
+  });
+});
+
 describe('CallFrame', () => {
   // withOverriddenHaltState returns a first-class CallFrame (a State subclass)
   // rather than a mutated plain State. instanceof State stays true (consumers
