@@ -8,11 +8,11 @@
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1["goToNumber"]
+  u1["goToNumber"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['$'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
+  idle -. enter .-> u1
+  u1 -- "['$'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
 ```
 
 ## goToNextNumber
@@ -23,13 +23,13 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1["goToNumber"]
-  s2["goToNextNumber"]
+  u1["goToNumber"]
+  u2["goToNextNumber"]
   idle([idle])
-  idle -. enter .-> s2
-  s1 -- "['$'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
-  s2 -- "[*] → [K]/[R]" --> s1
+  idle -. enter .-> u2
+  u1 -- "['$'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
+  u2 -- "[*] → [K]/[R]" --> u1
 ```
 
 ## goToPreviousNumber
@@ -40,13 +40,13 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s3["goToPreviousNumberInternal"]
-  s4["goToPreviousNumber"]
+  u3["goToPreviousNumberInternal"]
+  u4["goToPreviousNumber"]
   idle([idle])
-  idle -. enter .-> s4
-  s3 -- "['$'] → [K]/[S]" --> s0
-  s3 -- "[*] → [K]/[L]" --> s3
-  s4 -- "[*] → [K]/[L]" --> s3
+  idle -. enter .-> u4
+  u3 -- "['$'] → [K]/[S]" --> s0
+  u3 -- "[*] → [K]/[L]" --> u3
+  u4 -- "[*] → [K]/[L]" --> u3
 ```
 
 ## deleteNumber
@@ -57,24 +57,24 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s6["deleteNumberInternal"]
-  s8["deleteNumber"]
-  s7[["goToNumberStart(deleteNumberInternal)"]]
+  u6["deleteNumberInternal"]
+  u8["deleteNumber"]
+  u7[["goToNumberStart(deleteNumberInternal)"]]
   idle([idle])
   subgraph w_5["callable subtree of goToNumberStart"]
-    s5["goToNumberStart"]
-    c5(((halt)))
+    u5["goToNumberStart"]
+    s0-5(((halt)))
   end
-  idle -. enter .-> s8
-  s7 == "call" ==> s5
-  w_5 -. "return" .-> s7
-  s7 --> s6
-  s5 -- "['^'] → [K]/[S]" --> c5
-  s5 -- "[*] → [K]/[L]" --> s5
-  s6 -- "['$'] → [E]/[S]" --> s0
-  s6 -- "[*] → [E]/[R]" --> s6
-  s8 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s7
-  s8 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u8
+  u7 == "call" ==> u5
+  w_5 -. "return" .-> u7
+  u7 --> u6
+  u5 -- "['^'] → [K]/[S]" --> s0-5
+  u5 -- "[*] → [K]/[L]" --> u5
+  u6 -- "['$'] → [E]/[S]" --> s0
+  u6 -- "[*] → [E]/[R]" --> u6
+  u8 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u7
+  u8 -- "[*] → [K]/[S]" --> s0
 ```
 
 ## goToNumbersStart
@@ -85,11 +85,11 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s5["goToNumberStart"]
+  u5["goToNumberStart"]
   idle([idle])
-  idle -. enter .-> s5
-  s5 -- "['^'] → [K]/[S]" --> s0
-  s5 -- "[*] → [K]/[L]" --> s5
+  idle -. enter .-> u5
+  u5 -- "['^'] → [K]/[S]" --> s0
+  u5 -- "[*] → [K]/[L]" --> u5
 ```
 
 ## invertNumber
@@ -100,26 +100,26 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s9["invertNumberGoToNumberWithInversion"]
-  s11["invertNumber"]
-  s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
+  u9["invertNumberGoToNumberWithInversion"]
+  u11["invertNumber"]
+  u10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
   idle([idle])
   subgraph w_5["callable subtree of goToNumberStart"]
-    s5["goToNumberStart"]
-    c5(((halt)))
+    u5["goToNumberStart"]
+    s0-5(((halt)))
   end
-  idle -. enter .-> s11
-  s10 == "call" ==> s5
-  w_5 -. "return" .-> s10
-  s10 --> s9
-  s5 -- "['^'] → [K]/[S]" --> c5
-  s5 -- "[*] → [K]/[L]" --> s5
-  s9 -- "['^'] → [K]/[R]" --> s9
-  s9 -- "['1'] → ['0']/[R]" --> s9
-  s9 -- "['0'] → ['1']/[R]" --> s9
-  s9 -- "['$'] → [K]/[S]" --> s0
-  s11 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s10
-  s11 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u11
+  u10 == "call" ==> u5
+  w_5 -. "return" .-> u10
+  u10 --> u9
+  u5 -- "['^'] → [K]/[S]" --> s0-5
+  u5 -- "[*] → [K]/[L]" --> u5
+  u9 -- "['^'] → [K]/[R]" --> u9
+  u9 -- "['1'] → ['0']/[R]" --> u9
+  u9 -- "['0'] → ['1']/[R]" --> u9
+  u9 -- "['$'] → [K]/[S]" --> s0
+  u11 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u10
+  u11 -- "[*] → [K]/[S]" --> s0
 ```
 
 ## normalizeNumber
@@ -130,29 +130,29 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1["goToNumber"]
-  s12["normalizeNumberPutNewStartSymbol"]
-  s13["normalizeNumberMoveNumberStart"]
-  s15["normalizeNumber"]
-  s14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
+  u1["goToNumber"]
+  u12["normalizeNumberPutNewStartSymbol"]
+  u13["normalizeNumberMoveNumberStart"]
+  u15["normalizeNumber"]
+  u14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
   idle([idle])
   subgraph w_5["callable subtree of goToNumberStart"]
-    s5["goToNumberStart"]
-    c5(((halt)))
+    u5["goToNumberStart"]
+    s0-5(((halt)))
   end
-  idle -. enter .-> s15
-  s14 == "call" ==> s5
-  w_5 -. "return" .-> s14
-  s14 --> s13
-  s1 -- "['$'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
-  s5 -- "['^'] → [K]/[S]" --> c5
-  s5 -- "[*] → [K]/[L]" --> s5
-  s12 -- "[B] → ['^']/[S]" --> s1
-  s13 -- "['^']|['0'] → [E]/[R]" --> s13
-  s13 -- "['1']|['$'] → [K]/[L]" --> s12
-  s15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s14
-  s15 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u15
+  u14 == "call" ==> u5
+  w_5 -. "return" .-> u14
+  u14 --> u13
+  u1 -- "['$'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
+  u5 -- "['^'] → [K]/[S]" --> s0-5
+  u5 -- "[*] → [K]/[L]" --> u5
+  u12 -- "[B] → ['^']/[S]" --> u1
+  u13 -- "['^']|['0'] → [E]/[R]" --> u13
+  u13 -- "['1']|['$'] → [K]/[L]" --> u12
+  u15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u14
+  u15 -- "[*] → [K]/[S]" --> s0
 ```
 
 ## plusOne
@@ -163,22 +163,22 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s16["plusOneFillZeros"]
-  s17["plusOneAddNumberStart"]
-  s18["plusOneCaryOne"]
-  s19["plusOne"]
+  u16["plusOneFillZeros"]
+  u17["plusOneAddNumberStart"]
+  u18["plusOneCaryOne"]
+  u19["plusOne"]
   idle([idle])
-  idle -. enter .-> s19
-  s16 -- "['1'] → ['0']/[R]" --> s16
-  s16 -- "['$'] → [K]/[S]" --> s0
-  s17 -- "[B] → ['^']/[R]" --> s17
-  s17 -- "['1'] → [K]/[R]" --> s16
-  s18 -- "['0'] → ['1']/[R]" --> s16
-  s18 -- "['1'] → [K]/[L]" --> s18
-  s18 -- "['^'] → ['1']/[L]" --> s17
-  s19 -- "['^']|['1']|['0'] → [K]/[R]" --> s19
-  s19 -- "['$'] → [K]/[L]" --> s18
-  s19 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u19
+  u16 -- "['1'] → ['0']/[R]" --> u16
+  u16 -- "['$'] → [K]/[S]" --> s0
+  u17 -- "[B] → ['^']/[R]" --> u17
+  u17 -- "['1'] → [K]/[R]" --> u16
+  u18 -- "['0'] → ['1']/[R]" --> u16
+  u18 -- "['1'] → [K]/[L]" --> u18
+  u18 -- "['^'] → ['1']/[L]" --> u17
+  u19 -- "['^']|['1']|['0'] → [K]/[R]" --> u19
+  u19 -- "['$'] → [K]/[L]" --> u18
+  u19 -- "[*] → [K]/[S]" --> s0
 ```
 
 ## minusOne
@@ -189,73 +189,73 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1["goToNumber"]
-  s12["normalizeNumberPutNewStartSymbol"]
-  s13["normalizeNumberMoveNumberStart"]
-  s15["normalizeNumber"]
-  s23["minusOne"]
-  s14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
-  s20[["invertNumber(normalizeNumber)"]]
-  s21[["plusOne(invertNumber(normalizeNumber))"]]
-  s22[["invertNumber(plusOne(invertNumber(normalizeNumber)))"]]
+  u1["goToNumber"]
+  u12["normalizeNumberPutNewStartSymbol"]
+  u13["normalizeNumberMoveNumberStart"]
+  u15["normalizeNumber"]
+  u23["minusOne"]
+  u14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
+  u20[["invertNumber(normalizeNumber)"]]
+  u21[["plusOne(invertNumber(normalizeNumber))"]]
+  u22[["invertNumber(plusOne(invertNumber(normalizeNumber)))"]]
   idle([idle])
   subgraph w_5["callable subtree of goToNumberStart"]
-    s5["goToNumberStart"]
-    c5(((halt)))
+    u5["goToNumberStart"]
+    s0-5(((halt)))
   end
   subgraph w_11["callable subtree of invertNumber"]
-    s9["invertNumberGoToNumberWithInversion"]
-    s10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
-    s11["invertNumber"]
-    c11(((halt)))
+    u9["invertNumberGoToNumberWithInversion"]
+    u10[["goToNumberStart(invertNumberGoToNumberWithInversion)"]]
+    u11["invertNumber"]
+    s0-11(((halt)))
   end
   subgraph w_19["callable subtree of plusOne"]
-    s16["plusOneFillZeros"]
-    s17["plusOneAddNumberStart"]
-    s18["plusOneCaryOne"]
-    s19["plusOne"]
-    c19(((halt)))
+    u16["plusOneFillZeros"]
+    u17["plusOneAddNumberStart"]
+    u18["plusOneCaryOne"]
+    u19["plusOne"]
+    s0-19(((halt)))
   end
-  idle -. enter .-> s23
-  s10 & s14 == "call" ==> s5
-  s20 & s22 == "call" ==> s11
-  s21 == "call" ==> s19
-  w_5 -. "return" .-> s10 & s14
-  w_11 -. "return" .-> s20 & s22
-  w_19 -. "return" .-> s21
-  s10 --> s9
-  s14 --> s13
-  s20 --> s15
-  s21 --> s20
-  s22 --> s21
-  s1 -- "['$'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
-  s5 -- "['^'] → [K]/[S]" --> c5
-  s5 -- "[*] → [K]/[L]" --> s5
-  s9 -- "['^'] → [K]/[R]" --> s9
-  s9 -- "['1'] → ['0']/[R]" --> s9
-  s9 -- "['0'] → ['1']/[R]" --> s9
-  s9 -- "['$'] → [K]/[S]" --> c11
-  s11 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s10
-  s11 -- "[*] → [K]/[S]" --> c11
-  s12 -- "[B] → ['^']/[S]" --> s1
-  s13 -- "['^']|['0'] → [E]/[R]" --> s13
-  s13 -- "['1']|['$'] → [K]/[L]" --> s12
-  s15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s14
-  s15 -- "[*] → [K]/[S]" --> s0
-  s16 -- "['1'] → ['0']/[R]" --> s16
-  s16 -- "['$'] → [K]/[S]" --> c19
-  s17 -- "[B] → ['^']/[R]" --> s17
-  s17 -- "['1'] → [K]/[R]" --> s16
-  s18 -- "['0'] → ['1']/[R]" --> s16
-  s18 -- "['1'] → [K]/[L]" --> s18
-  s18 -- "['^'] → ['1']/[L]" --> s17
-  s19 -- "['^']|['1']|['0'] → [K]/[R]" --> s19
-  s19 -- "['$'] → [K]/[L]" --> s18
-  s19 -- "[*] → [K]/[S]" --> c19
-  s23 -- "['^']|['1']|['0'] → [K]/[R]" --> s23
-  s23 -- "['$'] → [K]/[S]" --> s22
-  s23 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u23
+  u10 & u14 == "call" ==> u5
+  u20 & u22 == "call" ==> u11
+  u21 == "call" ==> u19
+  w_5 -. "return" .-> u10 & u14
+  w_11 -. "return" .-> u20 & u22
+  w_19 -. "return" .-> u21
+  u10 --> u9
+  u14 --> u13
+  u20 --> u15
+  u21 --> u20
+  u22 --> u21
+  u1 -- "['$'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
+  u5 -- "['^'] → [K]/[S]" --> s0-5
+  u5 -- "[*] → [K]/[L]" --> u5
+  u9 -- "['^'] → [K]/[R]" --> u9
+  u9 -- "['1'] → ['0']/[R]" --> u9
+  u9 -- "['0'] → ['1']/[R]" --> u9
+  u9 -- "['$'] → [K]/[S]" --> s0-11
+  u11 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u10
+  u11 -- "[*] → [K]/[S]" --> s0-11
+  u12 -- "[B] → ['^']/[S]" --> u1
+  u13 -- "['^']|['0'] → [E]/[R]" --> u13
+  u13 -- "['1']|['$'] → [K]/[L]" --> u12
+  u15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u14
+  u15 -- "[*] → [K]/[S]" --> s0
+  u16 -- "['1'] → ['0']/[R]" --> u16
+  u16 -- "['$'] → [K]/[S]" --> s0-19
+  u17 -- "[B] → ['^']/[R]" --> u17
+  u17 -- "['1'] → [K]/[R]" --> u16
+  u18 -- "['0'] → ['1']/[R]" --> u16
+  u18 -- "['1'] → [K]/[L]" --> u18
+  u18 -- "['^'] → ['1']/[L]" --> u17
+  u19 -- "['^']|['1']|['0'] → [K]/[R]" --> u19
+  u19 -- "['$'] → [K]/[L]" --> u18
+  u19 -- "[*] → [K]/[S]" --> s0-19
+  u23 -- "['^']|['1']|['0'] → [K]/[R]" --> u23
+  u23 -- "['$'] → [K]/[S]" --> u22
+  u23 -- "[*] → [K]/[S]" --> s0
 ```
 
 ## minusOneFast
@@ -266,42 +266,42 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","^","$","0","1"]]
   s0(((halt)))
-  s1["goToNumber"]
-  s12["normalizeNumberPutNewStartSymbol"]
-  s13["normalizeNumberMoveNumberStart"]
-  s15["normalizeNumber"]
-  s26["minusOneFast"]
-  s14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
-  s25[["minusOneFastBorrow(normalizeNumber)"]]
+  u1["goToNumber"]
+  u12["normalizeNumberPutNewStartSymbol"]
+  u13["normalizeNumberMoveNumberStart"]
+  u15["normalizeNumber"]
+  u26["minusOneFast"]
+  u14[["goToNumberStart(normalizeNumberMoveNumberStart)"]]
+  u25[["minusOneFastBorrow(normalizeNumber)"]]
   idle([idle])
   subgraph w_5["callable subtree of goToNumberStart"]
-    s5["goToNumberStart"]
-    c5(((halt)))
+    u5["goToNumberStart"]
+    s0-5(((halt)))
   end
   subgraph w_24["callable subtree of minusOneFastBorrow"]
-    s24["minusOneFastBorrow"]
-    c24(((halt)))
+    u24["minusOneFastBorrow"]
+    s0-24(((halt)))
   end
-  idle -. enter .-> s26
-  s14 == "call" ==> s5
-  s25 == "call" ==> s24
-  w_5 -. "return" .-> s14
-  w_24 -. "return" .-> s25
-  s14 --> s13
-  s25 --> s15
-  s1 -- "['$'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
-  s5 -- "['^'] → [K]/[S]" --> c5
-  s5 -- "[*] → [K]/[L]" --> s5
-  s12 -- "[B] → ['^']/[S]" --> s1
-  s13 -- "['^']|['0'] → [E]/[R]" --> s13
-  s13 -- "['1']|['$'] → [K]/[L]" --> s12
-  s15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> s14
-  s15 -- "[*] → [K]/[S]" --> s0
-  s24 -- "['1'] → ['0']/[S]" --> c24
-  s24 -- "['0'] → ['1']/[L]" --> s24
-  s24 -- "['^'] → [K]/[S]" --> c24
-  s26 -- "['^']|['1']|['0'] → [K]/[R]" --> s26
-  s26 -- "['$'] → [K]/[L]" --> s25
-  s26 -- "[*] → [K]/[S]" --> s0
+  idle -. enter .-> u26
+  u14 == "call" ==> u5
+  u25 == "call" ==> u24
+  w_5 -. "return" .-> u14
+  w_24 -. "return" .-> u25
+  u14 --> u13
+  u25 --> u15
+  u1 -- "['$'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
+  u5 -- "['^'] → [K]/[S]" --> s0-5
+  u5 -- "[*] → [K]/[L]" --> u5
+  u12 -- "[B] → ['^']/[S]" --> u1
+  u13 -- "['^']|['0'] → [E]/[R]" --> u13
+  u13 -- "['1']|['$'] → [K]/[L]" --> u12
+  u15 -- "['^']|['1']|['0']|['$'] → [K]/[S]" --> u14
+  u15 -- "[*] → [K]/[S]" --> s0
+  u24 -- "['1'] → ['0']/[S]" --> s0-24
+  u24 -- "['0'] → ['1']/[L]" --> u24
+  u24 -- "['^'] → [K]/[S]" --> s0-24
+  u26 -- "['^']|['1']|['0'] → [K]/[R]" --> u26
+  u26 -- "['$'] → [K]/[L]" --> u25
+  u26 -- "[*] → [K]/[S]" --> s0
 ```

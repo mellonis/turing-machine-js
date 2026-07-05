@@ -17,7 +17,7 @@ For runtime highlight + breakpoint rendering on top of the engine's `Graph`, plu
 - [Subroutine composition with `withOverriddenHaltState`](#subroutine-composition-with-withoverriddenhaltstate)
 - [State tags](#state-tags)
 - [Debugging breakpoints](#debugging-breakpoints)
-- [Special objects](#special-objects) — [`haltState`](#haltstate) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
+- [Special objects](#special-objects) — [`haltState`](#haltstate) · [Sentinels: halt vs abort](#sentinels-halt-vs-abort) · [`ifOtherSymbol`](#ifothersymbol) · [`movements`](#movements) · [`symbolCommands`](#symbolcommands)
 - [Introspection and testing](#introspection-and-testing)
 - [Diagram conventions](#diagram-conventions)
 - [Versioning notes](#versioning-notes)
@@ -80,12 +80,12 @@ The state graph for the example above (`toMermaid(toGraph(replaceB, tapeBlock))`
 flowchart TD
 %% alphabets: [[" ","a","b","c","*"]]
   s0(((halt)))
-  s1["replaceB"]
+  u1["replaceB"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['b'] → ['*']/[R]" --> s1
-  s1 -- "[B] → [K]/[L]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
+  idle -. enter .-> u1
+  u1 -- "['b'] → ['*']/[R]" --> u1
+  u1 -- "[B] → [K]/[L]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
 ```
 
 Reading this specific diagram: `replaceB` (the rectangle) is the start state, marked by the dotted `enter` arrow from the `idle` sentinel. Three self-or-halt transitions: read `'b'` → write `'*'` and step right; read anything else (`*`) → keep, step right; read blank (`B`) → keep, step left, halt. Full notation reference — shapes, edge styles, label vocabulary — in [§Diagram conventions](#diagram-conventions).
@@ -273,11 +273,11 @@ The string `toMermaid` produces is a real Mermaid flowchart that renders in-plac
 flowchart TD
 %% alphabets: [[" ","0","1","$"]]
   s0(((halt)))
-  s1["name"]
+  u1["name"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['1'] → ['0']/[R]" --> s1
-  s1 -- "['$'] → [K]/[L]" --> s0
+  idle -. enter .-> u1
+  u1 -- "['1'] → ['0']/[R]" --> u1
+  u1 -- "['$'] → [K]/[L]" --> s0
 ```
 
 *Edge labels are `read → write/move`. Write commands: `K` = keep (no write), `E` = erase (write the blank). Literal alphabet symbols are quoted (`'1'`, `'$'`). Movements: `L` (left), `R` (right), `S` (stay).*
@@ -302,12 +302,12 @@ The resulting cycle (`toMermaid(toGraph(a, tapeBlock))`):
 ```mermaid
 flowchart TD
 %% alphabets: [[" ","x","y"]]
-  s1["a"]
-  s2["b"]
+  u1["a"]
+  u2["b"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['x'] → [K]/[S]" --> s2
-  s2 -- "['y'] → [K]/[S]" --> s1
+  idle -. enter .-> u1
+  u1 -- "['x'] → [K]/[S]" --> u2
+  u2 -- "['y'] → [K]/[S]" --> u1
 ```
 
 `idle -. enter .->` points at the initial state passed to `toGraph` (`a` here); `b` is reachable from `a` via the bound `Reference`.
@@ -321,8 +321,10 @@ The runtime. Owns one `TapeBlock` and drives a state graph until it reaches `hal
 ```javascript
 const machine = new TuringMachine({ tapeBlock });
 
-// Run to halt — `run()` is synchronous, returns void:
-machine.run({ initialState, stepsLimit: 1e5 });
+// Run to halt — `run()` is synchronous and returns a RunResult:
+const result = machine.run({ initialState, stepsLimit: 1e5 });
+// result: { outcome: 'halted' | 'aborted', state, stack, step } — see
+// "Sentinels: halt vs abort" below for the aborted case.
 
 // Or step-by-step (useful for tracing / observation):
 for (const step of machine.runStepByStep({ initialState })) {
@@ -353,7 +355,7 @@ Three non-overlapping entry points, picked by the consumer's actual need:
 
 | | `run()` | `runStepByStep()` | `new DebugSession(machine, ...)` |
 |---|---|---|---|
-| Shape | sync, returns `void` | sync generator | async session with events |
+| Shape | sync, returns `RunResult` | sync generator, returns `RunResult` | async session with events |
 | Observation | none | per-iter via `.next()` | event-based (`pause`, `step`, `iter`, `halt`) |
 | Step controls | — | — | `continue / stepIn / stepOver / stepOut / pause / stop` |
 | Throttle | — | — | `setRunInterval(ms)` |
@@ -361,6 +363,8 @@ Three non-overlapping entry points, picked by the consumer's actual need:
 | Best for | run-to-halt with no observation overhead | tracing, snapshots, test harnesses, custom batching | UI debuggers, IDE extensions, educational demos |
 
 **Rule of thumb.** No observation → `run()`. Sync per-iter observation → iterate `runStepByStep()`. Anything interactive (breakpoints, step controls, throttle, click-pause) → construct a `DebugSession`.
+
+**`run()` / `runStepByStep()` both return a `RunResult`** — `{ outcome: 'halted' | 'aborted', state, stack, step }`, call-scoped so re-running the same machine never leaks stale state from a previous call. `runStepByStep`'s generator carries the value as its `return` (visible in the final `{ done: true, value }`) — a plain `for...of` discards it, so per-iter consumers that need the outcome either drain the generator manually (as `run()` does internally) or check the final yield's `nextState` identity. See [§Sentinels: halt vs abort](#sentinels-halt-vs-abort) for the full shape and the `abortState` counterpart to `haltState`.
 
 **Breakpoint detection lives only in `DebugSession`.** `runStepByStep` is the pure-iteration primitive — it advances the machine and reports a minimal `MachineState` with no pause/debug field, ignoring `state.debug` entirely. `DebugSession` is what evaluates the filters and turns a match into a `pause` event. (A consumer that wants its own breakpoint behavior on the raw generator can read `state.debug` itself.)
 
@@ -430,11 +434,11 @@ What changes between *running `scanToX` standalone* and *running the composed wr
 flowchart TD
 %% alphabets: [[" ","a","b","X"]]
   s0(((halt)))
-  s1["scanToX"]
+  u1["scanToX"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['X'] → [K]/[S]" --> s0
-  s1 -- "[*] → [K]/[R]" --> s1
+  idle -. enter .-> u1
+  u1 -- "['X'] → [K]/[S]" --> s0
+  u1 -- "[*] → [K]/[R]" --> u1
 ```
 
 `toMermaid(toGraph(scanThenErase, tapeBlock))` — the wrapped composition:
@@ -443,31 +447,31 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","a","b","X"]]
   s0(((halt)))
-  s2["eraseHere"]
-  s3[["scanToX(eraseHere)"]]
+  u2["eraseHere"]
+  u3[["scanToX(eraseHere)"]]
   idle([idle])
   subgraph w_1["callable subtree of scanToX"]
-    s1["scanToX"]
-    c1(((halt)))
+    u1["scanToX"]
+    s0-1(((halt)))
   end
-  idle -. enter .-> s3
-  s3 == "call" ==> s1
-  w_1 -. "return" .-> s3
-  s3 --> s2
-  s1 -- "['X'] → [K]/[S]" --> c1
-  s1 -- "[*] → [K]/[R]" --> s1
-  s2 -- "[*] → [E]/[S]" --> s0
+  idle -. enter .-> u3
+  u3 == "call" ==> u1
+  w_1 -. "return" .-> u3
+  u3 --> u2
+  u1 -- "['X'] → [K]/[S]" --> s0-1
+  u1 -- "[*] → [K]/[R]" --> u1
+  u2 -- "[*] → [E]/[S]" --> s0
 ```
 
 **Reading guide** — the v7 callable-subtree emit (introduced in [#174](https://github.com/mellonis/turing-machine-js/issues/174)) models `withOverriddenHaltState` as a function call: the wrapper is the call site, the bare's subtree is the callable body.
 
 1. **`[[scanToX(eraseHere)]]` (Mermaid subroutine / double-walled-rectangle shape)** is the wrapper node. It's the runtime entry point — `idle -. enter .->` arrives here — and shows the composite name (`bare(override)`). Wrappers have no transitions of their own; they delegate to the bare via the `call` arrow. **Placement**: this top-level wrapper is drawn OUTSIDE any subgraph; a wrapper that participates in a caller's frame (e.g. an inner-call continuation of another wrapper, as in `library-binary-numbers/minusOne`) renders INSIDE its owner frame's subgraph with the same `[[…]]` shape (see [#223](https://github.com/mellonis/turing-machine-js/issues/223)).
-2. **`subgraph w_1["callable subtree of scanToX"]`** is the bare's callable subtree — the scope of code that runs when the wrapper is "called." It contains the bare `s1["scanToX"]`, any body states reachable from the bare, and a local halt marker `c1(((halt)))` where the bare's halt-bound transitions land.
+2. **`subgraph w_1["callable subtree of scanToX"]`** is the bare's callable subtree — the scope of code that runs when the wrapper is "called." It contains the bare `u1["scanToX"]`, any body states reachable from the bare, and a local halt marker `s0-1(((halt)))` where the bare's halt-bound transitions land — `s0-1` reads as "frame 1's local stand-in for `s0`" (see [§Mermaid id scheme](#mermaid-id-scheme) for the full namespacing rule).
 3. **The bold `==> call`** from wrapper to bare is the call arrow — visual signature of "wrapper invokes this callable subtree, pushing its override onto the runtime stack." Bold arrows are reserved for wrapper-to-bare calls; counting them in a diagram counts the wrappers in play.
-4. **The dotted `-. return .->`** from the subtree back to the wrapper is the return arrow — fires when the bare halts (lands on `c1`) and the stack pops. The wrapper's solid `--> s2` (to `eraseHere`) is the post-return continuation; ordinary transition under the function-call mental model.
+4. **The dotted `-. return .->`** from the subtree back to the wrapper is the return arrow — fires when the bare halts (lands on `s0-1`) and the stack pops. The wrapper's solid `--> u2` (to `eraseHere`) is the post-return continuation; ordinary transition under the function-call mental model.
 5. **Real `(((halt)))` outside any subgraph** (`s0`) is the actual run terminus. Reached only by states OUTSIDE any callable subtree — here, by `eraseHere` after it erases the cell.
 
-**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter at wrapper `[[scanToX(eraseHere)]]` (with `eraseHere` queued as the override); `call` into the subtree of `scanToX`; `[*] → [K]/[R]` self-loops on `s1` until the head sees `X`; the `['X'] → [K]/[S]` edge lands on `c1`; `return` to the wrapper; solid `--> s2` to `eraseHere`; `eraseHere` runs `[*] → [E]/[S]` and halts at real `s0`. Run terminates.
+**Reading runtime sequence on tape `['a','b','X','b','a']`:** enter at wrapper `[[scanToX(eraseHere)]]` (with `eraseHere` queued as the override); `call` into the subtree of `scanToX`; `[*] → [K]/[R]` self-loops on `u1` until the head sees `X`; the `['X'] → [K]/[S]` edge lands on `s0-1`; `return` to the wrapper; solid `--> u2` to `eraseHere`; `eraseHere` runs `[*] → [E]/[S]` and halts at real `s0`. Run terminates.
 
 > 💡 **Round-trip stability.** `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for **simple** wrapped states ([#139](https://github.com/mellonis/turing-machine-js/issues/139) regression). The callable-subtree emit (#174) eliminates per-context duplication: shared bares like `library-binary-numbers`'s `invertNumber` (used by two wrappers in `minusOne`) render as a single subtree with two `& `-joined call arrows, and `fromGraph` rebuilds one shared instance — the sharing survives the round-trip. Bytewise stability does **not** extend to shared-bare cases, though: node ids are runtime `State` ids reassigned on every rebuild, and a shared bare's post-rebuild id no longer follows the original emission order, so the serialization reorders. Use `equivalentOn` to confirm behavioural identity (`allAgree: true`) when bytewise comparison no longer applies.
 
@@ -494,7 +498,7 @@ See [§Diagram conventions § Tags](#tags) for the full emit shape.
 
 ## Debugging
 
-The library exposes interactive debugging through the `DebugSession` class, constructed directly with a `TuringMachine`. Breakpoints are configured on the engine (`state.debug` / `haltState.debug`); the session dispatches them as events plus offers step-in / step-over / step-out controls, an external `pause()`, and a per-iter throttle.
+The library exposes interactive debugging through the `DebugSession` class, constructed directly with a `TuringMachine`. Breakpoints are configured on the engine (`state.debug` / `haltState.debug` / `abortState.debug`); the session dispatches them as events plus offers step-in / step-over / step-out controls, an external `pause()`, and a per-iter throttle.
 
 ```ts
 import { DebugSession } from '@turing-machine-js/machine';
@@ -507,17 +511,18 @@ session.on('pause', (m) => {
 });
 session.on('step', (m) => { /* fires once per iter, mid-iter */ });
 session.on('iter', (m) => { /* fires once per iter, end-of-iter */ });
-session.on('halt', () => { /* fires on natural halt (not on stop()) */ });
+session.on('halt', (result) => { /* fires on natural halt (not on stop()) */ });
+session.on('abort', (result) => { /* fires when the run hits abortState (not on stop()) */ });
 
-await session.start();           // resolves on halt or stop()
+await session.start();           // resolves on halt, abort, or stop()
 ```
 
 ### Configuring breakpoints
 
-Breakpoints live on the engine, not on the session. The session reads `state.debug` / `haltState.debug` and fires a `pause` event when a filter matches.
+Breakpoints live on the engine, not on the session. The session reads `state.debug` / `haltState.debug` / `abortState.debug` and fires a `pause` event when a filter matches.
 
 ```ts
-import { State, haltState, ifOtherSymbol } from '@turing-machine-js/machine';
+import { State, abortState, haltState, ifOtherSymbol } from '@turing-machine-js/machine';
 
 const myState = new State({...});
 
@@ -538,27 +543,34 @@ haltState.debug = true;
 haltState.debug = false;        // turn off
 haltState.debug = null;         // alias of false (reset)
 
+// abortState.debug mirrors haltState.debug (#239) — same boolean shape, same
+// single pause moment: the AFTER side of the iter whose transition targets
+// abortState, fired before the terminal 'abort' event.
+abortState.debug = true;
+abortState.debug = false;       // turn off
+abortState.debug = null;        // alias of false (reset)
+
 // Reset filters later on a regular state — next read returns a fresh empty DebugConfig:
 myState.debug = null;
 ```
 
-> ⚠️ **`haltState.debug` is `boolean`-only.** Any object-shaped write (`{ before: true }`, `{ after: true }`, `{ before: true, after: true }`) throws at write time. The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.pause.side === 'after'`.
+> ⚠️ **`haltState.debug` and `abortState.debug` are `boolean`-only.** Any object-shaped write (`{ before: true }`, `{ after: true }`, `{ before: true, after: true }`) throws at write time on either sentinel. The pause fires on the AFTER side of the iter whose transition leads to the sentinel — `m.state` is the triggering state (not the sentinel itself), `m.pause.side === 'after'`.
 
-> ⚠️ **An `after`-side breakpoint on the halt-triggering state collapses with `haltState.debug` into a single pause.** Both target the AFTER side of the *same* iter — the one whose transition leads to halt — and the engine fires at most one pause per iter-side, so you get one `pause` event (`side: 'after'`, `cause: 'breakpoint'`), not two. This is intentional: halt has no iteration of its own, so "after the triggering state" and "before halt" are the **same execution moment**. (Contrast two ordinary states `A → B`: `A`'s `after` and `B`'s `before` are *different* iters, so they fire as two pauses.) There is deliberately no flag to emit a second, ephemeral halt pause — one event for one real moment.
+> ⚠️ **An `after`-side breakpoint on the sentinel-triggering state collapses with `haltState.debug` / `abortState.debug` into a single pause.** Both target the AFTER side of the *same* iter — the one whose transition leads to halt or abort — and the engine fires at most one pause per iter-side, so you get one `pause` event (`side: 'after'`, `cause: 'breakpoint'`), not two. This is intentional: neither sentinel has an iteration of its own, so "after the triggering state" and "before halt/abort" are the **same execution moment**. (Contrast two ordinary states `A → B`: `A`'s `after` and `B`'s `before` are *different* iters, so they fire as two pauses.) There is deliberately no flag to emit a second, ephemeral sentinel pause — one event for one real moment.
 
-> ⚠️ **Chained-form `haltState.debug.before = true` doesn't throw in non-strict mode** — this is a JavaScript primitive quirk, not engine behavior. The getter returns the boolean `false`; assigning `.before` to that boolean is a no-op in non-strict mode (silent), a `TypeError` in strict mode. The engine setter only sees whole-object writes (`haltState.debug = X`). **Always use the whole-object form: `haltState.debug = true` / `= false` / `= null`.**
+> ⚠️ **Chained-form `haltState.debug.before = true` (or `abortState.debug.before = true`) doesn't throw in non-strict mode** — this is a JavaScript primitive quirk, not engine behavior. The getter returns the boolean `false`; assigning `.before` to that boolean is a no-op in non-strict mode (silent), a `TypeError` in strict mode. The engine setter only sees whole-object writes (`haltState.debug = X` / `abortState.debug = X`). **Always use the whole-object form: `= true` / `= false` / `= null`.**
 
 The `debug` field is mutable — toggle breakpoints at runtime without rebuilding the graph. A `CallFrame` (from `state.withOverriddenHaltState(...)`) delegates its `debug` to the bare, so an assignment on the original is visible from every wrapper and vice versa. `state.debug` is always a `DebugConfig` instance (lazy-initialized on first read); plain-object input is wrapped automatically. The instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` instead of silently creating a useless property.
 
 **Filter semantics:** `true` is a wildcard (match any symbol). `[ifOtherSymbol]` is NOT a wildcard — it matches only the catch-all resolution case (same meaning as in transition keys).
 
-**Caveat:** `haltState` is a module-level singleton. Setting `haltState.debug` affects every machine in the process; clear in `afterEach` / `finally` for test isolation.
+**Caveat:** `haltState` and `abortState` are both module-level singletons. Setting either one's `.debug` affects every machine in the process; clear in `afterEach` / `finally` for test isolation.
 
 ### DebugSession API
 
 | Method | Description |
 |---|---|
-| `start(): Promise<void>` | Begin execution. Resolves on natural halt or after `stop()`. Single-use — a second call throws. |
+| `start(): Promise<void>` | Begin execution. Resolves on natural halt, abort, or after `stop()`. Single-use — a second call throws. |
 | `continue()` | Resume from a pause and run to the next breakpoint or halt. |
 | `stepIn()` | Resume and pause at the very next iter, regardless of depth — descends into any subroutine the current iter enters. Mirrors DevTools **Step Into**. |
 | `stepOver()` | Resume and pause at the next iter back at (or above) the click-time halt-stack depth (`depth ≤ clickTimeDepth`) — subroutines the stepped-over iter enters run to completion without pausing inside. Mirrors DevTools **Step Over**. |
@@ -577,7 +589,10 @@ The three step controls are depth-based to mirror DevTools: from a pause at halt
 | `pause` | `PausedMachineState` (`MachineState` + `pause: {side, cause}`) | Implicitly awaited via internal pause-promise — engine blocks until `continue / stepIn / stepOver / stepOut / stop` is called. Listener Promise itself is fire-and-forget. | A breakpoint matched, a step-mode endpoint was reached, or `session.pause()` was requested. |
 | `step` | `MachineState` | Fire-and-forget (sync hot-loop tracing). | Once per iter, between any before-pause and after-pause. |
 | `iter` | `MachineState` | **Awaited** (sequenced, blocks the engine). Use for throttle / per-iter coordination / step-boundary synthesis. | Once per iter, at end. After any after-pause. |
-| `halt` | (none) | Fire-and-forget. | Once, on natural halt. Does NOT fire when `stop()` was called. |
+| `halt` | `RunResult` | Fire-and-forget. | Once, on natural halt. Does NOT fire when `stop()` was called. |
+| `abort` | `RunResult` | Fire-and-forget. | Once, when the run hits `abortState`. Does NOT fire when `stop()` was called. |
+
+**`halt` and `abort` are mutually exclusive terminal events** — a run ends in exactly one of the two, never both, and both carry the same run's `RunResult` (`{outcome, state, stack, step}` — see [§RunResult](#runresult)) as their listener's argument.
 
 ### The pause descriptor: `m.pause`
 
@@ -585,7 +600,7 @@ The three step controls are depth-based to mirror DevTools: from a pause at halt
 
 - **`side`** — `'before'` or `'after'`. Exactly one: DebugSession dispatches the two timings as separate `pause` events, so a descriptor is always one-sided. (`'step'` / `'manual'` causes only ever fire on the `'before'` side.)
 - **`cause`** — distinguishes the origin:
-  - `'breakpoint'` — a `state.debug` filter matched, or `haltState.debug === true` triggered.
+  - `'breakpoint'` — a `state.debug` filter matched, or `haltState.debug === true` / `abortState.debug === true` triggered.
   - `'step'` — a `stepIn` / `stepOver` / `stepOut` directive's natural endpoint was reached.
   - `'manual'` — `session.pause()` was called from outside.
 
@@ -696,7 +711,101 @@ The `debug: false` master switch is gone — in v7 the session is the only consu
 
 ### haltState
 
-A singleton `State` (`id === 0`). Transitioning into it stops the run. Imported as a named export from `@turing-machine-js/machine`; do not construct your own — `state.isHalt` checks identity against this single instance.
+A singleton `State` (`id === 0`). Transitioning into it stops the run. Imported as a named export from `@turing-machine-js/machine`; do not construct your own — `state.isHalt` checks identity against this single instance. See [§Sentinels: halt vs abort](#sentinels-halt-vs-abort) for `abortState`, the non-overridable counterpart used for abnormal termination.
+
+### Sentinels: halt vs abort
+
+`haltState` and `abortState` are the two members of the sentinel family (`state.isSentinel` ≡ `id <= 0`) — the only states a machine can transition into that end a run rather than continue it. They mean different things:
+
+- **`haltState`** (`id === 0`) inside a subroutine means *return* — the run-loop pops the halt-stack and resumes at the caller's continuation. It's the composable case: `state.withOverriddenHaltState(next)` builds bigger machines out of halt-on-completion subroutines.
+- **`abortState`** (`id === -1`, [#239](https://github.com/mellonis/turing-machine-js/issues/239)) means *stop everything*. It is **never popped by the subroutine halt-stack and never composed by `withOverriddenHaltState`** — it punches straight through call/return and terminates the run, through any call depth. Aborting is a legitimate program outcome, not a host failure: no `Error` is thrown when a run ends this way.
+
+`abortState` is strictly **opt-in**. The existing idiom — reserve an alphabet symbol and write an in-band error marker before halting — remains the right tool for most machines. Reach for `abortState` when in-band signaling doesn't fit: a 2-symbol machine has no alphabet symbol left to spare for "termination kind," or the final tape must stay a clean result (e.g. golden tests that diff tapes byte-for-byte).
+
+```javascript
+import { Alphabet, State, Tape, TapeBlock, TuringMachine, abortState, haltState, ifOtherSymbol } from '@turing-machine-js/machine';
+
+const alphabet = new Alphabet([' ', 'a', 'b']);
+const tapeBlock = TapeBlock.fromTapes([new Tape({ alphabet, symbols: ['a'] })]);
+const { symbol } = tapeBlock;
+
+const cont = new State({ [ifOtherSymbol]: { nextState: haltState } }, 'cont');
+const inner = new State({
+  [symbol(['a'])]: { nextState: abortState },   // legal: abort as a transition TARGET
+  [ifOtherSymbol]: { nextState: haltState },
+}, 'inner');
+const outer = inner.withOverriddenHaltState(cont);   // subroutine call: run inner, then cont
+
+inner.withOverriddenHaltState(abortState);   // throws — abortState can't be a continuation
+abortState.withOverriddenHaltState(inner);   // throws — abortState can't be overridden
+```
+
+Identity: `abortState.id === -1`, `abortState.isAbort === true`, `abortState.isHalt === false`; `state.isSentinel` (`id <= 0`) is `true` for both sentinels and `false` for every user state. `abortState.debug` is a `boolean`, mirroring `haltState.debug` — see [§Debugging](#debugging).
+
+`toMermaid(State.toGraph(outer, tapeBlock))` for the wrapped machine above:
+
+```mermaid
+flowchart TD
+%% alphabets: [[" ","a","b"]]
+  s1(((abort)))
+  s0(((halt)))
+  u1["cont"]
+  u3[["inner(cont)"]]
+  idle([idle])
+  subgraph w_2["callable subtree of inner"]
+    u2["inner"]
+    s0-2(((halt)))
+  end
+  idle -. enter .-> u3
+  u3 == "call" ==> u2
+  w_2 -. "return" .-> u3
+  u3 --> u1
+  u1 -- "[*] → [K]/[S]" --> s0
+  u2 -- "['a'] → [K]/[S]" --> s1
+  u2 -- "[*] → [K]/[S]" --> s0-2
+  classDef abortSentinel stroke:#c0392b,stroke-width:2px,stroke-dasharray:4 3
+  class s1 abortSentinel
+```
+
+The solid `u2 -- "['a'] → [K]/[S]" --> s1` edge is the abort punch-through: it leaves `inner`'s callable-subtree subgraph (`w_2`) and lands straight on the global `abortState` node, bypassing the frame entirely — no marker, no dispatch. Contrast the frame's own dotted dispatch, `w_2 -. "return" .-> u3`: that one only fires when `inner` instead falls through to `ifOtherSymbol`, lands on the frame-local halt marker `s0-2`, and returns normally through the wrapper to `cont`.
+
+#### RunResult
+
+`run()` and `runStepByStep()` both return a call-scoped `RunResult`:
+
+```ts
+type RunResult = {
+  outcome: 'halted' | 'aborted';
+  state: State;              // the state whose transition triggered the sentinel
+  stack: readonly State[];   // frozen; [] for 'halted' by construction
+  step: number;              // 1-based iter count; 0 if initialState was itself a sentinel
+};
+```
+
+- **`'halted'` implies `stack === []`, by construction** — a `haltState` transition inside a subroutine pops and resumes; the run only reaches real halt once every pushed frame has already popped. No union type is needed to model the two outcomes because this invariant always holds.
+- **`'aborted'`**: `stack` is the frozen backtrace of continuations `abortState` punched through — precisely the call-chain information an abort would otherwise discard. `state` is the triggering state, unwrapped to its bare if the transition fired from inside a `withOverriddenHaltState` wrapper (mirrors `matchedTransition`'s same unwrap — see [§Matched transition](#matched-transition)).
+- **Generator-return caveat**: `runStepByStep`'s generator carries the same object as its `return` value (visible in the final `{ done: true, value }`) — but a plain `for...of` discards generator returns. The canonical step-level signal is the one `runStepByStep` always had: the last yielded `MachineState`'s `nextState === abortState`.
+
+```javascript
+// Continuing the cont/inner/outer example above:
+const result = new TuringMachine({ tapeBlock }).run({ initialState: outer });
+// head reads 'a' → inner's transition fires → abortState, punching straight through `cont`:
+// { outcome: 'aborted', state: inner, stack: [cont], step: 1 }
+```
+
+#### Mermaid id scheme
+
+Diagrams namespace node ids by prefix so a rendered graph reads user states, sentinels, and per-frame plumbing apart at a glance:
+
+| Thing | Mermaid id | Was |
+|---|---|---|
+| user states | `u{id}` (`u1`, `u2`, …) | `s{id}` |
+| sentinels | `s{ordinal}` — halt `s0`, abort `s1`, a hypothetical 3rd sentinel `s2`, … | (halt was already `s0`) |
+| halt marker, frame `f` | `s0-{f}` — "frame-`f`-local stand-in for `s0`" | `c{f}` |
+| frame subgraphs | `w_{f}` | unchanged |
+| idle | `idle` | unchanged |
+
+`mermaidIdFor(id)` / `parseMermaidId(mermaidId)` (both exported) implement the mapping and its inverse. **Changelog one-liner**: rendered-output churn only — the numeric `Graph` ids for user states and halt are unchanged; only the *Mermaid string* ids and the synthetic halt-marker's numeric id (`-frameId` → `-2 * frameId`, freeing the odd negatives for sentinels) moved.
 
 ### ifOtherSymbol
 
@@ -767,10 +876,13 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 | Shape | Meaning |
 |---|---|
 | `s0(((halt)))` | the halt state |
-| `sN["name"]` | a regular state (or a bare, when inside a subgraph) |
-| `sN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site; outside any subgraph when top-level, INSIDE its owner frame's subgraph when its continuation chain participates in a caller's frame — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) and [#223](https://github.com/mellonis/turing-machine-js/issues/223)) |
-| `cN(((halt)))` inside a subgraph | halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
+| `uN["name"]` | a regular state (or a bare, when inside a subgraph) |
+| `uN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site; outside any subgraph when top-level, INSIDE its owner frame's subgraph when its continuation chain participates in a caller's frame — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) and [#223](https://github.com/mellonis/turing-machine-js/issues/223)) |
+| `s0-F(((halt)))` inside a subgraph | frame `F`'s halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
+| `s1(((abort)))` | the `abortState` sentinel — same terminal shape as halt, distinguished by a dashed-red `classDef abortSentinel`; emitted only when the graph actually references it (see [§Sentinels: halt vs abort](#sentinels-halt-vs-abort)) |
 | `idle([idle])` | pre-execution sentinel (not a real state) |
+
+Node ids follow a namespaced scheme (`u`/`s`/`s0-`) — see [§Mermaid id scheme](#mermaid-id-scheme) for the full mapping and the `mermaidIdFor` / `parseMermaidId` helpers.
 
 ### Edge styles
 
@@ -780,6 +892,7 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 | `==> "call"` thick solid | wrapper → bare | the wrapper's call into its callable subtree; reserved for wrapper-to-bare |
 | `w_N -. "return" .->` dotted | subtree → wrapper | the subtree's halt-marker has incoming → control returns to the calling wrapper |
 | `w_N -. "halt" .->` dotted | subtree → `s0` | the subtree has a non-wrapper entry path → halt-marker can fire with empty stack (real halt) |
+| `-->` regular solid, crossing a subgraph boundary | any state (including in-frame) → `s1` | abort punch-through: drawn straight to the global `abortState` node, deliberately in contrast with halt's frame-local `s0-F` marker + dotted dispatch — no per-frame retargeting, no abort marker |
 | `idle -. enter .->` dotted | from `idle` to initial state | execution-start marker |
 
 The `&` ribbon syntax (`s_W1 & s_W2 == "call" ==> s_A`) collapses multiple wrappers that share a bare into one arrow. Bold `==>` is reserved exclusively for the wrapper-to-bare `call` arrow.
@@ -827,12 +940,12 @@ A 2-tape "copier" machine — as long as tape 1 reads a non-blank, write the sam
 flowchart TD
 %% alphabets: [[" ","0","1"],[" ","0","1"]]
   s0(((halt)))
-  s1["copy"]
+  u1["copy"]
   idle([idle])
-  idle -. enter .-> s1
-  s1 -- "['0',*] → [K,'0']/[R,R]" --> s1
-  s1 -- "['1',*] → [K,'1']/[R,R]" --> s1
-  s1 -- "[B,*] → [K]/[S]" --> s0
+  idle -. enter .-> u1
+  u1 -- "['0',*] → [K,'0']/[R,R]" --> u1
+  u1 -- "['1',*] → [K,'1']/[R,R]" --> u1
+  u1 -- "[B,*] → [K]/[S]" --> s0
 ```
 
 Reading `['0',*] → [K,'0']/[R,R]`:

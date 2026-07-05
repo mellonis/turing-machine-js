@@ -8,15 +8,15 @@
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s1["plusOneCarry"]
-  s2["plusOne"]
+  u1["plusOneCarry"]
+  u2["plusOne"]
   idle([idle])
-  idle -. enter .-> s2
-  s1 -- "['1'] → ['0']/[L]" --> s1
-  s1 -- "['0'] → ['1']/[S]" --> s0
-  s1 -- "[B] → ['1']/[S]" --> s0
-  s2 -- "['0']|['1'] → [K]/[R]" --> s2
-  s2 -- "[B] → [K]/[L]" --> s1
+  idle -. enter .-> u2
+  u1 -- "['1'] → ['0']/[L]" --> u1
+  u1 -- "['0'] → ['1']/[S]" --> s0
+  u1 -- "[B] → ['1']/[S]" --> s0
+  u2 -- "['0']|['1'] → [K]/[R]" --> u2
+  u2 -- "[B] → [K]/[L]" --> u1
 ```
 
 ## minusOne
@@ -27,15 +27,15 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s3["minusOneBorrow"]
-  s4["minusOne"]
+  u3["minusOneBorrow"]
+  u4["minusOne"]
   idle([idle])
-  idle -. enter .-> s4
-  s3 -- "['0'] → ['1']/[L]" --> s3
-  s3 -- "['1'] → ['0']/[S]" --> s0
-  s3 -- "[B] → [K]/[S]" --> s0
-  s4 -- "['0']|['1'] → [K]/[R]" --> s4
-  s4 -- "[B] → [K]/[L]" --> s3
+  idle -. enter .-> u4
+  u3 -- "['0'] → ['1']/[L]" --> u3
+  u3 -- "['1'] → ['0']/[S]" --> s0
+  u3 -- "[B] → [K]/[S]" --> s0
+  u4 -- "['0']|['1'] → [K]/[R]" --> u4
+  u4 -- "[B] → [K]/[L]" --> u3
 ```
 
 ## invertNumber
@@ -46,12 +46,12 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s5["invertNumber"]
+  u5["invertNumber"]
   idle([idle])
-  idle -. enter .-> s5
-  s5 -- "['0'] → ['1']/[R]" --> s5
-  s5 -- "['1'] → ['0']/[R]" --> s5
-  s5 -- "[B] → [K]/[S]" --> s0
+  idle -. enter .-> u5
+  u5 -- "['0'] → ['1']/[R]" --> u5
+  u5 -- "['1'] → ['0']/[R]" --> u5
+  u5 -- "[B] → [K]/[S]" --> s0
 ```
 
 ## normalizeNumber
@@ -62,10 +62,10 @@ flowchart TD
 flowchart TD
 %% alphabets: [[" ","0","1"]]
   s0(((halt)))
-  s6["normalizeNumber"]
+  u6["normalizeNumber"]
   idle([idle])
-  idle -. enter .-> s6
-  s6 -- "['0'] → [E]/[R]" --> s6
-  s6 -- "['1'] → [K]/[S]" --> s0
-  s6 -- "[B] → ['0']/[S]" --> s0
+  idle -. enter .-> u6
+  u6 -- "['0'] → [E]/[R]" --> u6
+  u6 -- "['1'] → [K]/[S]" --> s0
+  u6 -- "[B] → ['0']/[S]" --> s0
 ```
