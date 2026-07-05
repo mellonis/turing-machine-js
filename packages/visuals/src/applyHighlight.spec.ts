@@ -193,6 +193,26 @@ describe('applyHighlight', () => {
     });
   });
 
+  describe('abort terminal highlight targets the abort node, never halt (#239)', () => {
+    it('lights abort node (-1 / s1) when toId is -1, not halt singleton (0)', () => {
+      const g = loadGraph('turing-callable-subtree');
+      // Abort is an odd-negative sentinel: id -1 maps to mermaid key 's1'.
+      // Transition from bare(3) to abort(-1). strong=from, paused=false
+      // (RUNNING_AUTO-style). The abort node should get highlight-to;
+      // halt singleton should not.
+      const { ops } = run({ fromId: 3, toId: -1, strong: 'from', paused: false }, g);
+      const classOps = ops.filter((o) => o.op === 'addNodeClass');
+      const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
+
+      // Abort node (-1) gets highlight-to (not halt).
+      expect(classOps).toContainEqual({ op: 'addNodeClass', id: -1, cls: 'mg-highlight-to' });
+      // Halt singleton (0) is NOT highlighted when abort is the target.
+      expect(classOps).not.toContainEqual({ op: 'addNodeClass', id: 0, cls: 'mg-highlight-to' });
+      // Edge from bare(3) to abort uses 's1' (abort's mermaid key).
+      expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'u3', toKey: 's1' });
+    });
+  });
+
   describe('§9 frame-active', () => {
     it('marks the frame when canonical strong is inside it (wrapper case)', () => {
       const g = loadGraph('turing-callable-subtree');
