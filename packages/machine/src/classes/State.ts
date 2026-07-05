@@ -2,7 +2,7 @@ import Command from './Command';
 import Reference from './Reference';
 import TapeBlock from './TapeBlock';
 import TapeCommand from './TapeCommand';
-import {id} from '../utilities/functions';
+import {id, reserveSentinelId} from '../utilities/functions';
 import {
   type Graph,
   decodeMovement,
@@ -213,6 +213,18 @@ export default class State {
 
   get isHalt() {
     return this.#id === 0;
+  }
+
+  get isAbort() {
+    return this.#id === -1;
+  }
+
+  // Sentinels occupy id <= 0: halt at 0, then odd negatives in creation
+  // order (abort = -1, a hypothetical #3 = -3, #k = -(2k-3)). Even
+  // negatives are NOT sentinels — they're toGraph's synthetic per-frame
+  // halt markers, which never exist as State instances.
+  get isSentinel() {
+    return this.#id <= 0;
   }
 
   // Plain States never override the halt state — only a `CallFrame` (produced
@@ -633,6 +645,18 @@ export type HaltState = State & {
 };
 
 export const haltState: HaltState = new State(null) as HaltState;
+
+/**
+ * Typed alias for the abortState singleton (#239). Same narrowing rationale
+ * as `HaltState`: sentinel debug is a single boolean.
+ */
+export type AbortState = State & {
+  get debug(): boolean;
+  set debug(value: boolean | null);
+};
+
+reserveSentinelId(-1);
+export const abortState: AbortState = new State(null, 'abort') as AbortState;
 
 /**
  * A first-class call frame produced by `State.withOverriddenHaltState`

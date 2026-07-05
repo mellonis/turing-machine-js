@@ -1,6 +1,6 @@
 import Alphabet from './Alphabet';
 import Reference from './Reference';
-import State, {CallFrame, STATE_INTERNAL, haltState, ifOtherSymbol} from './State';
+import State, {CallFrame, STATE_INTERNAL, haltState, abortState, ifOtherSymbol} from './State';
 import TapeBlock from './TapeBlock';
 import {movements, symbolCommands} from './TapeCommand';
 
@@ -722,5 +722,33 @@ describe('STATE_INTERNAL accessor (#180)', () => {
     // closed-over State instance is shared.
     const s = new State(null, 's');
     expect(s[STATE_INTERNAL]()).not.toBe(s[STATE_INTERNAL]());
+  });
+});
+
+describe('abortState sentinel (#239)', () => {
+  it('has reserved id -1 with sentinel predicates', () => {
+    expect(abortState.id).toBe(-1);
+    expect(abortState.isAbort).toBe(true);
+    expect(abortState.isHalt).toBe(false);
+    expect(abortState.isSentinel).toBe(true);
+  });
+
+  it('haltState is a sentinel; user states are not', () => {
+    expect(haltState.isSentinel).toBe(true);
+    expect(haltState.isAbort).toBe(false);
+    const user = new State(null);
+    expect(user.isSentinel).toBe(false);
+    expect(user.isAbort).toBe(false);
+    expect(user.id).toBeGreaterThan(0);
+  });
+
+  it('does not consume the sequential id counter', () => {
+    const a = new State(null);
+    const b = new State(null);
+    expect(b.id).toBe(a.id + 1); // abortState's -1 came from the reserve latch, not the counter
+  });
+
+  it('is named abort', () => {
+    expect(abortState.name).toBe('abort');
   });
 });
