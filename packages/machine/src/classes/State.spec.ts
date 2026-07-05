@@ -752,3 +752,26 @@ describe('abortState sentinel (#239)', () => {
     expect(abortState.name).toBe('abort');
   });
 });
+
+describe('abortState.debug (#239, mirrors #207)', () => {
+  afterEach(() => { abortState.debug = null; haltState.debug = null; });
+
+  it('accepts boolean and null', () => {
+    abortState.debug = true;
+    expect(abortState.debug).toBe(true);
+    abortState.debug = false;
+    expect(abortState.debug).toBe(false);
+    abortState.debug = null;
+    expect(abortState.debug).toBe(false);
+  });
+
+  it('rejects object-shaped writes', () => {
+    expect(() => { (abortState as unknown as State).debug = { before: true } as never; })
+      .toThrow(/only accepts boolean/);
+  });
+
+  it('is independent from haltState.debug', () => {
+    abortState.debug = true;
+    expect(haltState.debug).toBe(false);
+  });
+});
