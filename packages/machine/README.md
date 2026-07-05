@@ -56,7 +56,7 @@ const tape = new Tape({ alphabet, symbols: ['a', 'b', 'c', 'b', 'a'] });
 const tapeBlock = TapeBlock.fromTapes([tape]);
 const machine = new TuringMachine({ tapeBlock });
 
-await machine.run({
+machine.run({
   initialState: new State({
     [tapeBlock.symbol(['b'])]: {
       command: [{ symbol: '*', movement: movements.right }],
@@ -718,7 +718,7 @@ A singleton `State` (`id === 0`). Transitioning into it stops the run. Imported 
 `haltState` and `abortState` are the two members of the sentinel family (`state.isSentinel` ≡ `id <= 0`) — the only states a machine can transition into that end a run rather than continue it. They mean different things:
 
 - **`haltState`** (`id === 0`) inside a subroutine means *return* — the run-loop pops the halt-stack and resumes at the caller's continuation. It's the composable case: `state.withOverriddenHaltState(next)` builds bigger machines out of halt-on-completion subroutines.
-- **`abortState`** (`id === -1`, [#239](https://github.com/mellonis/turing-machine-js/issues/239)) means *stop everything*. It is **never popped by the subroutine halt-stack and never composed by `withOverriddenHaltState`** — it punches straight through call/return and terminates the run, through any call depth. Aborting is a legitimate program outcome, not a host failure: no `Error` is thrown when a run ends this way.
+- **`abortState`** (`id === -1`, #239) means *stop everything*. It is **never popped by the subroutine halt-stack and never composed by `withOverriddenHaltState`** — it punches straight through call/return and terminates the run, through any call depth. Aborting is a legitimate program outcome, not a host failure: no `Error` is thrown when a run ends this way.
 
 `abortState` is strictly **opt-in**. The existing idiom — reserve an alphabet symbol and write an in-band error marker before halting — remains the right tool for most machines. Reach for `abortState` when in-band signaling doesn't fit: a 2-symbol machine has no alphabet symbol left to spare for "termination kind," or the final tape must stay a clean result (e.g. golden tests that diff tapes byte-for-byte).
 
@@ -782,8 +782,9 @@ type RunResult = {
 };
 ```
 
-- **`'halted'` implies `stack === []`, by construction** — a `haltState` transition inside a subroutine pops and resumes; the run only reaches real halt once every pushed frame has already popped. No union type is needed to model the two outcomes because this invariant always holds.
+- **`'halted'` implies `stack === []`, by construction, for a run that terminates NATURALLY** — a `haltState` transition inside a subroutine pops and resumes; the run only reaches real halt once every pushed frame has already popped. No union type is needed to model the two natural outcomes because this invariant always holds for them.
 - **`'aborted'`**: `stack` is the frozen backtrace of continuations `abortState` punched through — precisely the call-chain information an abort would otherwise discard. `state` is the triggering state, unwrapped to its bare if the transition fired from inside a `withOverriddenHaltState` wrapper (mirrors `matchedTransition`'s same unwrap — see [§Matched transition](#matched-transition)).
+- **External stop caveat**: a run stopped externally — e.g. via `generator.throw(haltState)` on the `runStepByStep` generator — does NOT go through a natural halt/abort transition — it reports `'halted'`, but `stack` is whatever it stood at when the throw landed (not necessarily `[]`) and `state` is the PREVIOUS iteration's state, not a sentinel-triggering one.
 - **Generator-return caveat**: `runStepByStep`'s generator carries the same object as its `return` value (visible in the final `{ done: true, value }`) — but a plain `for...of` discards generator returns. The canonical step-level signal is the one `runStepByStep` always had: the last yielded `MachineState`'s `nextState === abortState`.
 
 ```javascript
@@ -877,7 +878,7 @@ The full reference for reading `toMermaid` output — shapes, edge styles, and t
 |---|---|
 | `s0(((halt)))` | the halt state |
 | `uN["name"]` | a regular state (or a bare, when inside a subgraph) |
-| `uN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site; outside any subgraph when top-level, INSIDE its owner frame's subgraph when its continuation chain participates in a caller's frame — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) and [#223](https://github.com/mellonis/turing-machine-js/issues/223)) |
+| `uN[["composite-name"]]` | a `withOverriddenHaltState` wrapper (call site; outside any subgraph when top-level, INSIDE its owner frame's subgraph when its continuation chain participates in a caller's frame — see [§Subroutine composition](#subroutine-composition-with-withoverriddenhaltstate) and #223) |
 | `s0-F(((halt)))` inside a subgraph | frame `F`'s halt marker (visualization aid; maps back to the singleton `haltState` at runtime) |
 | `s1(((abort)))` | the `abortState` sentinel — same terminal shape as halt, distinguished by a dashed-red `classDef abortSentinel`; emitted only when the graph actually references it (see [§Sentinels: halt vs abort](#sentinels-halt-vs-abort)) |
 | `idle([idle])` | pre-execution sentinel (not a real state) |

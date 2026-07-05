@@ -1,6 +1,6 @@
 # abortState — non-overridable terminal state for abnormal termination
 
-**Issue**: [#239](https://github.com/mellonis/turing-machine-js/issues/239)
+**Issue**: #239
 **Target**: v7.1.0 (minor). The numeric surface consumers key on is untouched; rendered-Mermaid-id churn is accepted with a loud changelog line.
 **Design authority**: this spec consolidates the issue body plus the decision comments on #239. Where a comment conflicts with this spec, the spec wins (comments 2–4 on rendering are superseded).
 
@@ -69,7 +69,7 @@ The old worries this replaces: `s1` was already taken by user state 1 under the 
    ```
 
    - `aborted`: `state` = the state that transitioned into `abortState`; `stack` = the call chain abort punched through — the backtrace, precisely the information abort otherwise discards.
-   - `halted`: `stack` is `[]` **by construction** (haltState with a non-empty stack pops/returns; true halt only happens at depth zero) — which is why one uniform shape is honest and no union type is needed.
+   - `halted`: `stack` is `[]` **by construction** (haltState with a non-empty stack pops/returns; true halt only happens at depth zero) — which is why one uniform shape is honest and no union type is needed. This holds for runs that terminate NATURALLY; a run stopped externally via `generator.throw(haltState)` also reports `halted`, but with the stack as it stood at the throw and `state` = the previous iteration's state, not a sentinel-triggering one.
    - The generator also carries the outcome as its **return value** (`return { … }`, visible in the final `{ done: true, value }`). Documented caveat: `for...of` discards generator returns, so the last-frame `nextState` check stays the canonical step-level signal.
    - `stack` reuses #102's frozen-snapshot discipline (`Object.freeze(stack.slice())`) so the result object can't mutate engine internals.
 
@@ -96,5 +96,5 @@ Anti-pattern, explicitly rejected: an instance-level `lastRunOutcome` property �
 
 ## 10. Follow-ups (separate issues)
 
-- [post-machine-js#112](https://github.com/mellonis/post-machine-js/issues/112) — `abort` command mirroring `stop` (filed; open questions tracked there: group usage, argument guard, lockdown treatment).
+- post-machine-js#112 — `abort` command mirroring `stop` (filed; open questions tracked there: group usage, argument guard, lockdown treatment).
 - machines-demo: render the `aborted` outcome distinctly (to be filed when the engine work lands).

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Vitest (root `vitest.config.ts`, source-aliased bare imports), npm workspaces + Lerna.
 
-**Spec:** `docs/superpowers/specs/2026-07-05-abort-state-design.md` (issue [#239](https://github.com/mellonis/turing-machine-js/issues/239)).
+**Spec:** `docs/superpowers/specs/2026-07-05-abort-state-design.md` (issue #239).
 
 ## Global Constraints
 
@@ -839,7 +839,7 @@ git commit -m "feat(visuals): adopt engine mermaidIdFor key scheme (u/s/s0-) (#2
 
 **Interfaces:** none new — documentation of Tasks 1-8's surface.
 
-**Gate:** docs revision (README + CLAUDE.md) is a **pre-publish blocker** — the v7.1.0 npm publish must not happen before this task lands. Same rule applies repo-family-wide: post-machine-js's README/CLAUDE.md checklist lives on [post#112](https://github.com/mellonis/post-machine-js/issues/112), machines-demo's on [machines-demo#122](https://github.com/mellonis/machines-demo/issues/122).
+**Gate:** docs revision (README + CLAUDE.md) is a **pre-publish blocker** — the v7.1.0 npm publish must not happen before this task lands. Same rule applies repo-family-wide: post-machine-js's README/CLAUDE.md checklist lives on post-machine-js#112, machines-demo's on machines-demo#122.
 
 - [ ] **Step 1: README** — add to `packages/machine/README.md`:
   - `abortState` in the API list next to `haltState`, with the one-sentence semantic ("never popped, never composed — terminates the run through any call depth") and the opt-in framing from spec §1.
@@ -898,6 +898,7 @@ gh pr create --title "abortState: non-overridable terminal for abnormal terminat
 - **Mermaid node ids are now namespaced**: `uN` user states (was `sN`), `sK` sentinels (`s0` halt, `s1` abort), `s0-F` per-frame halt markers (was `cF`). Rendered-output churn only — numeric `Graph` ids for user states and halt are unchanged.
 - Synthetic halt-marker graph ids moved from `-frameId` to `-2*frameId` (even negatives; odd negatives are reserved for sentinels).
 - `@turing-machine-js/visuals` emits `HighlightOps` keys in the new id scheme.
+- visuals: peer dependency on `@turing-machine-js/machine` raised to `^7.1.0` (runtime import of `mermaidIdFor`).
 ```
 
 ## Self-review notes

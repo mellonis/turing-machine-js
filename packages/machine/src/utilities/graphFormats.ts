@@ -44,6 +44,12 @@ export function mermaidIdFor(id: number): string {
 }
 
 // Inverse of mermaidIdFor. Check 's0-' BEFORE the generic 's' branch.
+/**
+ * @precondition `s` must match `^(u\d+|s\d+|s0-\d+)$` — the id shapes
+ * `mermaidIdFor` emits for graph nodes. Any other input (e.g. `'idle'`,
+ * `'w_1'`, garbage) returns `NaN` or a meaningless number rather than
+ * throwing — call sites MUST regex-gate the id before calling this.
+ */
 export function parseMermaidId(s: string): number {
   if (s.startsWith('u')) return Number(s.slice(1));
   if (s.startsWith('s0-')) return -2 * Number(s.slice(3));

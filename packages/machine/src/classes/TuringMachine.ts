@@ -124,6 +124,15 @@ export type PausedMachineState = MachineState & { pause: PauseInfo };
  *   pending when abort fired.
  * - `step` — the 1-based iter count at the moment of termination; `0` if
  *   `initialState` was itself a sentinel (zero iterations ran).
+ *
+ * The `stack === []` guarantee for `'halted'` and the "`state` is the
+ * sentinel-triggering state" description above both assume the run
+ * terminates NATURALLY (a halt or abort transition fires). A run stopped
+ * externally via the `generator.throw(haltState)` idiom (see
+ * `runStepByStep`) instead falls through to the same trailing `'halted'`
+ * return with `stack` as it stood at the moment of the throw (not
+ * necessarily `[]`) and `state` set to the PREVIOUS iteration's state (no
+ * iter "triggered" the stop).
  */
 export type RunResult = {
   outcome: 'halted' | 'aborted';
