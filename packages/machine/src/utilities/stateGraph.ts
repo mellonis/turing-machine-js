@@ -1,6 +1,6 @@
 import Alphabet from '../classes/Alphabet';
 import Reference from '../classes/Reference';
-import State, {STATE_INTERNAL, haltState, ifOtherSymbol} from '../classes/State';
+import State, {STATE_INTERNAL, abortState, haltState, ifOtherSymbol} from '../classes/State';
 import TapeBlock from '../classes/TapeBlock';
 import type TapeCommand from '../classes/TapeCommand';
 import {
@@ -60,6 +60,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
           id: 0,
           name: stateInternal.name,
           isHalt: true,
+          isAbort: state.isAbort,
           isHaltMarker: false,
           isWrapper: false,
           bareStateId: null,
@@ -84,6 +85,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
         id: stateInternal.id,
         name: stateInternal.name, // composite name like "A(target)"
         isHalt: false,
+        isAbort: state.isAbort,
         isHaltMarker: false,
         isWrapper: true,
         bareStateId: bareInternal.id,
@@ -105,6 +107,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       id: stateInternal.id,
       name: stateInternal.name,
       isHalt: false,
+      isAbort: state.isAbort,
       isHaltMarker: false,
       isWrapper: false,
       bareStateId: null,
@@ -158,6 +161,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       id: 0,
       name: 'halt',
       isHalt: true,
+      isAbort: haltState.isAbort,
       isHaltMarker: false,
       isWrapper: false,
       bareStateId: null,
@@ -206,7 +210,13 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       while (true) {
         const target = nodes[current];
 
-        if (!target || target.isHalt) {
+        // Sentinels (real halt AND abort) are terminal — neither ever
+        // joins a callable-subtree frame. Only halt-bound transitions
+        // retarget to a frame's halt marker (Pass 4 below stays
+        // halt-only); abort-bound transitions must reach here and stop
+        // without being added to any bare's reach set, so `frameId`
+        // stays `null` on the abort node and abort never gets a marker.
+        if (!target || target.isHalt || target.isAbort) {
           return;
         }
 
@@ -338,7 +348,10 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       continue;
     }
 
-    const haltMarkerId = -node.frameId;
+    // Even negative id (#239) — disjoint from the odd-negative sentinel
+    // ids (`abortState` at `-1`, any future sentinel at further odd
+    // negatives) so marker ids and sentinel ids never collide.
+    const haltMarkerId = -2 * node.frameId;
 
     for (const t of node.transitions) {
       const target = nodes[t.nextStateId];
@@ -351,12 +364,14 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
 
   // Pass 5: Emit one halt marker per frame.
   for (const frameId of frameIds) {
-    const haltMarkerId = -frameId;
+    // Even negative id (#239) — see the Pass 4 comment above.
+    const haltMarkerId = -2 * frameId;
 
     nodes[haltMarkerId] = {
       id: haltMarkerId,
       name: 'halt',
       isHalt: true,
+      isAbort: false,
       isHaltMarker: true,
       isWrapper: false,
       bareStateId: null,
@@ -381,6 +396,9 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
  *     `bareStates[bareStateId].withOverriddenHaltState(finalStates[overriddenHaltStateId])`.
  *   - Bare/regular nodes — constructed as normal States with transitions.
  *   - Halt + halt-marker nodes — collapse to the singleton `haltState`.
+ *   - The abort node (`isAbort: true`, id `-1`, #239), when present —
+ *     collapses to the singleton `abortState`. Never a bare or an
+ *     override target, so it never appears as a wrapper node.
  */
 export function fromGraph(graph: Graph): {
   start: State;
@@ -391,15 +409,16 @@ export function fromGraph(graph: Graph): {
   const tapeBlock = TapeBlock.fromAlphabets(alphabetObjs);
   const ids = Object.keys(graph.nodes).map(Number);
 
-  // Pass 1: pre-create a Reference for each non-halt non-halt-marker node
-  // (both wrappers and regulars). Halt and halt-marker nodes collapse to the
-  // singleton `haltState` and need no ref.
+  // Pass 1: pre-create a Reference for each non-sentinel non-halt-marker
+  // node (both wrappers and regulars). Halt and halt-marker nodes collapse
+  // to the singleton `haltState`, and the abort node (if present) collapses
+  // to the singleton `abortState` (#239) — neither needs a ref.
   const refs: Record<number, Reference> = {};
 
   for (const nodeId of ids) {
     const node = graph.nodes[nodeId];
 
-    if (!node.isHalt) {
+    if (!node.isHalt && !node.isAbort) {
       refs[nodeId] = new Reference();
     }
   }
@@ -422,14 +441,15 @@ export function fromGraph(graph: Graph): {
   };
 
   // Pass 2: build a State for each non-wrapper non-halt non-halt-marker
-  // node. Transitions point at refs so cycles work; haltState (and halt
-  // markers, which collapse to haltState) are used directly.
+  // non-abort node. Transitions point at refs so cycles work; haltState
+  // (and halt markers, which collapse to haltState) and abortState (#239)
+  // are used directly.
   const bareStates: Record<number, State> = {};
 
   for (const nodeId of ids) {
     const node = graph.nodes[nodeId];
 
-    if (node.isHalt || node.isWrapper) {
+    if (node.isHalt || node.isAbort || node.isWrapper) {
       continue;
     }
 
@@ -440,7 +460,9 @@ export function fromGraph(graph: Graph): {
       const target = graph.nodes[t.nextStateId];
       const nextState: State | Reference = !target || target.isHalt
         ? haltState
-        : refs[t.nextStateId];
+        : target.isAbort
+          ? abortState
+          : refs[t.nextStateId];
 
       stateDefinition![key] = {
         command: t.command.map((c) => ({
@@ -486,6 +508,12 @@ export function fromGraph(graph: Graph): {
       return haltState;
     }
 
+    if (node.isAbort) {
+      finalStates[nodeId] = abortState;
+
+      return abortState;
+    }
+
     if (inProgress.has(nodeId)) {
       throw new Error(`override-halt cycle at state #${nodeId}`);
     }
@@ -524,7 +552,7 @@ export function fromGraph(graph: Graph): {
   // Pass 4: bind each ref to the resolved final State so cross-node
   // transitions land on the right instance.
   for (const nodeId of ids) {
-    if (!graph.nodes[nodeId].isHalt) {
+    if (!graph.nodes[nodeId].isHalt && !graph.nodes[nodeId].isAbort) {
       refs[nodeId].bind(finalStates[nodeId]);
     }
   }
@@ -540,11 +568,14 @@ export function fromGraph(graph: Graph): {
  * One entry in the `StateMap` returned by `collectStates` (#195).
  *
  * - `state`: the live `State` instance for this Graph node. For the halt
- *   singleton at id `0`, this is the engine-wide `haltState` — toggling
- *   `state.debug` on that entry affects every machine in the process.
+ *   singleton at id `0`, this is the engine-wide `haltState`; for the abort
+ *   singleton at id `-1` (#239), this is the engine-wide `abortState` —
+ *   toggling `state.debug` on either entry affects every machine in the
+ *   process.
  * - `transitionSymbols`: per-pattern Symbols in `#symbolToDataMap` insertion
  *   order, aligned positionally with `GraphTransition.id` patternIx. For
- *   wrappers and the halt singleton this is `[]` (no own transitions).
+ *   wrappers and the halt/abort singletons this is `[]` (no own
+ *   transitions).
  */
 export type StateMapEntry = {
   state: State;
@@ -553,9 +584,9 @@ export type StateMapEntry = {
 
 /**
  * Numeric `GraphNode.id` → `StateMapEntry`. Returned by `collectStates`
- * (#195). Halt markers (synthetic nodes with `id = -frameId`) are NOT
- * included — they're visualization-only and all collapse to the
- * `haltState` singleton already exposed at id `0`.
+ * (#195). Halt markers (synthetic nodes with `id = -2 * frameId`, even
+ * negatives; #239) are NOT included — they're visualization-only and all
+ * collapse to the `haltState` singleton already exposed at id `0`.
  */
 export type StateMap = Map<number, StateMapEntry>;
 
@@ -582,17 +613,19 @@ export type StateMap = Map<number, StateMapEntry>;
  * indexing.
  *
  * **Coverage.** Map keys are the State-backed subset of `graph.nodes`:
- * regulars + bares + wrappers + the halt singleton (id `0`). Synthetic
- * halt markers (id `-frameId`) are excluded — they all reach the same
- * `haltState` object at runtime, and the named consumer
+ * regulars + bares + wrappers + the halt singleton (id `0`) + the abort
+ * singleton (id `-1`, #239) when the graph references it. Synthetic halt
+ * markers (id `-2 * frameId`, even negatives) are excluded — they all reach
+ * the same `haltState` object at runtime, and the named consumer
  * ([machines-demo#37](https://github.com/mellonis/machines-demo/issues/37))
  * surfaces halt-pause via a separate UI control, not via clicks on
  * halt glyphs. If a future consumer needs uniform-by-id lookup, the
  * helper can be extended additively.
  *
- * **Halt-singleton warning.** `result.get(0)!.state === haltState` — the
- * process-wide halt. Toggling `.debug` on that entry affects every
- * machine in the runtime, not just the one this map was built from.
+ * **Sentinel-singleton warning.** `result.get(0)!.state === haltState` and
+ * `result.get(-1)!.state === abortState` — both the engine-wide, process-
+ * wide sentinels. Toggling `.debug` on either entry affects every machine
+ * in the runtime, not just the one this map was built from.
  */
 export function collectStates(initialState: State, tapeBlock: TapeBlock): StateMap {
   // Anchor on toGraph's authoritative id set — it knows the canonical
@@ -661,6 +694,20 @@ export function collectStates(initialState: State, tapeBlock: TapeBlock): StateM
       // didn't reach haltState (toGraph emits id 0 unconditionally).
       result.set(id, {
         state: stateById.get(0) ?? haltState,
+        transitionSymbols: [],
+      });
+      continue;
+    }
+
+    if (node.isAbort) {
+      // The abort singleton (#239) — mirrors the real-halt branch above.
+      // Unlike halt, abort is never unconditionally emitted, so when this
+      // branch runs the BFS above is guaranteed to have visited it (same
+      // reachability walk `toGraph` used to discover the node); the
+      // fallback to the module singleton is defensive symmetry with the
+      // halt branch, not a load-bearing path.
+      result.set(id, {
+        state: stateById.get(id) ?? abortState,
         transitionSymbols: [],
       });
       continue;

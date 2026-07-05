@@ -706,12 +706,13 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     expect(wrapperAroundA!.frameId).toBeNull();
 
     // Y's halt-bound transitions retarget to A's frame halt marker
-    // (id = -frameId, isHaltMarker), NOT to top-level halt s0.
+    // (id = -2 * frameId, even negatives, #239, isHaltMarker), NOT to
+    // top-level halt s0.
     for (const t of nodeY.transitions) {
       const targetNode = graph.nodes[t.nextStateId];
       expect(targetNode.isHaltMarker).toBe(true);
       expect(targetNode.frameId).toBe(nodeA.frameId);
-      expect(t.nextStateId).toBe(-nodeA.frameId!);
+      expect(t.nextStateId).toBe(-2 * nodeA.frameId!);
     }
 
     // Sanity: top-level halt s0 is still emitted as a sentinel, even though

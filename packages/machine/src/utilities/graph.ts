@@ -16,6 +16,13 @@ export type GraphNode = {
   id: number;
   name: string;
   isHalt: boolean;
+  // `true` for the single top-level `abortState` sentinel node (id `-1`).
+  // Emitted only when the graph actually references `abortState` from a
+  // transition — unlike real halt, abort is NOT unconditionally emitted.
+  // Abort is always a leaf (`transitions: []`, `frameId: null`) — it can
+  // never be a bare or an override target (#239), only a transition
+  // target, so it never joins a callable-subtree frame.
+  isAbort: boolean;
   transitions: GraphTransition[];
   // On wrapper nodes (`isWrapper: true`), the id of the override target's
   // GraphNode (could be a wrapper or a regular state). `null` on non-wrapper
@@ -45,8 +52,9 @@ export type GraphNode = {
   // `true` for a synthesized halt marker graph node — one per frame.
   // Real halt has `isHalt: true, isHaltMarker: false`; halt markers have
   // both `true`. `fromGraph` maps halt-marker nodes back to the singleton
-  // `haltState`. Halt marker id = `-frameId` (sits in disjoint negative-id
-  // range from real node ids).
+  // `haltState`. Halt marker id = `-2 * frameId` (even negatives; sits in
+  // a disjoint negative-id range from real node ids; odd negatives are
+  // sentinel ids — e.g. `abortState` at `-1` — #239).
   isHaltMarker: boolean;
   // Out-of-band tags applied to this State (#186). Empty array if untagged.
   // Survives `toGraph`/`fromGraph` round-trip and renders in `toMermaid` as
