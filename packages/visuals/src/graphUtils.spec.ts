@@ -42,12 +42,16 @@ describe('bareIdOf', () => {
     expect(bareIdOf(4, g)).toBe(4);
   });
 
-  it('collapses halt markers (negative ids) to the halt singleton (0)', () => {
+  it('collapses halt markers (even negative ids) to the halt singleton (0)', () => {
     expect(bareIdOf(-6, g)).toBe(0);
   });
 
   it('returns 0 for the halt singleton itself', () => {
     expect(bareIdOf(0, g)).toBe(0);
+  });
+
+  it('keeps engine sentinels (odd negative ids) as their own class — abort (-1) never folds into halt', () => {
+    expect(bareIdOf(-1, g)).toBe(-1);
   });
 
   it('returns the id unchanged when graph is null', () => {
@@ -103,6 +107,10 @@ describe('equivalentIds (symmetric class lookup)', () => {
   it('halt marker (-6) → same class as halt singleton (symmetric)', () => {
     const ids = equivalentIds(-6, g).sort((a, b) => a - b);
     expect(ids).toEqual([-6, 0]);
+  });
+
+  it('abort sentinel (-1) → its own singleton class, never halt\'s', () => {
+    expect(equivalentIds(-1, g)).toEqual([-1]);
   });
 
   it('returns [id] when graph is null', () => {

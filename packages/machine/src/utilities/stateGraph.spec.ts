@@ -128,7 +128,7 @@ describe('collectStates (#195)', () => {
 
   test('halt markers (negative ids) are excluded from the map', () => {
     // A wrapper produces a callable-subtree frame, which gets a synthetic
-    // halt marker with id = -frameId. collectStates must skip it — the
+    // halt marker with id = -2 * frameId. collectStates must skip it — the
     // marker is visualization-only.
     const bare = new State({
       [symbol(['0'])]: {nextState: haltState},

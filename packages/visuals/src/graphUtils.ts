@@ -14,11 +14,13 @@ import type { Graph } from '@turing-machine-js/machine';
  */
 export function bareIdOf(id: number, graph: Graph | null): number {
   if (!graph) return id;
-  // Halt markers (negative ids, one per frame) are visualization sentinels;
-  // at runtime they all collapse to the haltState singleton (id 0). For
-  // breakpoint purposes they're a single class — setting BP on any
-  // halt-related node sets it on the global haltState.
-  if (id < 0) return 0;
+  // Negative ids split by parity (#239 sentinel id scheme): EVEN negatives
+  // (`-2·frameId`) are per-frame halt markers — visualization sentinels
+  // that all collapse to the haltState singleton (id 0) at runtime, so for
+  // breakpoint purposes they're one class with it. ODD negatives are
+  // engine sentinels (abortState at -1) — each is its own breakpoint
+  // class and must NOT be folded into halt's.
+  if (id < 0) return id % 2 === 0 ? 0 : id;
   const node = graph.nodes[id];
   if (node && node.isWrapper && node.bareStateId !== null) {
     return node.bareStateId;

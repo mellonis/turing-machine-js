@@ -11,7 +11,7 @@ The engine's `Graph.nodes` keys are positive integer ids assigned at graph-build
 | `> 0` | Regular state, wrapper, or bare | `State.toGraph` walks reachable States | yes |
 | `0` | Halt singleton (`haltState`) | Engine sentinel, process-wide | no — global, not per-machine |
 | even `< 0` | Halt marker (`isHaltMarker: true`, id = `-2 * frameId`) | `toGraph` rewrites in-frame halts so they land inside the subgraph cluster instead of the global singleton | no — collapses to `haltState` at runtime |
-| odd `< 0` | Engine sentinel (e.g. `abortState` at id `-1`) | Reserved id space, disjoint from halt markers so the two never collide (#239) | not currently handled by the highlight/indicator rules below |
+| odd `< 0` | Engine sentinel (e.g. `abortState` at id `-1`) | Reserved id space, disjoint from halt markers so the two never collide (#239) | its own breakpoint class (`bareIdOf` returns sentinels unchanged — never folded into halt's class); highlight targets it directly (`toId: -1` lights `s1`) |
 | `'idle'` | Synthetic entry sentinel | `toGraph` always emits a stadium-shape `idle` node with `idle -. enter .-> sN` | no |
 
 Click handlers are attached only to nodes whose key is `typeof === 'number' && > 0` — see `MachineGraph.svelte`'s cache-build `$effect`.

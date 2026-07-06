@@ -351,6 +351,30 @@ describe('applyHighlight', () => {
       expect(onIds).not.toContain(5);
       expect(onIds).not.toContain('idle');
     });
+
+    // Regression lock for the sentinel split (#239): abort (-1) is an odd
+    // negative — its own breakpoint class, NOT halt's. A halt breakpoint
+    // must not light the abort node's indicator, and an abort-class entry
+    // (canonical -1) must.
+    it('never marks the abort sentinel from a halt breakpoint; abort has its own class', () => {
+      const g = loadGraph('turing-callable-subtree');
+      {
+        const { indicator, record } = recordingOps();
+        applyIndicator(new Set([0]), g, [3, 4, 5, -6, -1, 0, 'idle'], indicator);
+        const abortOp = record.find(
+          (r): r is Extract<RecordedOp, { op: 'setBreakpoint' }> => r.op === 'setBreakpoint' && r.id === -1,
+        );
+        expect(abortOp?.on).toBe(false);
+      }
+      {
+        const { indicator, record } = recordingOps();
+        applyIndicator(new Set([-1]), g, [3, 4, 5, -6, -1, 0, 'idle'], indicator);
+        const onIds = record
+          .filter((r): r is Extract<RecordedOp, { op: 'setBreakpoint' }> => r.op === 'setBreakpoint' && r.on)
+          .map((r) => r.id);
+        expect(onIds).toEqual([-1]);
+      }
+    });
   });
 
   describe('regression: simple machines (no callable subtree)', () => {

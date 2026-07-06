@@ -103,8 +103,10 @@ export function applyHighlight(
   // halt marker. Light up the post-pop trajectory before the next iter
   // moves the strong node. `toId` is the marker's real graph id (-2 *
   // frameId, #239); invert to recover frameId for the frame-keyed lookups
-  // and the `w_${frameId}` subgraph key (unchanged by #239).
-  if (toId !== null && toId < 0) {
+  // and the `w_${frameId}` subgraph key (unchanged by #239). Parity-gated:
+  // ONLY even negatives are markers — an abort-bound transition (toId -1,
+  // odd sentinel) has no return chain (abort punches through the stack).
+  if (toId !== null && toId < 0 && toId % 2 === 0) {
     const frameId = -toId / 2;
     const wrappers = indexes.frameWrappersMap.get(frameId) ?? [];
     for (const { wrapperId, overrideId } of wrappers) {

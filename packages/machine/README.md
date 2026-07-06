@@ -642,7 +642,7 @@ if (e && sym) {
 }
 ```
 
-**Coverage rules:** regular / bare states get the full `[...#symbolToDataMap.keys()]` including `ifOtherSymbol` at its natural slot; wrappers and the halt singleton get empty `transitionSymbols`; synthetic halt markers (Graph nodes with `id = -frameId`, one per callable-subtree frame) are excluded from the map. See `State.collectStates` JSDoc for the full contract.
+**Coverage rules:** regular / bare states get the full `[...#symbolToDataMap.keys()]` including `ifOtherSymbol` at its natural slot; wrappers and the halt singleton get empty `transitionSymbols`; synthetic halt markers (Graph nodes with `id = -2 * frameId`, one per callable-subtree frame) are excluded from the map. See `State.collectStates` JSDoc for the full contract.
 
 > ⚠️ `stateMap.get(0)!.state === haltState` — the entry at id `0` is the process-wide halt singleton. Toggling its `debug` affects every machine in the runtime, same caveat as direct `haltState.debug` writes.
 

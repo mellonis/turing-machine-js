@@ -23,7 +23,7 @@ import {toGraph} from '../utilities/stateGraph';
  *   - id resolves in `toGraph`'s output (round-trip).
  *
  * Note: `nextStateId === 0` indicates the real halt singleton in toGraph; in-frame
- * halts (wrapped) have `nextStateId === -frameId`. Both flavors still get a valid
+ * halts (wrapped) have `nextStateId === -2 * frameId`. Both flavors still get a valid
  * `matchedTransition.id` — the engine reports the source-anchored transition id
  * regardless of where the transition points.
  */
