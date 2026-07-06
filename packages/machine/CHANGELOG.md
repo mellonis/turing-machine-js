@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0] - 2026-07-06
+
+The abort feature ([#239](https://github.com/mellonis/turing-machine-js/issues/239)): a second terminal sentinel for abnormal termination that punches straight through the subroutine call stack, plus the run-outcome surface around it. Opt-in; the in-band error-marker idiom remains fully supported.
+
+### Added
+
+- **`abortState`** — the sentinel family's second member (id `-1`; odd negative ids are reserved for sentinels, assigned in creation order). Never popped by the subroutine halt-stack and never composed: `withOverriddenHaltState` throws whether `abortState` is the bare or the override. A transition targeting it terminates the run from any call depth. `AbortState` typed alias exported; `state.isAbort` / `state.isSentinel` predicates (`isSentinel ≡ id <= 0`).
+- **`RunResult`** — `run()` now returns (and `runStepByStep`'s generator carries as its `return` value) a call-scoped `{ outcome: 'halted' | 'aborted', state, stack, step }`. `stack` is the frozen backtrace of pending continuation states on abort and `[]` for a natural halt; a run stopped externally via the `generator.throw(haltState)` idiom also reports `'halted'`, with the stack as it stood. A plain `for...of` discards the generator's return value — the canonical step-level abort signal remains the final yield's `nextState === abortState`.
+- **`DebugSession` `'abort'` terminal event** — mutually exclusive with `'halt'`; **both** terminals now carry the `RunResult` as the listener argument (`'halt'` previously fired with no arguments — additive). `abortState.debug` is a boolean mirroring `haltState.debug`: `true` arms an after-side pause on the abort-triggering iter, delivered before the terminal event.
+- **`mermaidIdFor(id)` / `parseMermaidId(mermaidId)`** — exported mapping between numeric graph ids and the namespaced Mermaid node ids (see Changed).
+- **`GraphNode.isAbort`** — the abort sentinel emits as one top-level graph node, only when referenced; `fromGraph` / `collectStates` map it back to the singleton. Rendered as `s1(((abort)))` with a dashed-red `classDef abortSentinel`.
+
+### Changed
+
+- **Mermaid node ids are namespaced by prefix** — `uN` for user states (was `sN`), `s0` halt, `s1` abort (`sK` for any future sentinel), `s0-F` for frame `F`'s halt marker (was `cF`). Rendered-id churn only; round-trip via `fromMermaid` is regression-locked semantically (a rebuilt machine actually aborts).
+- **Synthetic halt-marker graph ids moved `-frameId` → `-2 * frameId`** — even negatives are markers, odd negatives are sentinels; the two id spaces can never collide. Consumers that keyed on marker ids must adjust (the companion `@turing-machine-js/visuals` 7.1.0 does).
+- Abort-bound transitions never retarget to frame halt markers — abort has no return chain.
+
 ## [7.0.0] - 2026-06-03
 
 Stable v7. The composition-representation overhaul. See alpha.1 through alpha.8 entries below for the detailed step-by-step trajectory; this entry summarizes the cumulative API changes from v6.4.0.

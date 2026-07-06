@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0] - 2026-07-06
+
+Released in lockstep with `@turing-machine-js/machine` 7.1.0 — the abort feature ([#239](https://github.com/mellonis/turing-machine-js/issues/239)). No source or behavior changes in this package; the existing dependency range `^7.0.0` already accepts the 7.1.0 engine.
+
 ## [7.0.0] - 2026-06-03
 
 Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. See the machine package CHANGELOG for the cumulative v7 trajectory.
