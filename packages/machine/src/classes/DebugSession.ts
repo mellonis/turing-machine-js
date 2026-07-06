@@ -39,7 +39,7 @@ export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt' | 'abort';
  * - `halt` / `abort` — fire-and-forget. **Terminal, mutually exclusive**: a
  *   run ends in exactly one of the two (never both), and neither fires if
  *   `stop()` ended the session first. Both carry the underlying
- *   `runStepByStep` generator's `RunResult` return value (#239) —
+ *   `runStepByStep` generator's `RunResult` return value —
  *   `{outcome, state, stack, step}`.
  *
  * `pause` listeners receive a `PausedMachineState` (a `MachineState` plus the
@@ -304,7 +304,7 @@ export default class DebugSession {
   }
 
   async #drive(): Promise<void> {
-    // Manual iteration (#239), replacing the previous `for...of` — a for-of
+    // Manual iteration, replacing the previous `for...of` — a for-of
     // discards the generator's `return` value, and the terminal RunResult
     // (needed to tell `halt` from `abort` and to pass as the terminal
     // listeners' payload) only appears there.
@@ -321,7 +321,7 @@ export default class DebugSession {
         // current state's debug filters against the matched symbol the generator
         // stashed in the internal accessor. `machineState.state` is always
         // non-halt (halt is terminal), so `.debug` is a DebugConfig at runtime.
-        // The after side also fires on halt-imminent (`haltState.debug`, #207) —
+        // The after side also fires on halt-imminent (`haltState.debug`) —
         // read via the internal flag, since the yielded `nextState` shows the
         // post-pop continuation on subroutine-return iters, not haltState.
         const internal = this.#readInternal(machineState);
@@ -399,7 +399,7 @@ export default class DebugSession {
       }
     }
 
-    // Terminal dispatch (#239): `r.value` here is the generator's RunResult
+    // Terminal dispatch: `r.value` here is the generator's RunResult
     // return — unreachable from a for-of, which discards it. Exactly one of
     // halt/abort fires, and only when the session wasn't stopped early (an
     // early `return` above exits the function before this point is reached).

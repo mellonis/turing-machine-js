@@ -137,13 +137,13 @@ describe('DebugSession — after-side detection', () => {
   });
 });
 
-describe('TuringMachine — haltState.debug (boolean, #207)', () => {
+describe('TuringMachine — haltState.debug (boolean)', () => {
   afterEach(() => {
     // haltState is a singleton — clear after each test to avoid cross-pollution.
     haltState.debug = false;
   });
 
-  test('haltState.debug = true pauses (after-side) on the halt-triggering iter (#207)', async () => {
+  test('haltState.debug = true pauses (after-side) on the halt-triggering iter', async () => {
     const {machine, state} = buildMachine();
     haltState.debug = true;
 
@@ -161,7 +161,7 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     expect(pauses).toHaveLength(1);
     const p = pauses[0];
     expect(p.step).toBe(VISIT_COUNT);
-    // #207: after-side; m.state is the TRIGGERING state, not haltState.
+    // After-side; m.state is the TRIGGERING state, not haltState.
     expect(p.side).toBe('after');
     expect(p.cause).toBe('breakpoint');
     expect(p.pausedState).toBe(state);
@@ -173,7 +173,7 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
     //   visit 1: head 'A', state=wrapped → erase+right, transition to inner
     //   visit 2: head blank, state=inner → ifOtherSymbol → would halt;
     //            wrapped's override redirects to continuation. nextState=continuation.
-    //            #207: halt-imminent → after-side pause (original nextState was haltState).
+    //            Halt-imminent → after-side pause (original nextState was haltState).
     //   visit 3: head blank, state=continuation → ifOtherSymbol → halt → after-side pause.
     const tape = new Tape({alphabet, symbols: ['A']});
     const tapeBlock = TapeBlock.fromTapes([tape]);
@@ -232,8 +232,8 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
 describe('TuringMachine — run() with onPause', () => {
   afterEach(() => { haltState.debug = null; });
 
-  test('run() is synchronous (returns a RunResult, not a Promise) (#239)', () => {
-    // Obsoletes the pre-#239 `toBeUndefined()` assertion — `run()` now
+  test('run() is synchronous (returns a RunResult, not a Promise)', () => {
+    // Obsoletes the earlier `toBeUndefined()` assertion — `run()` now
     // returns a `RunResult` synchronously instead of `void`; the still-valid
     // intent ("sync, not a Promise") is preserved via the `not.toBeInstanceOf`
     // check.
@@ -345,10 +345,10 @@ describe('TuringMachine — run() with onPause', () => {
   });
 });
 
-describe('TuringMachine — halt semantics for after-fire (#108)', () => {
+describe('TuringMachine — halt semantics for after-fire', () => {
   afterEach(() => { haltState.debug = null; });
 
-  test('halting iter still fires its after (#108 part 1)', async () => {
+  test('halting iter still fires its after', async () => {
     // debug.after = true matches every visit. The halting iter's after
     // dispatches on its own yield, so all VISIT_COUNT visits fire.
     const {machine, state} = buildMachine();
@@ -365,8 +365,8 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     expect(after).toHaveLength(VISIT_COUNT);
   });
 
-  test('haltState.debug = {after: true} throws — boolean-only API (#207, supersedes #108 part 2)', () => {
-    // #207 collapsed haltState's debug to a single boolean — the {before, after}
+  test('haltState.debug = {after: true} throws — boolean-only API', () => {
+    // v7 collapsed haltState's debug to a single boolean — the {before, after}
     // shape doesn't model anything meaningful for a terminal singleton. Any
     // object write throws at write-time with a clear message.
     expect(() => {
@@ -377,21 +377,21 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
     }).toThrow(/\.debug only accepts boolean/);
   });
 
-  test('haltState.debug = {before: true} throws — boolean-only API (#207)', () => {
+  test('haltState.debug = {before: true} throws — boolean-only API', () => {
     expect(() => {
       // @ts-expect-error — see comment above.
       haltState.debug = {before: true};
     }).toThrow(/\.debug only accepts boolean/);
   });
 
-  test('haltState.debug = {before: true, after: true} throws — boolean-only API (#207)', () => {
+  test('haltState.debug = {before: true, after: true} throws — boolean-only API', () => {
     expect(() => {
       // @ts-expect-error — see comment above.
       haltState.debug = {before: true, after: true};
     }).toThrow(/\.debug only accepts boolean/);
   });
 
-  test('non-halt state.debug = boolean throws — DebugConfig-only on non-halt (#207)', () => {
+  test('non-halt state.debug = boolean throws — DebugConfig-only on non-halt', () => {
     // Symmetric guard: only sentinels accept boolean. Non-halt states must
     // use the DebugConfig shape so the per-side granularity stays explicit.
     const s = new State();

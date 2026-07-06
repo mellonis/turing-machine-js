@@ -45,7 +45,7 @@ describe('run tests', () => {
       },
     });
 
-    // #205 matchedTransition. Transition declaration order on
+    // matchedTransition. Transition declaration order on
     // `initialState`:
     //   ix 0 → `[symbol(symbolList)]` (specific symbol-list pattern)
     //   ix 1 → `[ifOtherSymbol]` (catch-all)
@@ -163,7 +163,7 @@ describe('run tests', () => {
     expect(generator.next().done).toBe(true);
   });
 
-  test('per-iter lifecycle: pause-before → step → pause-after → iter (#163)', async () => {
+  test('per-iter lifecycle: pause-before → step → pause-after → iter', async () => {
     // Arm both before+after on the initial state so the dispatch order
     // before(K) → step(K) → after(K) → iter(K) is observable per iter via
     // DebugSession's events.
@@ -283,11 +283,11 @@ describe('TuringMachine constructor', () => {
   });
 });
 
-// Regression for #196: halt-stack must be run-scoped, not machine-scoped, so
+// Regression: halt-stack must be run-scoped, not machine-scoped, so
 // a peeked-then-disposed generator doesn't leak a stack entry into the next
 // run. Builds a wrapper whose bare halts on blank and whose override also
 // halts immediately — the minimal shape that surfaces the bug.
-describe('halt-stack reset between calls (regression for #196)', () => {
+describe('halt-stack reset between calls (regression)', () => {
   // Helper: build a fresh scenario per call so each subtest has independent
   // State/Tape/TapeBlock instances (the engine's symbol patterns are
   // tapeBlock-scoped — sharing across scenarios would throw "invalid symbol").
@@ -320,8 +320,8 @@ describe('halt-stack reset between calls (regression for #196)', () => {
     const {machine, initialState, tape} = buildWrapperOverWalkToBlank();
 
     // Caller peeks at iter 1 then disposes the generator without draining.
-    // `.return()` now needs a `RunResult` argument (#239's generator return
-    // type) — the disposal doesn't care about the value, so cast through
+    // `.return()` now needs a `RunResult` argument (the abort feature made
+    // the generator's return type non-void) — the disposal doesn't care about the value, so cast through
     // `unknown` rather than fabricate a meaningless RunResult.
     const gen = machine.runStepByStep({initialState});
     gen.next();
@@ -401,15 +401,15 @@ describe('halt-stack reset between calls (regression for #196)', () => {
   });
 });
 
-// #239: abortState punch-through semantics on run()/runStepByStep()'s
+// abortState punch-through semantics on run()/runStepByStep()'s
 // RunResult. Helper builds a fresh fixture per call (tapeBlock symbol
-// patterns are tapeBlock-scoped, matching the #196 helper above): a single
+// patterns are tapeBlock-scoped, matching the halt-stack helper above): a single
 // bare `inner` whose 'a'-transition targets `abortState` directly (a legal
 // transition TARGET — only wohs composition with abort is banned) and whose
 // fallback halts; `outer` wraps it with a legal continuation `cont` via
 // `withOverriddenHaltState`, so running `outer` pushes `cont` onto the
 // halt-stack before `inner`'s own transition fires.
-describe('abortState run semantics (#239)', () => {
+describe('abortState run semantics', () => {
   function buildAbortFixture(tapeSymbol: string) {
     const abortAlphabet = new Alphabet([' ', 'a', 'b']);
     const tape = new Tape({alphabet: abortAlphabet, symbols: [tapeSymbol]});

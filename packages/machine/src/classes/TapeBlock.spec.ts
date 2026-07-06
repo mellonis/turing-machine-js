@@ -419,7 +419,7 @@ describe('TapeBlock.clone', () => {
   });
 });
 
-describe('TapeBlock.patternKinds (#205)', () => {
+describe('TapeBlock.patternKinds', () => {
   // Public method (used internally by TuringMachine.runStepByStep to populate
   // `MachineState.matchedTransition.matchKinds`). Engine-internal callers
   // always pass a registered symbol whose patternList matches the current

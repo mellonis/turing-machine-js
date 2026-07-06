@@ -555,7 +555,7 @@ describe('DebugSession: pause event + continue()', () => {
     expect(pauseCount).toBe(1);
   });
 
-  it('stop() releases the TapeBlock lock so a fresh session on the same machine can start (#239 #drive rewrite regression check)', async () => {
+  it('stop() releases the TapeBlock lock so a fresh session on the same machine can start (#drive rewrite regression check)', async () => {
     // The `for...of` this replaced (see #drive) called the generator's
     // `.return()` implicitly on an early exit (IteratorClose), which drives
     // `runStepByStep`'s own `finally { unlock(...) }`. The manual-iteration
@@ -704,7 +704,7 @@ describe('DebugSession: step granularity under genuine nesting (DevTools parity)
   });
 });
 
-// #239: DebugSession 'abort' event + abort breakpoint. Fixture mirrors
+// DebugSession 'abort' event + abort breakpoint. Fixture mirrors
 // TuringMachine.spec.ts's `buildAbortFixture` — a bare `inner` whose
 // 'a'-transition targets `abortState` directly (a legal transition TARGET)
 // and whose fallback halts, wrapped `inner.withOverriddenHaltState(cont)` so
@@ -727,7 +727,7 @@ const buildAbortFixture = (tapeSymbol: string) => {
   return {machine, inner, cont, outer};
 };
 
-describe("DebugSession 'abort' event (#239)", () => {
+describe("DebugSession 'abort' event", () => {
   it('fires abort (not halt) with the RunResult payload', async () => {
     const halts: RunResult[] = [];
     const aborts: RunResult[] = [];

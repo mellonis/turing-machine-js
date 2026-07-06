@@ -348,7 +348,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
       continue;
     }
 
-    // Even negative id (#239) — disjoint from the odd-negative sentinel
+    // Even negative id — disjoint from the odd-negative sentinel
     // ids (`abortState` at `-1`, any future sentinel at further odd
     // negatives) so marker ids and sentinel ids never collide.
     const haltMarkerId = -2 * node.frameId;
@@ -364,7 +364,7 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
 
   // Pass 5: Emit one halt marker per frame.
   for (const frameId of frameIds) {
-    // Even negative id (#239) — see the Pass 4 comment above.
+    // Even negative id — see the Pass 4 comment above.
     const haltMarkerId = -2 * frameId;
 
     nodes[haltMarkerId] = {
@@ -391,12 +391,12 @@ export function toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
  * in the sense that running the rebuilt machine on the same input gives the
  * same output, but the rebuilt State instances have *new* internal IDs.
  *
- * Under the v7 callable-subtree model (#174), graph nodes split into:
+ * Under the v7 callable-subtree model, graph nodes split into:
  *   - Wrapper nodes (`isWrapper: true`, no transitions) — reconstructed via
  *     `bareStates[bareStateId].withOverriddenHaltState(finalStates[overriddenHaltStateId])`.
  *   - Bare/regular nodes — constructed as normal States with transitions.
  *   - Halt + halt-marker nodes — collapse to the singleton `haltState`.
- *   - The abort node (`isAbort: true`, id `-1`, #239), when present —
+ *   - The abort node (`isAbort: true`, id `-1`), when present —
  *     collapses to the singleton `abortState`. Never a bare or an
  *     override target, so it never appears as a wrapper node.
  */
@@ -412,7 +412,7 @@ export function fromGraph(graph: Graph): {
   // Pass 1: pre-create a Reference for each non-sentinel non-halt-marker
   // node (both wrappers and regulars). Halt and halt-marker nodes collapse
   // to the singleton `haltState`, and the abort node (if present) collapses
-  // to the singleton `abortState` (#239) — neither needs a ref.
+  // to the singleton `abortState` — neither needs a ref.
   const refs: Record<number, Reference> = {};
 
   for (const nodeId of ids) {
@@ -442,7 +442,7 @@ export function fromGraph(graph: Graph): {
 
   // Pass 2: build a State for each non-wrapper non-halt non-halt-marker
   // non-abort node. Transitions point at refs so cycles work; haltState
-  // (and halt markers, which collapse to haltState) and abortState (#239)
+  // (and halt markers, which collapse to haltState) and abortState
   // are used directly.
   const bareStates: Record<number, State> = {};
 
@@ -528,9 +528,9 @@ export function fromGraph(graph: Graph): {
 
       state = bare.withOverriddenHaltState(override);
 
-      // Apply wrapper-scoped tags (#186). Tags don't leak across wrappers
+      // Apply wrapper-scoped tags. Tags don't leak across wrappers
       // sharing a bare — the wrapper instance owns its own tag set, and
-      // engine #175 memoization returns the same instance for the same
+      // wrapper memoization returns the same instance for the same
       // (bare, override) pair, so this is idempotent across rebuilds.
       if (node.tags.length > 0) {
         state.tag(...node.tags);
@@ -565,11 +565,11 @@ export function fromGraph(graph: Graph): {
 }
 
 /**
- * One entry in the `StateMap` returned by `collectStates` (#195).
+ * One entry in the `StateMap` returned by `collectStates`.
  *
  * - `state`: the live `State` instance for this Graph node. For the halt
  *   singleton at id `0`, this is the engine-wide `haltState`; for the abort
- *   singleton at id `-1` (#239), this is the engine-wide `abortState` —
+ *   singleton at id `-1`, this is the engine-wide `abortState` —
  *   toggling `state.debug` on either entry affects every machine in the
  *   process.
  * - `transitionSymbols`: per-pattern Symbols in `#symbolToDataMap` insertion
@@ -583,9 +583,9 @@ export type StateMapEntry = {
 };
 
 /**
- * Numeric `GraphNode.id` → `StateMapEntry`. Returned by `collectStates`
- * (#195). Halt markers (synthetic nodes with `id = -2 * frameId`, even
- * negatives; #239) are NOT included — they're visualization-only and all
+ * Numeric `GraphNode.id` → `StateMapEntry`. Returned by `collectStates`.
+ * Halt markers (synthetic nodes with `id = -2 * frameId`, even
+ * negatives) are NOT included — they're visualization-only and all
  * collapse to the `haltState` singleton already exposed at id `0`.
  */
 export type StateMap = Map<number, StateMapEntry>;
@@ -593,10 +593,10 @@ export type StateMap = Map<number, StateMapEntry>;
 /**
  * Returns a `Map<number, {state, transitionSymbols}>` keyed by engine
  * `GraphNode.id`, giving downstream tooling direct access to the `State`
- * instance + per-pattern Symbol references for breakpoint setup (#195).
+ * instance + per-pattern Symbol references for breakpoint setup.
  *
  * **Positional alignment contract.** For any `GraphTransition` whose id
- * is `${N}.${K}` (#205 changed the separator from `-` to `.`),
+ * is `${N}.${K}` (the separator changed from `-` to `.` in v7),
  * `result.get(N)!.transitionSymbols[K]` is the Symbol
  * the transition fires on (reference equality, not structural). The K-th
  * entry is the K-th key from the source State's `#symbolToDataMap` in
@@ -614,10 +614,10 @@ export type StateMap = Map<number, StateMapEntry>;
  *
  * **Coverage.** Map keys are the State-backed subset of `graph.nodes`:
  * regulars + bares + wrappers + the halt singleton (id `0`) + the abort
- * singleton (id `-1`, #239) when the graph references it. Synthetic halt
+ * singleton (id `-1`) when the graph references it. Synthetic halt
  * markers (id `-2 * frameId`, even negatives) are excluded — they all reach
- * the same `haltState` object at runtime, and the named consumer
- * ([machines-demo#37](https://github.com/mellonis/machines-demo/issues/37))
+ * the same `haltState` object at runtime, and the primary consumer
+ * (the machines-demo debugger UI)
  * surfaces halt-pause via a separate UI control, not via clicks on
  * halt glyphs. If a future consumer needs uniform-by-id lookup, the
  * helper can be extended additively.
@@ -700,7 +700,7 @@ export function collectStates(initialState: State, tapeBlock: TapeBlock): StateM
     }
 
     if (node.isAbort) {
-      // The abort singleton (#239) — mirrors the real-halt branch above.
+      // The abort singleton — mirrors the real-halt branch above.
       // Unlike halt, abort is never unconditionally emitted, so when this
       // branch runs the BFS above is guaranteed to have visited it (same
       // reachability walk `toGraph` used to discover the node); the

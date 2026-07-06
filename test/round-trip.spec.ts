@@ -95,22 +95,22 @@ describe('toGraph / toMermaid / fromMermaid / fromGraph round trip', () => {
     });
   }
 
-  // Regression for #139: in v6 the wrapper composite name accumulated an extra
+  // Name-accumulation regression: in v6 the wrapper composite name accumulated an extra
   // `>${override.name}` suffix on each round-trip pass (`scanToX>eraseHere`
   // → `scanToX>eraseHere>eraseHere` on the second pass), breaking bytewise
   // stability. v7's emit doesn't carry the composite name in any graph node's
   // label (only the bare's name appears), so reconstruction recomputes the
   // composite fresh and the emit is stable.
   //
-  // Uses the `scanToX(eraseHere)` example from #139's issue body — a simple
+  // Uses the `scanToX(eraseHere)` example from the original bug report — a simple
   // single-wrapper case. Shared-bare cases (like minusOne, where the same
   // bare backs two wrappers) emit a single de-duped node with `&`-joined
   // call arrows — the sharing survives the round-trip. What doesn't survive
   // bytewise is the serialization: node ids are runtime `State` ids, and a
   // shared bare's post-rebuild id no longer follows the original emission
   // order, so ids reorder under sort-by-id across rebuild. That's a separate
-  // limitation not in #139's scope.
-  test('toMermaid round-trip is bytewise stable for wrapped states (regression for #139)', () => {
+  // limitation, out of scope for this regression.
+  test('toMermaid round-trip is bytewise stable for wrapped states (name-accumulation regression)', () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'X']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
     const {symbol} = tapeBlock;
@@ -131,7 +131,7 @@ describe('toGraph / toMermaid / fromMermaid / fromGraph round trip', () => {
     const reEmittedMermaid = toMermaid(State.toGraph(rebuilt, rebuiltTapeBlock));
 
     // State IDs auto-reassign on each rebuild, so normalize them before
-    // comparing. Under the namespaced id scheme (#239), user/bare/wrapper
+    // comparing. Under the namespaced id scheme, user/bare/wrapper
     // states render as `uN` and per-frame halt markers as `s0-N` — both
     // derive from the same reassigning runtime State-id counter (a frame's
     // id is the smallest bare id in its component), so both churn together

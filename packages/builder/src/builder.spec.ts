@@ -77,7 +77,7 @@ describe('buildMachine', () => {
   });
 });
 
-describe('buildMachine — debug config (#101)', () => {
+describe('buildMachine — debug config', () => {
   afterEach(() => { haltState.debug = null; });
 
   // Compact two-symbol machine used by the debug-config tests:
@@ -172,7 +172,7 @@ describe('buildMachine — debug config (#101)', () => {
     expect(() => buildLoopMachine({Qx: {before: true}})).toThrow(/unknown state/);
   });
 
-  test('throws when debug references a final-state name (out of scope per #101)', () => {
+  test('throws when debug references a final-state name (out of scope)', () => {
     expect(() => buildLoopMachine({Qf: {before: true}})).toThrow(/final state/);
   });
 

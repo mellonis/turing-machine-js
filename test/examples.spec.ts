@@ -139,7 +139,7 @@ describe('README.md — Debugging breakpoints', () => {
     expect(order).toEqual(['before', 'after']);
   });
 
-  test('haltState.debug = true pauses on halt entry — fires once at the final visit (#207)', async () => {
+  test('haltState.debug = true pauses on halt entry — fires once at the final visit', async () => {
     const {machine, myState} = buildExampleMachine();
     haltState.debug = true;
     const haltPauses: Array<{atVisit: number}> = [];
@@ -210,7 +210,7 @@ describe('README.md — Debugging breakpoints', () => {
 });
 
 describe('README.md — Matched transition', () => {
-  test('onStep logs transition id and per-tape wildcard positions (#205)', async () => {
+  test('onStep logs transition id and per-tape wildcard positions', async () => {
     const alphabet = new Alphabet([' ', 'a', 'b', 'c', '*']);
     const tape = new Tape({alphabet, symbols: ['a', 'b', 'c', 'b', 'a']});
     const tapeBlock = TapeBlock.fromTapes([tape]);

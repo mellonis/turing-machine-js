@@ -7,7 +7,7 @@ import {movements} from './TapeCommand';
 import {toGraph} from '../utilities/stateGraph';
 
 /**
- * Per-iter `matchedTransition` (#205). For every yielded `MachineState`:
+ * Per-iter `matchedTransition`. For every yielded `MachineState`:
  *
  *   matchedTransition = {
  *     id: string;                                 // resolvable in toGraph
@@ -30,7 +30,7 @@ import {toGraph} from '../utilities/stateGraph';
 
 const alphabet = new Alphabet([' ', 'a', 'b']);
 
-describe('MachineState.matchedTransition (#205)', () => {
+describe('MachineState.matchedTransition', () => {
   test('literal match: id format `${stateId}.${ix}`, matchKinds = literal', async () => {
     const tape = new Tape({alphabet, symbols: ['a']});
     const tapeBlock = TapeBlock.fromTapes([tape]);

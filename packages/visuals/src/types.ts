@@ -1,7 +1,7 @@
 import type { Graph, TapeSnapshot } from '@turing-machine-js/machine';
 
 /**
- * State-graph highlight descriptor (machines-demo#10). MachineView derives it
+ * State-graph highlight descriptor. MachineView derives it
  * from `executionMode` + the latest pause-response data; MachineGraph reads
  * it to light up the `from → edge → to` triple in the rendered SVG.
  *

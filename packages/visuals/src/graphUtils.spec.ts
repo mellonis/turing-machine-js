@@ -19,7 +19,7 @@ import type { Graph } from '@turing-machine-js/machine';
  *   4  → `writeMarker` (override)
  *   5  → wrapper `walkToBlank(writeMarker)` (bareStateId 3)
  *   0  → halt singleton
- *   -6 → halt marker for frame 3 (id = -2 * frameId, #239)
+ *   -6 → halt marker for frame 3 (id = -2 * frameId)
  */
 
 const __filename = fileURLToPath(import.meta.url);

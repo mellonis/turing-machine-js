@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [7.1.0] - 2026-07-06
 
-The abort feature ([#239](https://github.com/mellonis/turing-machine-js/issues/239)): a second terminal sentinel for abnormal termination that punches straight through the subroutine call stack, plus the run-outcome surface around it. Opt-in; the in-band error-marker idiom remains fully supported.
+The abort feature: a second terminal sentinel for abnormal termination that punches straight through the subroutine call stack, plus the run-outcome surface around it. Opt-in; the in-band error-marker idiom remains fully supported.
 
 ### Added
 
@@ -105,14 +105,14 @@ If you store serialized `Graph` JSON: `node.overrodeHaltStateId` → `node.overr
 
 ## [7.0.0-alpha.8] - 2026-06-02
 
-Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symbols, position}`) and `tapeViewport` (fixed-width centered window over a `TapeSnapshot`) from `@turing-machine-js/visuals` into the engine, next to the `Tape` class. Resolves [#227](https://github.com/mellonis/turing-machine-js/issues/227). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symbols, position}`) and `tapeViewport` (fixed-width centered window over a `TapeSnapshot`) from `@turing-machine-js/visuals` into the engine, next to the `Tape` class. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.8`.
 
 ### Added
 
-- **`TapeSnapshot` type** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — `{ symbols: string[]; position: number }`. The per-tape wire-data shape — what callers serialize a live `Tape` into for transmission (worker boundaries, snippet recording, snapshot tests). Previously lived in `@turing-machine-js/visuals`'s `types.ts` and was re-imported by the engine for `Frame.tape`-style fields. Now sits in the engine next to the live `Tape` class; `@turing-machine-js/visuals` re-exports it for consumer-import stability (so `import { TapeSnapshot } from '@turing-machine-js/visuals'` keeps working).
-- **`tapeViewport(snapshot, width, blank): { cells, headIndex }`** ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — pure helper: fixed-width window over a `TapeSnapshot`, centered on the head, padded with `blank` for out-of-bounds cells. `headIndex` is deterministic at `Math.floor(width / 2)`. Throws `RangeError` on non-positive or non-integer width. Visuals re-exports.
+- **`TapeSnapshot` type** — `{ symbols: string[]; position: number }`. The per-tape wire-data shape — what callers serialize a live `Tape` into for transmission (worker boundaries, snippet recording, snapshot tests). Previously lived in `@turing-machine-js/visuals`'s `types.ts` and was re-imported by the engine for `Frame.tape`-style fields. Now sits in the engine next to the live `Tape` class; `@turing-machine-js/visuals` re-exports it for consumer-import stability (so `import { TapeSnapshot } from '@turing-machine-js/visuals'` keeps working).
+- **`tapeViewport(snapshot, width, blank): { cells, headIndex }`** — pure helper: fixed-width window over a `TapeSnapshot`, centered on the head, padded with `blank` for out-of-bounds cells. `headIndex` is deterministic at `Math.floor(width / 2)`. Throws `RangeError` on non-positive or non-integer width. Visuals re-exports.
 
 ### Changed
 
@@ -126,87 +126,87 @@ Eighth v7 pre-release. Lifts `TapeSnapshot` (the per-tape wire-data shape `{symb
 
 ## [7.0.0-alpha.7] - 2026-05-30
 
-Seventh v7 pre-release. Lands the `CallFrame` extraction ([#213](https://github.com/mellonis/turing-machine-js/issues/213), [PR #218](https://github.com/mellonis/turing-machine-js/pull/218)) and a `toMermaid` framed-wrapper emit fix ([#223](https://github.com/mellonis/turing-machine-js/issues/223), [PR #224](https://github.com/mellonis/turing-machine-js/pull/224)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Seventh v7 pre-release. Lands the `CallFrame` extraction and a `toMermaid` framed-wrapper emit fix. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.7`.
 
 ### Added
 
-- **`CallFrame extends State`** ([#213](https://github.com/mellonis/turing-machine-js/issues/213)) — `withOverriddenHaltState`'s wrapper is now a first-class `State` subclass instead of a `State` instance aliasing the bare's private `#symbolToDataMap` / `#debugRef`. Transition lookups and `debug` access delegate to the bare. `instanceof State` is preserved (no breaking surface change), and `instanceof CallFrame` becomes the wrapper discriminator. `CallFrame` is exported additively from the package root.
+- **`CallFrame extends State`** — `withOverriddenHaltState`'s wrapper is now a first-class `State` subclass instead of a `State` instance aliasing the bare's private `#symbolToDataMap` / `#debugRef`. Transition lookups and `debug` access delegate to the bare. `instanceof State` is preserved (no breaking surface change), and `instanceof CallFrame` becomes the wrapper discriminator. `CallFrame` is exported additively from the package root.
 
 ### Fixed
 
-- **`toMermaid` framed-wrapper emit asymmetry** ([#223](https://github.com/mellonis/turing-machine-js/issues/223)) — `toGraph`'s reach-set previously tunneled through wrappers to their continuation but left the wrappers themselves outside the caller's frame, so framed-wrapper-continuations (e.g. `library-binary-numbers/minusOne`'s `goToNumberStart(invertNumberGoToNumberWithInversion)` inside `invertNumber`'s callable subtree) emitted at the top level, visually disconnected from their owner frame. Fix in `utilities/stateGraph.ts`'s `resolveAndPush` pushes the wrapper itself AND tunnels through `overriddenHaltStateId`, so both join the caller's frame; `utilities/graphFormats.ts` renders framed wrappers inside the owner subgraph with the same `[[…]]` shape. Unframed top-level wrappers still emit outside any subgraph. `library-binary-numbers/states.md` regenerated — only the `minusOne` diagram shape changed.
+- **`toMermaid` framed-wrapper emit asymmetry** — `toGraph`'s reach-set previously tunneled through wrappers to their continuation but left the wrappers themselves outside the caller's frame, so framed-wrapper-continuations (e.g. `library-binary-numbers/minusOne`'s `goToNumberStart(invertNumberGoToNumberWithInversion)` inside `invertNumber`'s callable subtree) emitted at the top level, visually disconnected from their owner frame. Fix in `utilities/stateGraph.ts`'s `resolveAndPush` pushes the wrapper itself AND tunnels through `overriddenHaltStateId`, so both join the caller's frame; `utilities/graphFormats.ts` renders framed wrappers inside the owner subgraph with the same `[[…]]` shape. Unframed top-level wrappers still emit outside any subgraph. `library-binary-numbers/states.md` regenerated — only the `minusOne` diagram shape changed.
 
 ## [7.0.0-alpha.6] - 2026-05-28
 
-Sixth v7 pre-release. Lands the debugger step controls ([#102](https://github.com/mellonis/turing-machine-js/issues/102), [PR #214](https://github.com/mellonis/turing-machine-js/pull/214)) and, in doing so, **reshapes the entire debug surface** into three clearly-separated entry points: `run()` is now pure synchronous execution (no callbacks), `runStepByStep` is the minimal pure-iteration primitive (no breakpoint detection), and a new **`DebugSession`** class owns all interactive debugging — events, step controls, throttle, and pause coordination. With #102 the **v7 milestone is feature-complete**; the stable v7.0.0 cut is the only remaining step. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Sixth v7 pre-release. Lands the debugger step controls and, in doing so, **reshapes the entire debug surface** into three clearly-separated entry points: `run()` is now pure synchronous execution (no callbacks), `runStepByStep` is the minimal pure-iteration primitive (no breakpoint detection), and a new **`DebugSession`** class owns all interactive debugging — events, step controls, throttle, and pause coordination. With this, the **v7 milestone is feature-complete**; the stable v7.0.0 cut is the only remaining step. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.6`.
 
 ### Added
 
-- **`DebugSession`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — `new DebugSession(machine, { initialState })`. The sole interactive-debugging surface (there is no `debugRun()` factory on `TuringMachine`). Emits `pause` / `step` / `iter` / `halt` events via `session.on(event, listener)`; `iter` listeners are **awaited** (the per-iter throttle / coordination point), `pause` / `step` / `halt` are fire-and-forget. Drive controls: `continue()`, `stepIn()`, `stepOver()`, `stepOut()`, external `pause()`, `stop()`, and `setRunInterval(ms)` for a per-iter throttle. Breakpoint detection (`state.debug` filters, `haltState.debug`) lives entirely here — `runStepByStep` no longer evaluates it. Concurrent sessions on one machine are rejected with a clear error (the underlying `TapeBlock` lock is single-active-run).
+- **`DebugSession`** — `new DebugSession(machine, { initialState })`. The sole interactive-debugging surface (there is no `debugRun()` factory on `TuringMachine`). Emits `pause` / `step` / `iter` / `halt` events via `session.on(event, listener)`; `iter` listeners are **awaited** (the per-iter throttle / coordination point), `pause` / `step` / `halt` are fire-and-forget. Drive controls: `continue()`, `stepIn()`, `stepOver()`, `stepOut()`, external `pause()`, `stop()`, and `setRunInterval(ms)` for a per-iter throttle. Breakpoint detection (`state.debug` filters, `haltState.debug`) lives entirely here — `runStepByStep` no longer evaluates it. Concurrent sessions on one machine are rejected with a clear error (the underlying `TapeBlock` lock is single-active-run).
 
-- **`PauseInfo` / `PausedMachineState`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — the `pause` event payload is a `MachineState & { pause: PauseInfo }` where `PauseInfo = { side: 'before' | 'after'; cause: 'breakpoint' | 'step' | 'manual' }`. Exactly one side per descriptor — `DebugSession` dispatches the two timings as separate `pause` events, so the v6 "both timings on one yield" shape no longer exists. `cause` precedence when an iter satisfies more than one trigger: `breakpoint > step > manual`; `'step'` / `'manual'` only ever fire on the `'before'` side.
+- **`PauseInfo` / `PausedMachineState`** — the `pause` event payload is a `MachineState & { pause: PauseInfo }` where `PauseInfo = { side: 'before' | 'after'; cause: 'breakpoint' | 'step' | 'manual' }`. Exactly one side per descriptor — `DebugSession` dispatches the two timings as separate `pause` events, so the v6 "both timings on one yield" shape no longer exists. `cause` precedence when an iter satisfies more than one trigger: `breakpoint > step > manual`; `'step'` / `'manual'` only ever fire on the `'before'` side.
 
-- **Depth-based step controls mirroring Chrome DevTools** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — `stepIn` = next iter at any depth; `stepOver` = next iter at `depth ≤ click-time depth` (nested `.withOverriddenHaltState(...)` subroutines run to completion, pause back at the starting level); `stepOut` = next iter at `depth < click-time depth` (current subroutine frame popped; throws at depth 0, mirroring DevTools' top-frame Step Out).
+- **Depth-based step controls mirroring Chrome DevTools** — `stepIn` = next iter at any depth; `stepOver` = next iter at `depth ≤ click-time depth` (nested `.withOverriddenHaltState(...)` subroutines run to completion, pause back at the starting level); `stepOut` = next iter at `depth < click-time depth` (current subroutine frame popped; throws at depth 0, mirroring DevTools' top-frame Step Out).
 
-- **`matchFilter` export** ([#102](https://github.com/mellonis/turing-machine-js/issues/102), `@internal`) — predicate evaluating a `DebugConfig` side-filter against a matched symbol. Exported for sibling-module use in `DebugSession`; NOT re-exported from the package root.
+- **`matchFilter` export** (`@internal`) — predicate evaluating a `DebugConfig` side-filter against a matched symbol. Exported for sibling-module use in `DebugSession`; NOT re-exported from the package root.
 
 ### Changed
 
-- **`run()` is synchronous and callback-free** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — signature is now `run({ initialState, stepsLimit? }): void` (was `async … : Promise<void>` with `onPause` / `onStep` / `onIter` callbacks). Pure execution, no debug overhead. Reverses v4's `run` → `async run` change now that all callback machinery has moved to `DebugSession`. **Breaking** for callers awaiting `run()` or passing callbacks — construct a `DebugSession` instead.
+- **`run()` is synchronous and callback-free** — signature is now `run({ initialState, stepsLimit? }): void` (was `async … : Promise<void>` with `onPause` / `onStep` / `onIter` callbacks). Pure execution, no debug overhead. Reverses v4's `run` → `async run` change now that all callback machinery has moved to `DebugSession`. **Breaking** for callers awaiting `run()` or passing callbacks — construct a `DebugSession` instead.
 
-- **`runStepByStep` is the minimal pure-iteration primitive** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — it advances the machine and yields a plain `MachineState`; it evaluates no `state.debug` filters and stamps no pause field. All breakpoint detection moved to `DebugSession`. **Breaking** for consumers that read a pause / breakpoint field off raw yields.
+- **`runStepByStep` is the minimal pure-iteration primitive** — it advances the machine and yields a plain `MachineState`; it evaluates no `state.debug` filters and stamps no pause field. All breakpoint detection moved to `DebugSession`. **Breaking** for consumers that read a pause / breakpoint field off raw yields.
 
-- **`haltState.debug` pause is delivered via `DebugSession`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — still fires on the AFTER side of the halt-triggering iter (alpha.5 semantics: `m.state` is the triggering state, not `haltState`), but now arrives as a `pause` event with `{ side: 'after', cause: 'breakpoint' }` instead of a `debugBreak` field on the yield.
+- **`haltState.debug` pause is delivered via `DebugSession`** — still fires on the AFTER side of the halt-triggering iter (alpha.5 semantics: `m.state` is the triggering state, not `haltState`), but now arrives as a `pause` event with `{ side: 'after', cause: 'breakpoint' }` instead of a `debugBreak` field on the yield.
 
 ### Removed
 
-- **`MachineState.debugBreak`** ([#102](https://github.com/mellonis/turing-machine-js/issues/102)) — the per-yield `{ before?, after?, cause }` descriptor from the v4–alpha.5 debugger is **removed**. Its replacement is the one-sided `m.pause: { side, cause }` carried ONLY on a `DebugSession` `pause` event (`PausedMachineState`); raw `runStepByStep` yields carry no pause field. **Breaking from alpha.5** — consumers reading `m.debugBreak.before` / `.after` / `.cause` must move to a `DebugSession` and read `m.pause.side` / `m.pause.cause`.
+- **`MachineState.debugBreak`** — the per-yield `{ before?, after?, cause }` descriptor from the v4–alpha.5 debugger is **removed**. Its replacement is the one-sided `m.pause: { side, cause }` carried ONLY on a `DebugSession` `pause` event (`PausedMachineState`); raw `runStepByStep` yields carry no pause field. **Breaking from alpha.5** — consumers reading `m.debugBreak.before` / `.after` / `.cause` must move to a `DebugSession` and read `m.pause.side` / `m.pause.cause`.
 
 ## [7.0.0-alpha.5] - 2026-05-25
 
-Fifth v7 pre-release. Adds per-iter `matchedTransition` to `MachineState` so consumers can resolve the firing transition by graph id without re-deriving from `(source, nextState)` ambiguous pairs ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` and moves the halt-imminent pause to the AFTER side of the halt-triggering iter so the wording + diagram cursor agree with the just-fired transition ([#207](https://github.com/mellonis/turing-machine-js/issues/207)), and renames the `GraphTransition.id` separator from `-` to `.` for parser-friendly splitting. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Fifth v7 pre-release. Adds per-iter `matchedTransition` to `MachineState` so consumers can resolve the firing transition by graph id without re-deriving from `(source, nextState)` ambiguous pairs, collapses `haltState.debug` to a `boolean` and moves the halt-imminent pause to the AFTER side of the halt-triggering iter so the wording + diagram cursor agree with the just-fired transition, and renames the `GraphTransition.id` separator from `-` to `.` for parser-friendly splitting. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.5`.
 
 ### Added
 
-- **`MachineState.matchedTransition`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — every yielded `MachineState` from `run` / `runStepByStep` now carries `{ id: string, matchKinds: ('wildcard' | 'literal')[] }`. `id` is `${stateId}.${transitionIx}` and resolves directly in `toGraph`'s output via `graph.nodes[stateId].transitions.find(t => t.id === ...)`. For wrapper-entry iters, `id` references the BARE's transition (wrappers delegate via `bareState`). `matchKinds` is per-tape, length = tape count; `'wildcard'` iff the winning alternative held `ifOtherSymbol` at that position. Eliminates `(source, nextState)` resolution ambiguity for tools doing exact-edge highlighting, per-transition coverage maps, or wildcard-aware log formatting.
+- **`MachineState.matchedTransition`** — every yielded `MachineState` from `run` / `runStepByStep` now carries `{ id: string, matchKinds: ('wildcard' | 'literal')[] }`. `id` is `${stateId}.${transitionIx}` and resolves directly in `toGraph`'s output via `graph.nodes[stateId].transitions.find(t => t.id === ...)`. For wrapper-entry iters, `id` references the BARE's transition (wrappers delegate via `bareState`). `matchKinds` is per-tape, length = tape count; `'wildcard'` iff the winning alternative held `ifOtherSymbol` at that position. Eliminates `(source, nextState)` resolution ambiguity for tools doing exact-edge highlighting, per-transition coverage maps, or wildcard-aware log formatting.
 
-- **`State.getMatchedTransition(symbol)`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — public method returning `{ nextState, matchedSymbol, ix }` for the symbol's transition. Same lookup `getNextState` does, plus the index — exposes the K used by `MachineState.matchedTransition.id` so callers needing both don't pay for the lookup twice.
+- **`State.getMatchedTransition(symbol)`** — public method returning `{ nextState, matchedSymbol, ix }` for the symbol's transition. Same lookup `getNextState` does, plus the index — exposes the K used by `MachineState.matchedTransition.id` so callers needing both don't pay for the lookup twice.
 
-- **`TapeBlock.patternKinds(symbol, currentSymbols?)`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)) — public method returning per-tape `'wildcard' | 'literal'` for the matched alternative's selector. The engine uses it internally to populate `matchedTransition.matchKinds`; exposed for consumers wiring custom dispatch.
+- **`TapeBlock.patternKinds(symbol, currentSymbols?)`** — public method returning per-tape `'wildcard' | 'literal'` for the matched alternative's selector. The engine uses it internally to populate `matchedTransition.matchKinds`; exposed for consumers wiring custom dispatch.
 
-- **`HaltState` typed alias** ([#207](https://github.com/mellonis/turing-machine-js/issues/207)) — the exported `haltState` singleton now carries a narrower TypeScript type (`State & { debug: boolean; ... }`) so `haltState.debug = true` is type-safe at the call site. Generic `State` references still see `DebugConfig` — runtime branches on `this.isHalt`.
+- **`HaltState` typed alias** — the exported `haltState` singleton now carries a narrower TypeScript type (`State & { debug: boolean; ... }`) so `haltState.debug = true` is type-safe at the call site. Generic `State` references still see `DebugConfig` — runtime branches on `this.isHalt`.
 
 ### Changed
 
-- **`GraphTransition.id` separator: `-` → `.`** ([#205](https://github.com/mellonis/turing-machine-js/issues/205)). Was `${stateId}-${patternIx}`, now `${stateId}.${patternIx}`. Aligns with `matchedTransition.id` and makes the id splittable without colliding with user-defined state names that may contain `-`. **Breaking** for any consumer parsing the old separator; alpha-channel only.
+- **`GraphTransition.id` separator: `-` → `.`**. Was `${stateId}-${patternIx}`, now `${stateId}.${patternIx}`. Aligns with `matchedTransition.id` and makes the id splittable without colliding with user-defined state names that may contain `-`. **Breaking** for any consumer parsing the old separator; alpha-channel only.
 
-- **`haltState.debug` is `boolean`** ([#207](https://github.com/mellonis/turing-machine-js/issues/207)). Was `DebugConfig` with per-side `{ before?, after? }` filters; under v7 it's a single `boolean` flag. `haltState.debug = true` enables; `false` / `null` disables. **Object-shaped writes throw** (`{ before: true }`, `{ after: true }`, etc.). The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.debugBreak.after === true`. Diagram + log narratives read naturally: the halt-bound transition has fired when the pause lands, and halt is the next thing. **Breaking** — pre-alpha.5 consumers using `haltState.debug = { before: true }` must switch to `haltState.debug = true`.
+- **`haltState.debug` is `boolean`**. Was `DebugConfig` with per-side `{ before?, after? }` filters; under v7 it's a single `boolean` flag. `haltState.debug = true` enables; `false` / `null` disables. **Object-shaped writes throw** (`{ before: true }`, `{ after: true }`, etc.). The pause fires on the AFTER side of the iter whose transition leads to halt — `m.state` is the triggering state (not haltState), `m.debugBreak.after === true`. Diagram + log narratives read naturally: the halt-bound transition has fired when the pause lands, and halt is the next thing. **Breaking** — pre-alpha.5 consumers using `haltState.debug = { before: true }` must switch to `haltState.debug = true`.
 
   ⚠️ **Chained-form `haltState.debug.before = true` silently no-ops in non-strict mode.** The getter returns the boolean; assigning `.before` to a primitive is a JS no-op outside strict mode (`TypeError` in strict). The engine setter never sees the write. Use the whole-object form (`haltState.debug = true` / `= false` / `= null`).
 
-- **`State` internal: single `#getEntry` helper for `getCommand` / `getNextState` / `getMatchedTransition`** ([#206](https://github.com/mellonis/turing-machine-js/pull/206)). Internal refactor — no public API change. All three accessors now share one `.get()` lookup + unified throw message (`"No transition for symbol at state named ..."` — was per-method messages).
+- **`State` internal: single `#getEntry` helper for `getCommand` / `getNextState` / `getMatchedTransition`**. Internal refactor — no public API change. All three accessors now share one `.get()` lookup + unified throw message (`"No transition for symbol at state named ..."` — was per-method messages).
 
-- **Internal: dead-code typeof check on `state.debug` in `runStepByStep` removed; `patternKinds` defensive paths now have dedicated test coverage** ([#210](https://github.com/mellonis/turing-machine-js/pull/210)). Engine-internal cleanup that bumps overall coverage to 99.35% statements / 96.58% branches / 100% functions / 99.48% lines.
+- **Internal: dead-code typeof check on `state.debug` in `runStepByStep` removed; `patternKinds` defensive paths now have dedicated test coverage**. Engine-internal cleanup that bumps overall coverage to 99.35% statements / 96.58% branches / 100% functions / 99.48% lines.
 
 ### Docs
 
-- ⚠️ **README + CLAUDE.md** ([#209](https://github.com/mellonis/turing-machine-js/pull/209)) — warn that chained-form `haltState.debug.before = true` silently no-ops in non-strict mode (`new Function(...)`, `<script>` without `"use strict"`). Engine can't intercept (the write happens on a primitive after the getter returned); doc steers users to the whole-object form.
+- ⚠️ **README + CLAUDE.md** — warn that chained-form `haltState.debug.before = true` silently no-ops in non-strict mode (`new Function(...)`, `<script>` without `"use strict"`). Engine can't intercept (the write happens on a primitive after the getter returned); doc steers users to the whole-object form.
 
 ## [7.0.0-alpha.4] - 2026-05-23
 
-Fourth v7 pre-release. Adds an id-keyed lookup helper for the State graph ([#195](https://github.com/mellonis/turing-machine-js/issues/195)), fixes two upstream issues surfaced while wiring the new helper into downstream tooling — a `toMermaid` label-grammar bug ([#194](https://github.com/mellonis/turing-machine-js/issues/194)) and a halt-stack lifetime bug in `runStepByStep` ([#196](https://github.com/mellonis/turing-machine-js/issues/196)) — and extracts graph serialization into its own module without API change ([#180](https://github.com/mellonis/turing-machine-js/issues/180)). Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Fourth v7 pre-release. Adds an id-keyed lookup helper for the State graph, fixes two upstream issues surfaced while wiring the new helper into downstream tooling — a `toMermaid` label-grammar bug and a halt-stack lifetime bug in `runStepByStep` — and extracts graph serialization into its own module without API change. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.4`.
 
 ### Added
 
-- **`State.collectStates(initialState, tapeBlock)`** ([#195](https://github.com/mellonis/turing-machine-js/issues/195)). Static helper that returns a `Map<number, {state: State; transitionSymbols: symbol[]}>` keyed by engine `GraphNode.id`. Lets downstream tooling (graph renderers, debugger panels) mutate `state.debug` on a specific State by numeric id, and set per-pattern breakpoints by `GraphTransition.id`. The K-th `transitionSymbols` slot is positionally aligned with the GraphTransition whose id is `${stateId}-${K}`, so a consumer holding `(stateId, patternIx)` from the rendered graph reaches the firing Symbol with no walk.
+- **`State.collectStates(initialState, tapeBlock)`**. Static helper that returns a `Map<number, {state: State; transitionSymbols: symbol[]}>` keyed by engine `GraphNode.id`. Lets downstream tooling (graph renderers, debugger panels) mutate `state.debug` on a specific State by numeric id, and set per-pattern breakpoints by `GraphTransition.id`. The K-th `transitionSymbols` slot is positionally aligned with the GraphTransition whose id is `${stateId}-${K}`, so a consumer holding `(stateId, patternIx)` from the rendered graph reaches the firing Symbol with no walk.
 
   ```ts
   const stateMap = State.collectStates(initial, tapeBlock);
@@ -222,17 +222,17 @@ Fourth v7 pre-release. Adds an id-keyed lookup helper for the State graph ([#195
 
   Coverage: regular / bare states get the full `[...#symbolToDataMap.keys()]` including `ifOtherSymbol` at its natural slot; wrappers and the halt singleton get empty `transitionSymbols`; synthetic halt markers (`isHaltMarker: true`, id `= -frameId`) are excluded — they all collapse to `haltState` at runtime, and the named consumer surfaces halt-pause via a separate UI control, not via clicks on halt glyphs. The halt singleton entry at id `0` is the process-wide `haltState` — toggling its `.debug` affects every machine in the runtime, same caveat as direct `haltState.debug` writes.
 
-- **`StateMap` and `StateMapEntry` types** ([#195](https://github.com/mellonis/turing-machine-js/issues/195)). Exported from the package's public surface so TypeScript consumers can annotate `collectStates` results without re-deriving the shape.
+- **`StateMap` and `StateMapEntry` types**. Exported from the package's public surface so TypeScript consumers can annotate `collectStates` results without re-deriving the shape.
 
 ### Changed
 
-- **Graph serialization extracted to `utilities/stateGraph.ts`** ([#180](https://github.com/mellonis/turing-machine-js/issues/180)). `State.toGraph` and `State.fromGraph` move out of the State class into a sibling module, alongside the new `collectStates`. Public surface preserved — `State.toGraph` / `State.fromGraph` remain as thin static delegates. State.ts shrank ~440 lines and now focuses on the runtime machinery (transitions, debug, halt-stack composition) rather than mixing in serialization concerns. A new `@internal` `STATE_INTERNAL` Symbol-keyed accessor on `State` gives sibling modules in `packages/machine/src` getter/setter access to private fields (`id`, `name`, `bareState`, `overriddenHaltState`, `symbolToDataMap`, `tags`); not re-exported from the public `index.ts`, so external consumers can't observe it.
+- **Graph serialization extracted to `utilities/stateGraph.ts`**. `State.toGraph` and `State.fromGraph` move out of the State class into a sibling module, alongside the new `collectStates`. Public surface preserved — `State.toGraph` / `State.fromGraph` remain as thin static delegates. State.ts shrank ~440 lines and now focuses on the runtime machinery (transitions, debug, halt-stack composition) rather than mixing in serialization concerns. A new `@internal` `STATE_INTERNAL` Symbol-keyed accessor on `State` gives sibling modules in `packages/machine/src` getter/setter access to private fields (`id`, `name`, `bareState`, `overriddenHaltState`, `symbolToDataMap`, `tags`); not re-exported from the public `index.ts`, so external consumers can't observe it.
 
 ### Fixed
 
-- **`toMermaid` edge labels containing literal `"` now parse correctly** ([#194](https://github.com/mellonis/turing-machine-js/issues/194)). Before: an alphabet that includes printable ASCII as literal symbols (e.g. a Brainfuck-flavored UTM whose data alphabet covers U+0020–U+007E) would emit an edge label like `s1 -- "['a'] → ['"']/[R]" --> s0`; Mermaid's parser terminated the string early on the inner `"`. After: user-supplied content (alphabet symbols, state names, tag names, frame bare names) is HTML-entity-escaped at the leaf — `&`, `"`, `<`, `>` to named entities; statement terminators (`\n`, `\r`), C0 controls minus `\t`, DEL, bidi controls, and lone UTF-16 surrogates to numeric entities. Printable Unicode (Cyrillic, CJK, accented Latin, etc.) passes through unchanged so non-ASCII alphabets stay readable in the emitted `.mmd`. `fromMermaid` mirrors with a single-pass entity decoder applied at the leaf, after structural parsing.
+- **`toMermaid` edge labels containing literal `"` now parse correctly**. Before: an alphabet that includes printable ASCII as literal symbols (e.g. a Brainfuck-flavored UTM whose data alphabet covers U+0020–U+007E) would emit an edge label like `s1 -- "['a'] → ['"']/[R]" --> s0`; Mermaid's parser terminated the string early on the inner `"`. After: user-supplied content (alphabet symbols, state names, tag names, frame bare names) is HTML-entity-escaped at the leaf — `&`, `"`, `<`, `>` to named entities; statement terminators (`\n`, `\r`), C0 controls minus `\t`, DEL, bidi controls, and lone UTF-16 surrogates to numeric entities. Printable Unicode (Cyrillic, CJK, accented Latin, etc.) passes through unchanged so non-ASCII alphabets stay readable in the emitted `.mmd`. `fromMermaid` mirrors with a single-pass entity decoder applied at the leaf, after structural parsing.
 
-- **`runStepByStep` halt-stack is now run-scoped, not machine-scoped** ([#196](https://github.com/mellonis/turing-machine-js/issues/196)). Before: the `#stack` field on `TuringMachine` was an instance field; a build-time peek that didn't drain the generator (e.g. graph-construction utilities that ask for one yield to inspect the initial state) left leftover entries in the stack that were popped during the NEXT halt-bound transition, producing a "ghost iteration" and silently leaking memory across consecutive `runStepByStep` calls on the same machine. After: the halt stack is a local `const stack: State[] = []` declared inside `runStepByStep`, so each generator call starts with a clean stack and entries can't survive into the next call.
+- **`runStepByStep` halt-stack is now run-scoped, not machine-scoped**. Before: the `#stack` field on `TuringMachine` was an instance field; a build-time peek that didn't drain the generator (e.g. graph-construction utilities that ask for one yield to inspect the initial state) left leftover entries in the stack that were popped during the NEXT halt-bound transition, producing a "ghost iteration" and silently leaking memory across consecutive `runStepByStep` calls on the same machine. After: the halt stack is a local `const stack: State[] = []` declared inside `runStepByStep`, so each generator call starts with a clean stack and entries can't survive into the next call.
 
 ### Compatibility
 
@@ -246,17 +246,17 @@ The `STATE_INTERNAL` accessor is `@internal` and not part of the supported surfa
 
 ### Out of v7-alpha.4 (still pending for stable v7.0.0)
 
-- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives.
+- Debugger step-in / step-out / step-over primitives.
 
 ## [7.0.0-alpha.3] - 2026-05-21
 
-Third v7 pre-release. Adds first-class out-of-band tags on `State` ([#186](https://github.com/mellonis/turing-machine-js/issues/186)) — a metadata channel for visualization grouping and debugger labels that survives `toGraph` / `fromGraph` / `toMermaid` / `fromMermaid` round-trips. Driven by downstream [post-machine-js#86](https://github.com/mellonis/post-machine-js/issues/86), which will build a path-based registry and inline pseudo-command on top once this ships. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Third v7 pre-release. Adds first-class out-of-band tags on `State` — a metadata channel for visualization grouping and debugger labels that survives `toGraph` / `fromGraph` / `toMermaid` / `fromMermaid` round-trips. Driven by the downstream `@post-machine-js/machine` tag work, which will build a path-based registry and inline pseudo-command on top once this ships. Published under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.3`.
 
 ### Added
 
-- **`State.tag(...) / .untag(...) / .tags` API** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Fluent post-construct API for attaching string tags to a State. Tags are out-of-band metadata — they don't affect runtime transition lookup, `equivalentOn` comparisons, or any structural identity. Storage lives on the State INSTANCE (not on the shared `#symbolToDataMap`), so engine [#175](https://github.com/mellonis/turing-machine-js/issues/175) memoization doesn't leak tags across wrappers that share a bare: `A.wohs(t1).tag('hot')` does NOT propagate to `A.wohs(t2)`.
+- **`State.tag(...) / .untag(...) / .tags` API**. Fluent post-construct API for attaching string tags to a State. Tags are out-of-band metadata — they don't affect runtime transition lookup, `equivalentOn` comparisons, or any structural identity. Storage lives on the State INSTANCE (not on the shared `#symbolToDataMap`), so `withOverriddenHaltState` memoization doesn't leak tags across wrappers that share a bare: `A.wohs(t1).tag('hot')` does NOT propagate to `A.wohs(t2)`.
 
   ```ts
   const s = new State({...}, 'foo')
@@ -265,13 +265,13 @@ Third v7 pre-release. Adds first-class out-of-band tags on `State` ([#186](https
   s.tags; // ['hot']  ← frozen snapshot, in insertion order
   ```
 
-- **`GraphNode.tags: string[]`** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). New field on the serialized graph node. Survives `State.toGraph` / `State.fromGraph` round-trip; empty array for untagged states.
+- **`GraphNode.tags: string[]`**. New field on the serialized graph node. Survives `State.toGraph` / `State.fromGraph` round-trip; empty array for untagged states.
 
-- **`toMermaid` tag rendering** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Two surfaces:
+- **`toMermaid` tag rendering**. Two surfaces:
   - **Visible labels via `<br>`**: tagged node labels include the tag names inline (`s5["A<br>hot, sampled"]`). Uses Mermaid's universal `<br>` line break — works across mermaid.js, the live editor, machines-demo, and any other renderer; no CSS-pseudo-element tricks.
   - **Color grouping via `classDef` + `class`**: each unique tag gets a `classDef tag_<sanitized> fill:#...,stroke:#...` line (palette of 6 colors selected by tag-name hash) and a `class s5,s6 tag_<sanitized>` line listing every node carrying the tag.
 
-- **`fromMermaid` tag parse** ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). Splits the node label on `<br>` to extract tags as the source of truth; `class` lines are decorative and discarded on parse (they regenerate on the next `toMermaid` emit from the tag set).
+- **`fromMermaid` tag parse**. Splits the node label on `<br>` to extract tags as the source of truth; `class` lines are decorative and discarded on parse (they regenerate on the next `toMermaid` emit from the tag set).
 
 ### Compatibility
 
@@ -285,18 +285,18 @@ If you serialize `GraphNode` JSON, note that the new `tags: string[]` field is n
 
 ### Out of v7-alpha.3 (still pending for stable v7.0.0)
 
-- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives.
-- **[#180](https://github.com/mellonis/turing-machine-js/issues/180)** — extract `State.toGraph`/`fromGraph` to its own module.
+- Debugger step-in / step-out / step-over primitives.
+- Extraction of `State.toGraph`/`fromGraph` to its own module.
 
 ## [7.0.0-alpha.2] - 2026-05-21
 
-Second v7 pre-release. Refines alpha.1's `toMermaid` wrapped-state emit into the function-call model ([#174](https://github.com/mellonis/turing-machine-js/issues/174)) and adds two construction-time improvements to `withOverriddenHaltState` ([#175](https://github.com/mellonis/turing-machine-js/issues/175), [#176](https://github.com/mellonis/turing-machine-js/issues/176)). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+Second v7 pre-release. Refines alpha.1's `toMermaid` wrapped-state emit into the function-call model and adds two construction-time improvements to `withOverriddenHaltState`. Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.2`. Migration walkthrough at the bottom.
 
 ### Changed
 
-- **`toMermaid` callable-subtree emit** ([#174](https://github.com/mellonis/turing-machine-js/issues/174)) — supersedes alpha.1's collapsed-bare emit (#138/#139) with a function-call model:
+- **`toMermaid` callable-subtree emit** — supersedes alpha.1's collapsed-bare emit with a function-call model:
   - **Wrapper and bare are separate graph nodes.** The wrapper sits OUTSIDE any subgraph as `[[composite-name]]` (call site). The bare lives INSIDE its callable subtree subgraph as a regular `[name]` node.
   - **Subgraph label** changed from `"halt frame"` to `"callable subtree of NAME"` (single bare) or `"callable scope: A ∪ B"` (multi-bare union frame).
   - **Halt marker is per-frame**, not per-wrapper. When union-find merges two bares' subtrees (shared body state), they share one halt marker.
@@ -309,11 +309,11 @@ Second v7 pre-release. Refines alpha.1's `toMermaid` wrapped-state emit into the
   - **`GraphNode` field changes**: `isWrapped` removed; `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null` added. `overriddenHaltStateId` now lives on wrapper nodes only.
   - Bytewise round-trip stability now holds for **all** wrapped states, including shared-bare cases (alpha.1 was only stable for simple wrappers).
 
-- **Nested `.wohs()` chain collapse** ([#176](https://github.com/mellonis/turing-machine-js/issues/176)) — `A.withOverriddenHaltState(t1).withOverriddenHaltState(t2)` is now equivalent to `A.withOverriddenHaltState(t2)`. The chain's inner override (`t1`) is dead at runtime (only the outermost wrapper's override is pushed onto the halt stack on entry — verified empirically). Composite name now reflects runtime behavior: `A(t2)`, not the misleading `A(t1)(t2)`. `withOverriddenHaltState` unwraps `this` to its bare before constructing the new wrapper.
+- **Nested `.wohs()` chain collapse** — `A.withOverriddenHaltState(t1).withOverriddenHaltState(t2)` is now equivalent to `A.withOverriddenHaltState(t2)`. The chain's inner override (`t1`) is dead at runtime (only the outermost wrapper's override is pushed onto the halt stack on entry — verified empirically). Composite name now reflects runtime behavior: `A(t2)`, not the misleading `A(t1)(t2)`. `withOverriddenHaltState` unwraps `this` to its bare before constructing the new wrapper.
 
 ### Added
 
-- **`withOverriddenHaltState` memoization** ([#175](https://github.com/mellonis/turing-machine-js/issues/175)) — calls with the same `(bare, override)` pair return the literally-same `State` instance. Backed by a two-level `WeakMap` keyed by the bare with `WeakRef`-valued entries, so cached wrappers can be GC'd when nothing else holds them. Composes with #176's chain-collapse: `A.wohs(t1).wohs(t2)` and `A.wohs(t2)` both resolve to the same instance.
+- **`withOverriddenHaltState` memoization** — calls with the same `(bare, override)` pair return the literally-same `State` instance. Backed by a two-level `WeakMap` keyed by the bare with `WeakRef`-valued entries, so cached wrappers can be GC'd when nothing else holds them. Composes with the nested-chain collapse: `A.wohs(t1).wohs(t2)` and `A.wohs(t2)` both resolve to the same instance.
 
 - **Spec doc** at `docs/superpowers/specs/2026-05-21-halt-frame-transitive-closure.md` capturing the callable-subtree model design (worked examples for simple wrappers, PostMachine subroutines, shared-bare wrappers, self-wrapping, nested chains, Reference cycles, shared body states).
 
@@ -325,14 +325,14 @@ Three breaking changes vs alpha.1, all in the visualization layer:
 
 **2. `Graph` data shape** — `GraphNode.isWrapped` removed; replaced by `isWrapper: boolean`, `bareStateId: number | null`, `frameId: number | null`. If you store serialized `Graph` JSON from alpha.1, re-emit on alpha.2.
 
-**3. Wrapper composite name in nested chains** — `A.wohs(t1).wohs(t2)` was `A(t1)(t2)` in alpha.1; under #176 it's now `A(t2)`. Code that parsed the composite name to extract intermediate overrides will need to adapt (those overrides were never actually pushed at runtime — alpha.1's name was misleading).
+**3. Wrapper composite name in nested chains** — `A.wohs(t1).wohs(t2)` was `A(t1)(t2)` in alpha.1; under the chain collapse it's now `A(t2)`. Code that parsed the composite name to extract intermediate overrides will need to adapt (those overrides were never actually pushed at runtime — alpha.1's name was misleading).
 
-`withOverriddenHaltState` memoization (#175) is fully additive — same arguments now return the same instance, but no observable behavior changes for code that doesn't rely on instance identity.
+`withOverriddenHaltState` memoization is fully additive — same arguments now return the same instance, but no observable behavior changes for code that doesn't rely on instance identity.
 
 ### Out of v7-alpha.2 (still pending for stable v7.0.0)
 
-- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.3` or stable `v7.0.0`.
-- **[#180](https://github.com/mellonis/turing-machine-js/issues/180)** — extract `State.toGraph`/`fromGraph` to its own module. Internal refactor; no API change.
+- Debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.3` or stable `v7.0.0`.
+- Extraction of `State.toGraph`/`fromGraph` to its own module. Internal refactor; no API change.
 
 ### Compatibility
 
@@ -340,21 +340,21 @@ Three breaking changes vs alpha.1, all in the visualization layer:
 
 ## [7.0.0-alpha.1] - 2026-05-21
 
-First v7 pre-release. Consolidates the composition-representation overhaul landed across [#149](https://github.com/mellonis/turing-machine-js/issues/149), [#148](https://github.com/mellonis/turing-machine-js/issues/148), [#138](https://github.com/mellonis/turing-machine-js/issues/138), and [#139](https://github.com/mellonis/turing-machine-js/issues/139). Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
+First v7 pre-release. Consolidates the composition-representation overhaul: the `withOverrodeHaltState` → `withOverriddenHaltState` rename, paren-based wrapped-state naming, and the `toMermaid` wrapped-state emit overhaul. Published to npm under the `next` dist-tag: `npm install @turing-machine-js/machine@next`.
 
 **Pre-release — the API surface may still shift before stable v7.0.0.** Pin to a specific alpha for reproducibility: `@turing-machine-js/machine@7.0.0-alpha.1`. Migration walkthrough at the bottom.
 
 ### Changed
 
-- **`State.prototype.withOverrodeHaltState` renamed to `withOverriddenHaltState`** ([#149](https://github.com/mellonis/turing-machine-js/issues/149)). Grammar fix on a name introduced in 2019: `overridden` (past participle) fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. Renames in lockstep:
+- **`State.prototype.withOverrodeHaltState` renamed to `withOverriddenHaltState`**. Grammar fix on a name introduced in 2019: `overridden` (past participle) fits the "with a halt-state that has been ___" naming idiom; `overrode` (simple past) didn't. Hard cutover — no deprecated alias. Renames in lockstep:
   - public method `State.prototype.withOverrodeHaltState` → `withOverriddenHaltState`
   - getter `state.overrodeHaltState` → `state.overriddenHaltState`
   - private field `#overrodeHaltState` → `#overriddenHaltState`
   - serialized `Graph` data field `node.overrodeHaltStateId` → `node.overriddenHaltStateId`
 
-- **Wrapped-state composite name format flipped from `bare>override` to `bare(override)`** ([#148](https://github.com/mellonis/turing-machine-js/issues/148)). The old `>`-flat notation collided structurally-distinct wrap-trees into the same string: `A.with(B.with(A))` and `A.with(B).with(A)` both rendered as `A>B>A` despite being different runtime shapes. Paren-nested keeps them distinct: `A(B(A))` vs `A(B)(A)`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` constructor now throws on names with these characters. `>` is no longer reserved and is valid in user-provided names again.
+- **Wrapped-state composite name format flipped from `bare>override` to `bare(override)`**. The old `>`-flat notation collided structurally-distinct wrap-trees into the same string: `A.with(B.with(A))` and `A.with(B).with(A)` both rendered as `A>B>A` despite being different runtime shapes. Paren-nested keeps them distinct: `A(B(A))` vs `A(B)(A)`. As a consequence, **user-provided state names must not contain `(` or `)`** — `State` constructor now throws on names with these characters. `>` is no longer reserved and is valid in user-provided names again.
 
-- **`toMermaid` wrapped-state emit overhaul** ([#138](https://github.com/mellonis/turing-machine-js/issues/138), [#139](https://github.com/mellonis/turing-machine-js/issues/139)). Each `withOverriddenHaltState` wrapper collapses onto its bare's representation — `GraphNode.isWrapped: true`, no separate wrapper node in graph data. `toMermaid` wraps each `[[bare]]` (Mermaid subroutine shape) + a synthesized `(((halt)))` halt-marker (`GraphNode.isHaltMarker: true`) inside a `subgraph w_${bareId}["halt frame"] … end` block. Dotted `onHalt` from `[[bare]]` crosses the subgraph border to the override target. An always-emitted `idle([idle])` stadium sentinel + `idle -. enter .-> sN` arrow marks the initial state (replaces the v6 `((round))` shape convention).
+- **`toMermaid` wrapped-state emit overhaul**. Each `withOverriddenHaltState` wrapper collapses onto its bare's representation — `GraphNode.isWrapped: true`, no separate wrapper node in graph data. `toMermaid` wraps each `[[bare]]` (Mermaid subroutine shape) + a synthesized `(((halt)))` halt-marker (`GraphNode.isHaltMarker: true`) inside a `subgraph w_${bareId}["halt frame"] … end` block. Dotted `onHalt` from `[[bare]]` crosses the subgraph border to the override target. An always-emitted `idle([idle])` stadium sentinel + `idle -. enter .-> sN` arrow marks the initial state (replaces the v6 `((round))` shape convention).
 
 - **Edge-label vocabulary rewritten** for readability — `[reads] → [writes]/[moves]` with each role wrapped in `[…]` (the tape-block indicator; always present, even single-tape). Read cells: `'X'` literal-quoted, `*` (ASCII; ifOtherSymbol catch-all — literal `*` in the alphabet renders as `'*'`), `B` (tape's blank shorthand). Write cells: literal-quoted, `K` (keep), `E` (erase = write blank). Move cells: `L` / `R` / `S`. Alternation per-pattern bracket: `['^']|['1']` for single-tape, `['0','a']|['1','b']` for multi-tape. Compact in-bracket `['^'|'1']` form is rejected by `fromMermaid` (would read as cross-product semantics in multi-tape).
 
@@ -366,7 +366,7 @@ First v7 pre-release. Consolidates the composition-representation overhaul lande
 
 ### Added
 
-- **#139 regression test** — `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers. The wrapper's composite name (e.g. `scanToX(eraseHere)`) no longer appears as any graph-node label, so `fromGraph` reconstructs and recomputes the composite fresh on each pass — no round-trip name accumulation.
+- **Round-trip regression test** — `toMermaid → fromMermaid → toGraph → toMermaid` is bytewise stable for simple wrappers. The wrapper's composite name (e.g. `scanToX(eraseHere)`) no longer appears as any graph-node label, so `fromGraph` reconstructs and recomputes the composite fresh on each pass — no round-trip name accumulation.
 
 - **Multi-tape example** in the engine README illustrating the bracketed format with two tapes.
 
@@ -402,7 +402,7 @@ Persisted `State.toGraph` JSON dumps need the same `overrodeHaltStateId` → `ov
 
 ### Out of v7-alpha.1 (still pending for stable v7.0.0)
 
-- **[#102](https://github.com/mellonis/turing-machine-js/issues/102)** — debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.2` or stable `v7.0.0`.
+- Debugger step-in / step-out / step-over primitives. Additive — won't change any existing API. Will land in `v7.0.0-alpha.2` or stable `v7.0.0`.
 
 ### Compatibility
 
@@ -410,7 +410,7 @@ Persisted `State.toGraph` JSON dumps need the same `overrodeHaltStateId` → `ov
 
 ## [6.4.0] - 2026-05-19
 
-Adds a new awaited hook on `TuringMachine.run`. Minor release, additive — no breaking changes. Closes [#163](https://github.com/mellonis/turing-machine-js/issues/163).
+Adds a new awaited hook on `TuringMachine.run`. Minor release, additive — no breaking changes.
 
 ### Added
 
@@ -441,7 +441,7 @@ Adds a new awaited hook on `TuringMachine.run`. Minor release, additive — no b
 
 ## [6.3.0] - 2026-05-19
 
-Corrective minor release. **Reverts v6.2.0's `await onStep` change** and restores the original sync `onStep` contract that held since the hook was introduced. See [GitHub release](https://github.com/mellonis/turing-machine-js/releases/tag/v6.3.0) for the full post-mortem.
+Corrective minor release. **Reverts v6.2.0's `await onStep` change** and restores the original sync `onStep` contract that held since the hook was introduced.
 
 ### Changed
 
@@ -449,7 +449,7 @@ Corrective minor release. **Reverts v6.2.0's `await onStep` change** and restore
 
 ### Removed
 
-- The v6.2.0 test `async onStep is awaited between iters (#158)` (no longer the contract).
+- The v6.2.0 test `async onStep is awaited between iters` (no longer the contract).
 
 ### Added (docs)
 
@@ -483,7 +483,7 @@ Minor release. One additive ergonomic improvement to `state.debug`, no breaking 
 
 ### Added
 
-- **Lazy-init `DebugConfig` + `Object.seal` on instance ([#151](https://github.com/mellonis/turing-machine-js/pull/151), closes [#150](https://github.com/mellonis/turing-machine-js/issues/150)).** `state.debug` is now always a non-null `DebugConfig` instance, lazy-initialized on first read. Chained writes like `state.debug.before = true` work on a fresh state without a prior `state.debug = {}` setup step. The `DebugConfig` instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` (in strict mode — default for TS-emitted modules) instead of silently creating a useless own property.
+- **Lazy-init `DebugConfig` + `Object.seal` on instance.** `state.debug` is now always a non-null `DebugConfig` instance, lazy-initialized on first read. Chained writes like `state.debug.before = true` work on a fresh state without a prior `state.debug = {}` setup step. The `DebugConfig` instance is `Object.seal`-ed — typos like `state.debug.bofore = true` throw `TypeError` (in strict mode — default for TS-emitted modules) instead of silently creating a useless own property.
 
 ### Changed
 
@@ -502,17 +502,17 @@ No code changes required:
 
 ### Changed (BREAKING)
 
-- **`onPause` dispatch order rewritten** ([#119](https://github.com/mellonis/turing-machine-js/issues/119)). `onPause(after, K)` now fires on iter K's *own* yield, alongside `onPause(before, K)` and `onStep(K)` — instead of v5's behavior of firing on iter K+1's yield with a `prevYield` substitution. The set of dispatched calls per run and per-iter semantics are unchanged; only the cross-hook *sequence* differs. Per-iter lifecycle inside `run()` is now `before → step → after`. Consumers using both `onStep` and `onPause` and asserting cross-hook ordering must update; consumers treating the hooks as independent observers see no change.
+- **`onPause` dispatch order rewritten**. `onPause(after, K)` now fires on iter K's *own* yield, alongside `onPause(before, K)` and `onStep(K)` — instead of v5's behavior of firing on iter K+1's yield with a `prevYield` substitution. The set of dispatched calls per run and per-iter semantics are unchanged; only the cross-hook *sequence* differs. Per-iter lifecycle inside `run()` is now `before → step → after`. Consumers using both `onStep` and `onPause` and asserting cross-hook ordering must update; consumers treating the hooks as independent observers see no change.
 
   Subordinate consequences:
   - `onPause(after)` carries the iteration's own `MachineState` directly — no `prevYield` substitution dance.
   - `runStepByStep` no longer tracks `pendingAfterFromPrev` across yields; `debugBreak.after` on a yield refers to *that* iter's after-arm.
-  - The v5 post-loop after-fire drain (#108 part 1) collapses — the halting iter's after rides along on its own yield like any other iter.
+  - The v5 post-loop after-fire drain collapses — the halting iter's after rides along on its own yield like any other iter.
   - The generator's return type narrows back from `Generator<MachineState, MachineState | null>` to `Generator<MachineState>`; `for..of` consumers (the canonical pattern) are unaffected.
 
 ### Closes
 
-- [#107](https://github.com/mellonis/turing-machine-js/issues/107) — "expose un-substituted `machineState` for after-break consumers" disappears as a problem: there is no substitution to expose around.
+- The request to expose an un-substituted `machineState` for after-break consumers disappears as a problem: there is no substitution to expose around.
 
 ### Migration
 
@@ -535,16 +535,16 @@ Tests asserting the v5 sequence (`pause(after K-1) → pause(before K) → step(
 
 ### Changed (BREAKING)
 
-- **Hook renamed: `onDebugBreak` → `onPause`** on `run()` ([#110](https://github.com/mellonis/turing-machine-js/issues/110)). Hard rename, no deprecation alias. The hook signature, payload shape, and dispatch semantics are unchanged — only the option key on `run()` differs. Resolution of the [#109 RFC](https://github.com/mellonis/turing-machine-js/issues/109): the hook now describes the consumer's relationship (this is where you can pause) rather than the engine's event (a debug break fired). The `m.debugBreak` payload field is unchanged.
-- **`haltState.debug.after` now throws on assignment** ([#108](https://github.com/mellonis/turing-machine-js/issues/108) part 2). Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Symmetric `{ before: true, after: true }` writes also throw; use `{ before: true }`. Symbol-list filters on `haltState.debug.before` remain silent no-ops as in v4.
+- **Hook renamed: `onDebugBreak` → `onPause`** on `run()`. Hard rename, no deprecation alias. The hook signature, payload shape, and dispatch semantics are unchanged — only the option key on `run()` differs. Resolution of the naming RFC: the hook now describes the consumer's relationship (this is where you can pause) rather than the engine's event (a debug break fired). The `m.debugBreak` payload field is unchanged.
+- **`haltState.debug.after` now throws on assignment**. Halt is terminal — there is no iteration-after-halt for an after-fire to anchor on. Symmetric `{ before: true, after: true }` writes also throw; use `{ before: true }`. Symbol-list filters on `haltState.debug.before` remain silent no-ops as in v4.
 
 ### Fixed
 
-- **Halting iter's `state.debug.after` now fires** ([#108](https://github.com/mellonis/turing-machine-js/issues/108) part 1). Previously `pendingAfterFromPrev` set after the halting iter's yield was discarded when the `while (!state.isHalt)` loop exited — losing that after-fire. `run()` now drains a final after-fire after the loop when the prior yield armed one. Observable: a debugger UI sees a "we just halted because of state X's after-filter" event that was silent before.
+- **Halting iter's `state.debug.after` now fires**. Previously `pendingAfterFromPrev` set after the halting iter's yield was discarded when the `while (!state.isHalt)` loop exited — losing that after-fire. `run()` now drains a final after-fire after the loop when the prior yield armed one. Observable: a debugger UI sees a "we just halted because of state X's after-filter" event that was silent before.
 
 ### Added
 
-- **`run({ debug: boolean })` flag** ([#106](https://github.com/mellonis/turing-machine-js/issues/106)). Master switch for `onPause` dispatch. When `false`, suppresses all pause-fires (before, after, and the post-loop after-drain) regardless of `state.debug` assignments. `onStep` is unaffected. Defaults to `true`. The `m.debugBreak` field is still populated on yields by the underlying generator (it's a property of the iteration); only `run()`'s hook dispatch is gated. Useful for toggling "debug mode" without editing `state.debug = ...` across the state graph.
+- **`run({ debug: boolean })` flag**. Master switch for `onPause` dispatch. When `false`, suppresses all pause-fires (before, after, and the post-loop after-drain) regardless of `state.debug` assignments. `onStep` is unaffected. Defaults to `true`. The `m.debugBreak` field is still populated on yields by the underlying generator (it's a property of the iteration); only `run()`'s hook dispatch is gated. Useful for toggling "debug mode" without editing `state.debug = ...` across the state graph.
 
 ### Migration
 
@@ -565,7 +565,7 @@ Tests asserting the v5 sequence (`pause(after K-1) → pause(before K) → step(
 
 ### Added
 
-- **`State.debug` field** — runtime-mutable per-state breakpoints with `{ before, after }` symbol filtering ([#98](https://github.com/mellonis/turing-machine-js/issues/98)). Backed by a shared `Ref` cell so `withOverrodeHaltState` wrappers see assignments propagated from the original state. Validator rejects symbols that aren't transition keys of the owning state (catches cross-tape-block / cross-state mistakes); for `haltState`, list filters are silent no-ops because halt has no resolved head symbol.
+- **`State.debug` field** — runtime-mutable per-state breakpoints with `{ before, after }` symbol filtering. Backed by a shared `Ref` cell so `withOverrodeHaltState` wrappers see assignments propagated from the original state. Validator rejects symbols that aren't transition keys of the owning state (catches cross-tape-block / cross-state mistakes); for `haltState`, list filters are silent no-ops because halt has no resolved head symbol.
 - **`DebugConfig` class** — exported from the package. Per-property setters validate and freeze the stored array, so push / index-write throw `TypeError`. Plain-object input to `state.debug = { ... }` is wrapped in a `DebugConfig` instance automatically.
 - **`onDebugBreak` hook** on `run()` — awaited at every break (one or two times per yield: `after` from the previous step, then `before` for the current step). For `after` calls, `run()` substitutes the previous yield's snapshot so `m.state` corresponds to the state whose `after` fired. `onStep` always sees the original (un-substituted) yield.
 - **`haltState.debug.before = true`** — pauses on every halt entry (program exit AND subroutine return via halt-stack pop). Symbol-list filters on `haltState` are silent no-ops; only the `true` wildcard activates. `haltState` is a module-level singleton — clear in `afterEach` / `finally` for test isolation.
@@ -579,7 +579,7 @@ Tests asserting the v5 sequence (`pause(after K-1) → pause(before K) → step(
 
 ### Fixed
 
-- **`Tape` constructor now normalises and validates `viewportWidth`** ([#95](https://github.com/mellonis/turing-machine-js/issues/95)). The constructor stored `viewportWidth` raw — the setter padded `#symbols` via `normalise()` and validated `>= 1` / bumped even values to odd, but the constructor did neither. As a result, `new Tape({ alphabet, symbols: ['a','b','a','b'], viewportWidth: 23 }).viewport.length` was `4` instead of `23`, and `viewportWidth: 0` or `viewportWidth: 4` silently produced an invalid tape. The constructor now defers to the setter, so a single source of truth handles validation + normalisation.
+- **`Tape` constructor now normalises and validates `viewportWidth`**. The constructor stored `viewportWidth` raw — the setter padded `#symbols` via `normalise()` and validated `>= 1` / bumped even values to odd, but the constructor did neither. As a result, `new Tape({ alphabet, symbols: ['a','b','a','b'], viewportWidth: 23 }).viewport.length` was `4` instead of `23`, and `viewportWidth: 0` or `viewportWidth: 4` silently produced an invalid tape. The constructor now defers to the setter, so a single source of truth handles validation + normalisation.
 
 ### Changed (observable)
 

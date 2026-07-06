@@ -9,7 +9,7 @@ const alphabet = new Alphabet(' 01'.split(''));
 const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
 const {symbol} = tapeBlock;
 
-describe('collectStates (#195)', () => {
+describe('collectStates', () => {
   test('alignment contract: every GraphTransition.id maps to transitionSymbols[K]', () => {
     // For every transition emitted by toGraph, the (stateId, patternIx)
     // pair extracted from its id should index back to the firing Symbol
@@ -180,7 +180,7 @@ describe('collectStates (#195)', () => {
 
     // No GraphTransition with id `${s.id}.0` (the unbound-ref slot);
     // the one for slot 1 (the bound transition) DOES exist.
-    // (#205 changed separator from `-` to `.`.)
+    // (The separator changed from `-` to `.` in v7.)
     const node = graph.nodes[s.id];
     const ids = node.transitions.map((t) => t.id);
     expect(ids).not.toContain(`${s.id}.0`);
@@ -188,7 +188,7 @@ describe('collectStates (#195)', () => {
   });
 });
 
-describe('State.collectStates (#195) — static delegate', () => {
+describe('State.collectStates — static delegate', () => {
   test('returns the same shape as the module function', () => {
     const s = new State({
       [symbol(['0'])]: {nextState: haltState},
@@ -206,7 +206,7 @@ describe('State.collectStates (#195) — static delegate', () => {
   });
 });
 
-describe('graph layer × abortState (#239)', () => {
+describe('graph layer × abortState', () => {
   // Wrapper fixture: a single bare in a frame. Its halt-bound transition
   // retargets to the frame's halt marker (Pass 4), giving every test in
   // this block a marker to inspect.

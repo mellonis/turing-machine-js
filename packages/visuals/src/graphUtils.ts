@@ -2,7 +2,7 @@ import type { Graph } from '@turing-machine-js/machine';
 
 /**
  * Normalize an engine `GraphNode.id` to its canonical representative for
- * breakpoint-class lookups (machines-demo#37). Wrappers produced by
+ * breakpoint-class lookups. Wrappers produced by
  * `State.withOverriddenHaltState` share `#debugRef` with their bare state
  * engine-side (turing-machine-js v7 `State.ts`: `state.#debugRef =
  * bare.#debugRef`), so they form a single breakpoint from the user's POV.
@@ -14,7 +14,7 @@ import type { Graph } from '@turing-machine-js/machine';
  */
 export function bareIdOf(id: number, graph: Graph | null): number {
   if (!graph) return id;
-  // Negative ids split by parity (#239 sentinel id scheme): EVEN negatives
+  // Negative ids split by parity (sentinel id scheme): EVEN negatives
   // (`-2·frameId`) are per-frame halt markers — visualization sentinels
   // that all collapse to the haltState singleton (id 0) at runtime, so for
   // breakpoint purposes they're one class with it. ODD negatives are
@@ -29,7 +29,7 @@ export function bareIdOf(id: number, graph: Graph | null): number {
 }
 
 /**
- * Asymmetric expansion for the highlight effect (machines-demo#37).
+ * Asymmetric expansion for the highlight effect.
  * Wrapper → `[wrapper, bare]` (the wrapper-entry pause is visually joined
  * to its bare, since the user thinks of them as one call site).
  * Bare → `[bare]` only (when the engine is genuinely on the bare — e.g. a

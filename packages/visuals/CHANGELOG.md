@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [7.1.0] - 2026-07-06
 
-Lockstep release with `@turing-machine-js/machine` 7.1.0 (the abort feature, [#239](https://github.com/mellonis/turing-machine-js/issues/239)).
+Lockstep release with `@turing-machine-js/machine` 7.1.0 (the abort feature).
 
 ### Added
 
@@ -35,7 +35,7 @@ Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. First stabl
 
 ## [7.0.0-alpha.8] - 2026-06-02
 
-`TapeSnapshot` type and `tapeViewport` helper moved to `@turing-machine-js/machine` ([#227](https://github.com/mellonis/turing-machine-js/issues/227)) — they live next to the live `Tape` class now. **Consumers importing them from `@turing-machine-js/visuals` are unaffected**: visuals re-exports both from the engine, so existing `import { TapeSnapshot, tapeViewport } from '@turing-machine-js/visuals'` continues to work.
+`TapeSnapshot` type and `tapeViewport` helper moved to `@turing-machine-js/machine` — they live next to the live `Tape` class now. **Consumers importing them from `@turing-machine-js/visuals` are unaffected**: visuals re-exports both from the engine, so existing `import { TapeSnapshot, tapeViewport } from '@turing-machine-js/visuals'` continues to work.
 
 ### Changed
 
@@ -62,7 +62,7 @@ Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. First stabl
 
 ## [7.0.0-alpha.7] - 2026-05-30
 
-Lockstep re-alignment with the engine 7.0.0-alpha.7 bump (engine [#213](https://github.com/mellonis/turing-machine-js/issues/213) `CallFrame` extraction + [#223](https://github.com/mellonis/turing-machine-js/issues/223) `toMermaid` framed-wrapper emit fix). No source or behavior changes in this package since alpha.6.1. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.
+Lockstep re-alignment with the engine 7.0.0-alpha.7 bump (engine `CallFrame` extraction + `toMermaid` framed-wrapper emit fix). No source or behavior changes in this package since alpha.6.1. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.
 
 ## [7.0.0-alpha.6.1] - 2026-05-30
 
@@ -87,10 +87,8 @@ Lockstep re-alignment with the engine 7.0.0-alpha.7 bump (engine [#213](https://
   - Types: `HighlightOps`, `IndicatorOps`, `RecordedOp`, `NodeKey`, `HighlightClass`, `GraphIndexes`, `GraphHighlight`, `TapeSnapshot`.
   - Functions: `indexGraph`, `applyHighlight`, `applyIndicator`, `bareIdOf`, `highlightExpand`, `equivalentIds`, `recordingOps`.
   - Rules doc at `docs/graph-highlight-and-breakpoints.md`.
-- Initial `recordSnippet` surface (folded in from step 3 of #204 — first published alpha ships with a complete v1 API ready to feed downstream consumers):
+- Initial `recordSnippet` surface (folded in from step 3 of the package-extraction plan — first published alpha ships with a complete v1 API ready to feed downstream consumers):
   - Types: `Snippet` (`{ version: 1, name?, graph, alphabets, frames }`), `Frame` (`{ step, tape, commands?, highlight, log? }`), `RecordSnippetOptions`.
   - `Frame.commands` carries per-tape `{ movement, read, write }` — both sides of the cell, so players can step forward and backward without recomputing from neighbouring frames.
   - `recordSnippet({ machine, initialState, graph, alphabets, name?, maxSteps?, log? }) => Snippet` runs `machine.runStepByStep` and captures one frame per iter plus a frame-0 initial-state snapshot.
   - Composable formatter primitives: `formatCommand(tapeCommand)` + `formatStep(machineState)` — match the engine's edge-label notation (`[reads] → [writes]/[moves]`) so logged steps line up with rendered graph edges.
-
-Closes [#204](https://github.com/mellonis/turing-machine-js/issues/204).

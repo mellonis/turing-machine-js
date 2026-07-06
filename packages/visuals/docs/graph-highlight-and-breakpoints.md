@@ -11,12 +11,12 @@ The engine's `Graph.nodes` keys are positive integer ids assigned at graph-build
 | `> 0` | Regular state, wrapper, or bare | `State.toGraph` walks reachable States | yes |
 | `0` | Halt singleton (`haltState`) | Engine sentinel, process-wide | no — global, not per-machine |
 | even `< 0` | Halt marker (`isHaltMarker: true`, id = `-2 * frameId`) | `toGraph` rewrites in-frame halts so they land inside the subgraph cluster instead of the global singleton | no — collapses to `haltState` at runtime |
-| odd `< 0` | Engine sentinel (e.g. `abortState` at id `-1`) | Reserved id space, disjoint from halt markers so the two never collide (#239) | its own breakpoint class (`bareIdOf` returns sentinels unchanged — never folded into halt's class); highlight targets it directly (`toId: -1` lights `s1`) |
+| odd `< 0` | Engine sentinel (e.g. `abortState` at id `-1`) | Reserved id space, disjoint from halt markers so the two never collide | its own breakpoint class (`bareIdOf` returns sentinels unchanged — never folded into halt's class); highlight targets it directly (`toId: -1` lights `s1`) |
 | `'idle'` | Synthetic entry sentinel | `toGraph` always emits a stadium-shape `idle` node with `idle -. enter .-> sN` | no |
 
 Click handlers are attached only to nodes whose key is `typeof === 'number' && > 0` — see `MachineGraph.svelte`'s cache-build `$effect`.
 
-**Mermaid string ids (#239):** `applyHighlight`'s edge keys (the `HighlightOps.highlightEdge` `fromKey`/`toKey` arguments) are the mermaid *string* id, built via `mermaidIdFor(id)` / inverted via `parseMermaidId(s)` from `@turing-machine-js/machine` — not hand-built string literals. Namespacing: positive `N` → `uN`; `0` → `s0`; even negative `-2f` → `s0-f`; odd negative → `s{(1-id)/2}` (sentinel). The `w_${frameId}` callable-subtree subgraph key is a visuals-local convention, untouched by this namespacing.
+**Mermaid string ids:** `applyHighlight`'s edge keys (the `HighlightOps.highlightEdge` `fromKey`/`toKey` arguments) are the mermaid *string* id, built via `mermaidIdFor(id)` / inverted via `parseMermaidId(s)` from `@turing-machine-js/machine` — not hand-built string literals. Namespacing: positive `N` → `uN`; `0` → `s0`; even negative `-2f` → `s0-f`; odd negative → `s{(1-id)/2}` (sentinel). The `w_${frameId}` callable-subtree subgraph key is a visuals-local convention, untouched by this namespacing.
 
 ## 2. Wrapper / bare equivalence
 
@@ -221,7 +221,7 @@ Also: when pausing at a wrapper, the worker swaps the dispatched `state` field t
 
 ## 15. Post-machine differences
 
-`@post-machine-js/machine` installs an `Object.defineProperty` lockdown on every non-halt PostMachine-constructed State's `debug` property that funnels DIRECT writes through Post's registry (`pm.setBreakpoint` for un-shared, throw for shared). `haltState` is NOT locked — direct `turing.haltState.debug = boolean` writes go straight to the engine setter (post dropped the module-load halt lockdown alongside engine #207). Post wraps `run`'s `onPause` to filter via that registry — pauses fire only when the registered breakpoint matches.
+`@post-machine-js/machine` installs an `Object.defineProperty` lockdown on every non-halt PostMachine-constructed State's `debug` property that funnels DIRECT writes through Post's registry (`pm.setBreakpoint` for un-shared, throw for shared). `haltState` is NOT locked — direct `turing.haltState.debug = boolean` writes go straight to the engine setter (post dropped the module-load halt lockdown when the engine collapsed `haltState.debug` to a boolean). Post wraps `run`'s `onPause` to filter via that registry — pauses fire only when the registered breakpoint matches.
 
 **Direct mutation of the engine's `DebugConfig` (e.g. `state.debug.before = true`) bypasses Post's lockdown** because the getter passes through; Post's wrapper then filters the engine's onPause out entirely. The worker's `toggleBreakpoint` therefore uses the SETTER form, reading both kinds and writing the merged shape so toggling one doesn't lose the other:
 
@@ -261,7 +261,7 @@ mark toEqIds as highlight-to    (+ strong if h.strong === 'to')
 mark halt-marker  (toId < 0) directly with highlight-to (+ strong if matching)
 mark halt-singleton (toId === 0) directly with highlight-to (+ strong if matching)
 
-highlight edge L_{fromKey}_{toKey}   # fromKey/toKey via mermaidIdFor (#239)
+highlight edge L_{fromKey}_{toKey}   # fromKey/toKey via mermaidIdFor
 if toEqIds had wrapper+bare: also highlight L_u{wrapper}_u{bare}  (call edge)
 
 if toId < 0:    source return chain    (halt-marker entry → wrappers → overrides)
