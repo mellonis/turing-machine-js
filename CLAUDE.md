@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is an npm-workspaces + Lerna monorepo (`packages/*`). Versioning is **lockstep across the four engine/library packages** via `lerna.json` (engine + builder + library-binary-numbers + library-binary-numbers-bare share one version); **`visuals` versions independently** — additive consumer-package patches don't require coordinated peer-dep widening (see Versioning convention below). Five published packages:
+This is an npm-workspaces monorepo (`packages/*`) with npm-native release scripts (`scripts/release-version.mjs` + `scripts/release-publish.mjs` — replaced lerna in #242; lerna's bundled nx subtree was the source of every Dependabot advisory). Versioning is **lockstep across the four engine/library packages** (engine + builder + library-binary-numbers + library-binary-numbers-bare share one version); **`visuals` versions independently** — additive consumer-package patches don't require coordinated peer-dep widening (see Versioning convention below). Five published packages:
 
 - **`@turing-machine-js/machine`** — the core engine (no runtime deps).
 - **`@turing-machine-js/builder`** — declarative state-table → machine builder; depends on `machine`. Soft-deprecated; see its README.
@@ -26,13 +26,13 @@ This is an npm-workspaces + Lerna monorepo (`packages/*`). Versioning is **locks
 
 ### Versioning convention
 
-Engine + builder + libraries bump in lockstep (`lerna version X.Y.Z` from the repo root edits all four `package.json`s + `lerna.json`). This is the right shape when an engine API breaks and peer-dep ranges in dependents need to widen together — that's the whole reason a single coordinated bump exists.
+Engine + builder + libraries bump in lockstep — `node scripts/release-version.mjs X.Y.Z` writes the version to every workspace `package.json` and resyncs the lockfile (`npm install --package-lock-only`). This is the right shape when an engine API breaks and peer-dep ranges in dependents need to widen together — that's the whole reason a single coordinated bump exists. Dependency/peer ranges are deliberately NOT rewritten by the script — range policy (e.g. raising visuals' peer floor after an engine minor) is a hand-reviewed release-PR step; re-run `npm install --package-lock-only` after any hand edit.
 
-**Visuals breaks lockstep deliberately for additive consumer-package patches** (e.g., the `alpha.6.1` formatter-primitives bump). Bumping engine + libraries to alpha.6.1 with no functional changes would create ghost releases (identical tarballs republished under a new version). Visuals's peer `@turing-machine-js/machine: ^7.0.0-alpha.6` accepts alpha.6.1+ via semver-prerelease caret semantics, so consumers keep matching peer-dep versions without a coordinated upgrade. For the actual publish:
+**Visuals breaks lockstep deliberately for additive consumer-package patches** (e.g., the `alpha.6.1` formatter-primitives bump): `node scripts/release-version.mjs X.Y.Z --packages visuals` bumps only visuals. Bumping engine + libraries with no functional changes would create ghost releases (identical tarballs republished under a new version). Visuals's peer range accepts the deviation via semver caret semantics, so consumers keep matching peer-dep versions without a coordinated upgrade. For the actual publish:
 
-- `lerna publish from-package --dist-tag next` walks `package.json` versions and publishes whatever's not yet on the registry. After bumping visuals alone to `7.0.0-alpha.6.1` and leaving the other 4 packages at alpha.6, only visuals publishes; the engine/builder/lib tarballs at alpha.6 are already on the registry and `from-package` skips them.
-- `lerna.json`'s `version` field can stay at the prior lockstep version (`7.0.0-alpha.6` after a visuals-only bump) — it's informational when not running in `independent` mode, and `from-package` doesn't read it for publish decisions.
-- When the next engine alpha needs to ship, bump back to lockstep (engine + builder + libs + visuals all to alpha.7 via `lerna version`).
+- `node scripts/release-publish.mjs` walks the workspaces and publishes whatever's not yet on the registry (the `lerna publish from-package` behavior). The dist-tag is inferred per package — prerelease version → `next`, stable → `latest` — so an alpha can never clobber `latest`; `--tag` overrides. Preview with `npm publish --dry-run --workspaces` or the script's `--dry-run`.
+- After a visuals-only bump, only visuals publishes; the engine/builder/lib tarballs at the prior version are already on the registry and are skipped.
+- When the next engine version ships, bump back to lockstep (all 5 packages via the no-flag form).
 
 ### Documentation parity for the two binary libraries
 
