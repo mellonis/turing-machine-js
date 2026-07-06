@@ -320,7 +320,7 @@ Reduced-motion variant: if you skip the timer and jump straight to the final fra
 
 ## Versioning
 
-Engine + builder + libraries bump in **lockstep** via `lerna version`. **Visuals breaks lockstep for additive consumer-package patches** (e.g., `7.0.0-alpha.6.1` added formatter primitives + the token surface without bumping the engine — there were no engine changes to justify ghost releases). Semver-prerelease caret semantics make this safe: peer `^7.0.0-alpha.6` accepts `7.0.0-alpha.6.1+` without consumers having to widen anything. When the next engine alpha needs to ship, all 5 packages bump back to lockstep.
+Engine + builder + libraries bump in **lockstep**. **Visuals breaks lockstep for additive consumer-package patches** (e.g., `7.0.0-alpha.6.1` added formatter primitives + the token surface without bumping the engine — there were no engine changes to justify ghost releases). Semver-prerelease caret semantics make this safe: peer `^7.0.0-alpha.6` accepts `7.0.0-alpha.6.1+` without consumers having to widen anything. When the next engine alpha needs to ship, all 5 packages bump back to lockstep.
 
 ## License
 
