@@ -4,6 +4,20 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0] - 2026-07-06
+
+Lockstep release with `@turing-machine-js/machine` 7.1.0 (the abort feature, [#239](https://github.com/mellonis/turing-machine-js/issues/239)).
+
+### Added
+
+- **Abort-highlight support** — `GraphHighlight.toId: -1` lights the abort sentinel node (`s1`), never halt; regression-locked.
+
+### Changed
+
+- **`HighlightOps` edge keys are built via the engine's `mermaidIdFor`** — mermaid string ids follow the 7.1.0 namespacing (`uN` user states, `s0` halt, `s1` abort, `s0-F` frame halt markers). Consumers resolving DOM elements from these keys must adopt the new vocabulary.
+- **`bareIdOf` splits negative ids by parity** — even negatives (frame halt markers, `-2·frameId`) still collapse to the haltState class (canonical `0`); odd negatives (engine sentinels — `abortState` at `-1`) are now their own breakpoint class and are never folded into halt's. `equivalentIds(-1)` returns `[-1]`; `applyIndicator` no longer lights the abort node from a halt breakpoint.
+- Peer dep `@turing-machine-js/machine` widened `^7.0.0` → `^7.1.0` (this package imports `mermaidIdFor`, a 7.1.0-only export — the floor is hard).
+
 ## [7.0.0] - 2026-06-03
 
 Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. First stable cut of the visuals companion package. See the machine package CHANGELOG for the cumulative v7 trajectory.
