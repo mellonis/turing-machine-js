@@ -695,7 +695,7 @@ describe('STATE_INTERNAL accessor', () => {
   });
 
   test('symbolToDataMap exposes the live Map for sibling-module enumeration', () => {
-    // `collectStates` will enumerate this Map's keys to expose per-transition
+    // `collectStates` enumerates this Map's keys to expose per-transition
     // pattern Symbols by patternIx. The accessor returns the same
     // instance the State holds, in insertion order — not a copy.
     const sym0 = symbol(['0']);
@@ -711,7 +711,7 @@ describe('STATE_INTERNAL accessor', () => {
     expect(keys).toContain(sym0);
     expect(keys).toContain(sym1);
     // Order matches construction order — the contract that `collectStates`'s
-    // `transitionSymbols[patternIx]` will lean on.
+    // `transitionSymbols[patternIx]` leans on.
     expect(keys.indexOf(sym0)).toBeLessThan(keys.indexOf(sym1));
   });
 

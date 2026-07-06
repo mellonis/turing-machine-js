@@ -28,8 +28,8 @@ const validateDebugFilter = Symbol('validateDebugFilter');
  * @internal
  *
  * Package-private accessor key for sibling modules in
- * `packages/machine/src` (e.g. `utilities/stateGraph.ts`, and the planned
- * `utilities/stateCollect.ts` for `collectStates`). Re-exported from this module so
+ * `packages/machine/src` (e.g. `utilities/stateGraph.ts`, home of
+ * `toGraph` / `fromGraph` / `collectStates`). Re-exported from this module so
  * sibling files can import it; intentionally NOT re-exported from the
  * package's public `index.ts`, so downstream consumers don't see it on
  * the supported surface.
@@ -499,9 +499,8 @@ export default class State {
    * @internal
    *
    * Package-private getter/setter view onto this State's private fields,
-   * for sibling modules in `packages/machine/src` (currently `stateGraph.ts`
-   * for `toGraph` / `fromGraph`, and the planned `stateCollect.ts` for
-   * `collectStates`).
+   * for sibling modules in `packages/machine/src` (currently `stateGraph.ts`,
+   * home of `toGraph` / `fromGraph` / `collectStates`).
    *
    * Read access is live — the getters close over `this`, so the view
    * stays in sync with subsequent mutations on this State. There's a
