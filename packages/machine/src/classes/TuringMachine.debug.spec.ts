@@ -232,10 +232,15 @@ describe('TuringMachine — haltState.debug (boolean, #207)', () => {
 describe('TuringMachine — run() with onPause', () => {
   afterEach(() => { haltState.debug = null; });
 
-  test('run() is synchronous (returns void, not a Promise)', () => {
+  test('run() is synchronous (returns a RunResult, not a Promise) (#239)', () => {
+    // Obsoletes the pre-#239 `toBeUndefined()` assertion — `run()` now
+    // returns a `RunResult` synchronously instead of `void`; the still-valid
+    // intent ("sync, not a Promise") is preserved via the `not.toBeInstanceOf`
+    // check.
     const {machine, state} = buildMachine();
     const result = machine.run({initialState: state});
-    expect(result).toBeUndefined();
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.outcome).toBe('halted');
   });
 
   test('without DebugSession, breakpoints fire-and-resume invisibly', () => {
@@ -369,31 +374,31 @@ describe('TuringMachine — halt semantics for after-fire (#108)', () => {
       // is the secondary line of defense for callers reaching haltState through a
       // generic `State` reference (e.g. `state.getNextState(sym).ref`).
       haltState.debug = {after: true};
-    }).toThrow(/haltState\.debug only accepts boolean/);
+    }).toThrow(/\.debug only accepts boolean/);
   });
 
   test('haltState.debug = {before: true} throws — boolean-only API (#207)', () => {
     expect(() => {
       // @ts-expect-error — see comment above.
       haltState.debug = {before: true};
-    }).toThrow(/haltState\.debug only accepts boolean/);
+    }).toThrow(/\.debug only accepts boolean/);
   });
 
   test('haltState.debug = {before: true, after: true} throws — boolean-only API (#207)', () => {
     expect(() => {
       // @ts-expect-error — see comment above.
       haltState.debug = {before: true, after: true};
-    }).toThrow(/haltState\.debug only accepts boolean/);
+    }).toThrow(/\.debug only accepts boolean/);
   });
 
   test('non-halt state.debug = boolean throws — DebugConfig-only on non-halt (#207)', () => {
-    // Symmetric guard: only haltState accepts boolean. Non-halt states must
+    // Symmetric guard: only sentinels accept boolean. Non-halt states must
     // use the DebugConfig shape so the per-side granularity stays explicit.
     const s = new State();
     expect(() => {
       // @ts-expect-error — non-halt State's debug setter narrows to DebugConfig.
       s.debug = true;
-    }).toThrow(/Boolean assignment is reserved for `haltState`/);
+    }).toThrow(/Boolean assignment is reserved for sentinel states/);
   });
 });
 

@@ -1,6 +1,6 @@
 import Alphabet from './Alphabet';
 import Reference from './Reference';
-import State, {CallFrame, STATE_INTERNAL, haltState, ifOtherSymbol} from './State';
+import State, {CallFrame, STATE_INTERNAL, haltState, abortState, ifOtherSymbol} from './State';
 import TapeBlock from './TapeBlock';
 import {movements, symbolCommands} from './TapeCommand';
 
@@ -294,6 +294,20 @@ describe('State.withOverriddenHaltState', () => {
 
     expect(W.name).toBe('A(t3)');
     expect(W.overriddenHaltState).toBe(t3);
+  });
+});
+
+describe('withOverriddenHaltState × abortState (#239)', () => {
+  it('cannot override abortState', () => {
+    const cont = new State(null);
+    expect(() => abortState.withOverriddenHaltState(cont))
+      .toThrow(/abortState cannot be overridden/);
+  });
+
+  it('cannot use abortState as the continuation', () => {
+    const bare = new State(null);
+    expect(() => bare.withOverriddenHaltState(abortState))
+      .toThrow(/cannot be used as a withOverriddenHaltState continuation/);
   });
 });
 
@@ -622,10 +636,10 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
-        1: {id: 1, name: 'wA', isHalt: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
-        2: {id: 2, name: 'wB', isHalt: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
-        3: {id: 3, name: 'shared', isHalt: false, transitions: [dummyTransition], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        0: {id: 0, name: 'halt', isHalt: true, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'wA', isHalt: false, isAbort: false, transitions: [], overriddenHaltStateId: 2, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
+        2: {id: 2, name: 'wB', isHalt: false, isAbort: false, transitions: [], overriddenHaltStateId: 1, isHaltMarker: false, isWrapper: true, bareStateId: 3, frameId: null, tags: []},
+        3: {id: 3, name: 'shared', isHalt: false, isAbort: false, transitions: [dummyTransition], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
       },
     };
 
@@ -722,5 +736,66 @@ describe('STATE_INTERNAL accessor (#180)', () => {
     // closed-over State instance is shared.
     const s = new State(null, 's');
     expect(s[STATE_INTERNAL]()).not.toBe(s[STATE_INTERNAL]());
+  });
+});
+
+describe('abortState sentinel (#239)', () => {
+  it('has reserved id -1 with sentinel predicates', () => {
+    expect(abortState.id).toBe(-1);
+    expect(abortState.isAbort).toBe(true);
+    expect(abortState.isHalt).toBe(false);
+    expect(abortState.isSentinel).toBe(true);
+  });
+
+  it('haltState is a sentinel; user states are not', () => {
+    expect(haltState.isSentinel).toBe(true);
+    expect(haltState.isAbort).toBe(false);
+    const user = new State(null);
+    expect(user.isSentinel).toBe(false);
+    expect(user.isAbort).toBe(false);
+    expect(user.id).toBeGreaterThan(0);
+  });
+
+  it('does not consume the sequential id counter', () => {
+    const a = new State(null);
+    const b = new State(null);
+    expect(b.id).toBe(a.id + 1); // abortState's -1 came from the reserve latch, not the counter
+  });
+
+  it('is named abort', () => {
+    expect(abortState.name).toBe('abort');
+  });
+});
+
+describe('abortState.debug (#239, mirrors #207)', () => {
+  afterEach(() => { abortState.debug = null; haltState.debug = null; });
+
+  it('accepts boolean and null', () => {
+    abortState.debug = true;
+    expect(abortState.debug).toBe(true);
+    abortState.debug = false;
+    expect(abortState.debug).toBe(false);
+    abortState.debug = null;
+    expect(abortState.debug).toBe(false);
+  });
+
+  it('rejects object-shaped writes', () => {
+    expect(() => { (abortState as unknown as State).debug = { before: true } as never; })
+      .toThrow(/only accepts boolean/);
+  });
+
+  it('error message for haltState uses canonical export name, not id:0', () => {
+    expect(() => { (haltState as unknown as State).debug = { before: true } as never; })
+      .toThrow('haltState.debug only accepts boolean (or null to reset). Use `haltState.debug = true` to enable the haltState breakpoint, false to disable it.');
+  });
+
+  it('error message for abortState uses canonical export name, not id:-1', () => {
+    expect(() => { (abortState as unknown as State).debug = { before: true } as never; })
+      .toThrow('abortState.debug only accepts boolean (or null to reset). Use `abortState.debug = true` to enable the abortState breakpoint, false to disable it.');
+  });
+
+  it('is independent from haltState.debug', () => {
+    abortState.debug = true;
+    expect(haltState.debug).toBe(false);
   });
 });

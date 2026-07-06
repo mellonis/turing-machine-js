@@ -118,9 +118,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0', '1']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        0: {id: 0, name: 'halt', isHalt: true, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
+          id: 1, name: 'entry', isHalt: false, isAbort: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
           transitions: [
             {pattern: "'0'", command: [{symbol: 'K', movement: 'R'}], nextStateId: 1, id: "test-edge"},
             {pattern: "'1'", command: [{symbol: 'K', movement: 'S'}], nextStateId: 0, id: "test-edge"},
@@ -132,11 +132,11 @@ describe('toMermaid', () => {
     expect(out.startsWith('flowchart TD')).toBe(true);
     expect(out).toContain('%% alphabets: [[" ","0","1"]]');
     expect(out).toContain('s0(((halt)))');
-    expect(out).toContain('s1["entry"]');
+    expect(out).toContain('u1["entry"]');
     expect(out).toContain('idle([idle])');
-    expect(out).toContain('idle -. enter .-> s1');
-    expect(out).toContain("s1 -- \"['0'] → [K]/[R]\" --> s1");
-    expect(out).toContain("s1 -- \"['1'] → [K]/[S]\" --> s0");
+    expect(out).toContain('idle -. enter .-> u1');
+    expect(out).toContain("u1 -- \"['0'] → [K]/[R]\" --> u1");
+    expect(out).toContain("u1 -- \"['1'] → [K]/[S]\" --> s0");
   });
 
   test('renders wrapper-to-override solid arrow when overriddenHaltStateId is set', () => {
@@ -146,12 +146,12 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
-        1: {id: 1, name: 'wrapper', isHalt: false, transitions: [], overriddenHaltStateId: 0, isHaltMarker: false, isWrapper: true, bareStateId: null, frameId: null, tags: []},
+        0: {id: 0, name: 'halt', isHalt: true, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'wrapper', isHalt: false, isAbort: false, transitions: [], overriddenHaltStateId: 0, isHaltMarker: false, isWrapper: true, bareStateId: null, frameId: null, tags: []},
       },
     });
 
-    expect(out).toContain('s1 --> s0');
+    expect(out).toContain('u1 --> s0');
     expect(out).not.toContain('onHalt');
   });
 
@@ -160,13 +160,13 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
-        1: {id: 1, name: 'entry', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
-        2: {id: 2, name: 'helper', isHalt: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        0: {id: 0, name: 'halt', isHalt: true, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        1: {id: 1, name: 'entry', isHalt: false, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        2: {id: 2, name: 'helper', isHalt: false, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
       },
     });
 
-    expect(out).toContain('s2["helper"]');
+    expect(out).toContain('u2["helper"]');
   });
 
   test('multi-tape command uses "," to separate per-tape ops', () => {
@@ -174,9 +174,9 @@ describe('toMermaid', () => {
       initialId: 1,
       alphabets: [[' ', '0'], [' ', 'a']],
       nodes: {
-        0: {id: 0, name: 'halt', isHalt: true, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
+        0: {id: 0, name: 'halt', isHalt: true, isAbort: false, transitions: [], overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: []},
         1: {
-          id: 1, name: 'entry', isHalt: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
+          id: 1, name: 'entry', isHalt: false, isAbort: false, overriddenHaltStateId: null, isHaltMarker: false, isWrapper: false, bareStateId: null, frameId: null, tags: [],
           transitions: [{
             pattern: "'0','a'",
             command: [{symbol: "'0'", movement: 'R'}, {symbol: "'a'", movement: 'L'}],
@@ -274,11 +274,11 @@ describe('fromMermaid error paths', () => {
   test('throws on a malformed edge label (missing arrow)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  s0(((halt)))',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      '  s1 -- "no-arrow-label" --> s0',
+      '  idle -. enter .-> u1',
+      '  u1 -- "no-arrow-label" --> s0',
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow('malformed edge label');
@@ -287,11 +287,11 @@ describe('fromMermaid error paths', () => {
   test('throws on a malformed command part (missing slash)', () => {
     const mermaid = [
       'flowchart TD',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  s0(((halt)))',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      '  s1 -- "[*] → noslash" --> s0',
+      '  idle -. enter .-> u1',
+      '  u1 -- "[*] → noslash" --> s0',
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow('malformed command label');
@@ -302,10 +302,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'|'1'] → [K]/[R]\" --> s0", // compact alternation — should fail
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'|'1'] → [K]/[R]\" --> s0", // compact alternation — should fail
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
@@ -316,10 +316,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'] → [K|E]/[R]\" --> s0", // `|` in writes — should fail
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'] → [K|E]/[R]\" --> s0", // `|` in writes — should fail
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow(/compact in-bracket alternation/);
@@ -330,10 +330,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      '  s1 -- "X → [K]/[S]" --> s0', // no `[…]` in the read part at all
+      '  idle -. enter .-> u1',
+      '  u1 -- "X → [K]/[S]" --> s0', // no `[…]` in the read part at all
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow(/no bracketed read-list/);
@@ -344,10 +344,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'] → [K,K]/[R]\" --> s0", // 2 writes, 1 move
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'] → [K,K]/[R]\" --> s0", // 2 writes, 1 move
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow(/write-cells.*move-cells.*mismatch/);
@@ -362,10 +362,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'] → [K]/[S\" --> s0", // moves part `[S` is missing the closing bracket
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'] → [K]/[S\" --> s0", // moves part `[S` is missing the closing bracket
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).toThrow(/malformed bracketed list/);
@@ -379,10 +379,10 @@ describe('fromMermaid error paths', () => {
       'flowchart TD',
       '%% alphabets: [[" ","|"]]',
       '  s0(((halt)))',
-      '  s1["x"]',
+      '  u1["x"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['\\|'] → [K]/[S]\" --> s0", // pattern reads `'\|'` (literal pipe)
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['\\|'] → [K]/[S]\" --> s0", // pattern reads `'\|'` (literal pipe)
     ].join('\n');
 
     expect(() => fromMermaid(mermaid)).not.toThrow();
@@ -397,11 +397,11 @@ describe('fromMermaid ensureNode update branches', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1["entry"]',     // creates s1 with name="entry"
-      '  s1["renamed"]',   // fires the name-update branch
+      '  u1["entry"]',     // creates u1 with name="entry"
+      '  u1["renamed"]',   // fires the name-update branch
       '  s0(((halt)))',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
+      '  idle -. enter .-> u1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -413,16 +413,38 @@ describe('fromMermaid ensureNode update branches', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
-      '  s1["entry"]',     // creates s1 with isHalt=false
-      '  s1(((halt)))',    // halt — fires the isHalt-update branch
+      '  u1["entry"]',     // creates u1 with isHalt=false
+      '  u1(((halt)))',    // halt — fires the isHalt-update branch (synthetic:
+                           // toMermaid never emits a `u`-prefixed halt shape;
+                           // this hand-edited line just re-declares the SAME
+                           // id to poke ensureNode's update-branch)
       '  s0(((halt)))',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
+      '  idle -. enter .-> u1',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
 
     expect(graph.nodes[1].isHalt).toBe(true);
+  });
+
+  test('a later abort-node declaration updates isAbort of an already-created node (#239)', () => {
+    const mermaid = [
+      'flowchart TD',
+      '%% alphabets: [[" ","0"]]',
+      '  u1["entry"]',     // creates u1 with isAbort=false
+      '  u1(((abort)))',   // abort — fires the isAbort-update branch (synthetic:
+                           // toMermaid never emits a `u`-prefixed abort shape;
+                           // this hand-edited line just re-declares the SAME
+                           // id to poke ensureNode's update-branch)
+      '  s0(((halt)))',
+      '  idle([idle])',
+      '  idle -. enter .-> u1',
+    ].join('\n');
+
+    const graph = fromMermaid(mermaid);
+
+    expect(graph.nodes[1].isAbort).toBe(true);
   });
 
   test('`class` line referencing an undeclared node creates it with a fallback name', () => {
@@ -435,24 +457,24 @@ describe('fromMermaid ensureNode update branches', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',
+      '  u1["entry"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'] → [K]/[S]\" --> s0",
-      '  class s99 tag_orphan', // s99 isn't declared anywhere else
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'] → [K]/[S]\" --> s0",
+      '  class u99 tag_orphan', // u99 isn't declared anywhere else
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
 
     expect(graph.nodes[99]).toBeDefined();
-    expect(graph.nodes[99].name).toBe('s99'); // fallback to mermaidIdFor(99)
+    expect(graph.nodes[99].name).toBe('u99'); // fallback to mermaidIdFor(99)
     expect(graph.nodes[99].tags).toEqual(['orphan']);
   });
 
-  test('unlabeled `sN --> sM` from a non-wrapper source falls through to labeled-regex (no-op)', () => {
-    // Defensive path: the wrapper-override regex matches `sN --> sM`
+  test('unlabeled `uN --> sM` from a non-wrapper source falls through to labeled-regex (no-op)', () => {
+    // Defensive path: the wrapper-override regex matches `uN --> sM`
     // (unlabeled) only when the source is a wrapper. If hand-edited input
-    // has `sN --> sM` with N being a regular state, the wrapper-override
+    // has `uN --> sM` with N being a regular state, the wrapper-override
     // branch doesn't fire (the `if (nodes[fromId].isWrapper)` guard) and
     // the labeled-regex below also doesn't match (no label). No edge is
     // added, no overriddenHaltStateId set. Documented as malformed-input
@@ -461,10 +483,10 @@ describe('fromMermaid ensureNode update branches', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
       '  s0(((halt)))',
-      '  s1["entry"]',     // s1 is a regular state, NOT a wrapper
+      '  u1["entry"]',     // u1 is a regular state, NOT a wrapper
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      '  s1 --> s0',       // unlabeled — wrapper-override regex matches but isWrapper is false
+      '  idle -. enter .-> u1',
+      '  u1 --> s0',       // unlabeled — wrapper-override regex matches but isWrapper is false
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -492,11 +514,11 @@ describe('README example: toMermaid output is stable', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0","1","$"]]',
       '  s0(((halt)))',
-      '  s1["name"]',
+      '  u1["name"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['1'] → ['0']/[R]\" --> s1",
-      "  s1 -- \"['$'] → [K]/[L]\" --> s0",
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['1'] → ['0']/[R]\" --> u1",
+      "  u1 -- \"['$'] → [K]/[L]\" --> s0",
     ].join('\n');
 
     expect(toMermaid(State.toGraph(s, tapeBlock))).toBe(expected);
@@ -706,12 +728,13 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     expect(wrapperAroundA!.frameId).toBeNull();
 
     // Y's halt-bound transitions retarget to A's frame halt marker
-    // (id = -frameId, isHaltMarker), NOT to top-level halt s0.
+    // (id = -2 * frameId, even negatives, #239, isHaltMarker), NOT to
+    // top-level halt s0.
     for (const t of nodeY.transitions) {
       const targetNode = graph.nodes[t.nextStateId];
       expect(targetNode.isHaltMarker).toBe(true);
       expect(targetNode.frameId).toBe(nodeA.frameId);
-      expect(t.nextStateId).toBe(-nodeA.frameId!);
+      expect(t.nextStateId).toBe(-2 * nodeA.frameId!);
     }
 
     // Sanity: top-level halt s0 is still emitted as a sentinel, even though
@@ -724,7 +747,7 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     // the `[[name]]` wrapper shape), not at top level.
     const out = toMermaid(graph);
     expect(out).toMatch(new RegExp(
-      `subgraph w_${nodeA.frameId}\\[[^\\n]*\\n(?:[^\\n]*\\n)*?\\s+s${wrapperInsideA!.id}\\[\\[`,
+      `subgraph w_${nodeA.frameId}\\[[^\\n]*\\n(?:[^\\n]*\\n)*?\\s+u${wrapperInsideA!.id}\\[\\[`,
     ));
   });
 
@@ -836,7 +859,7 @@ describe('callable-subtree: shared body state forces a union frame', () => {
     expect(out).toContain('callable scope: A ∪ B');
     expect(out).toMatch(/w_\d+ -\. "halt" \.-> s0/);
     // Both wrappers call their respective bares.
-    expect(out).toMatch(/s\d+ == "call" ==> s\d+/g);
+    expect(out).toMatch(/u\d+ == "call" ==> u\d+/g);
   });
 });
 
@@ -854,13 +877,20 @@ describe('callable-subtree: shared body state forces a union frame', () => {
 //      between the doc and the engine — either rerun the probe + update
 //      the doc, or revert the unintended emit change.
 //
-// Normalize all `s\d+`, `c\d+`, `w_\d+` to `sX`/`cX`/`w_X` since global
-// State.#id is shared across tests and isn't stable across test-ordering
-// changes. Same normalization used by `test/round-trip.spec.ts`.
+// Normalize `u\d+` (user/bare/wrapper state ids) and `s0-\d+` (per-frame halt
+// markers) to `uX`/`s0-X`, plus `w_\d+` subgraph names to `w_X`. Both id
+// families derive from the same reassigning runtime State-id counter (a
+// frame's id is the smallest bare id in its component) — global State.#id
+// is shared across tests and isn't stable across test-ordering changes — so
+// both churn together and neither can be pinned literally. Real halt (`s0`,
+// id always 0) and the abort sentinel (`s1`, id always -1) are genuine
+// constants and are deliberately left un-normalized; `s0-\d+` is matched
+// BEFORE `u\d+` so a marker's own digits aren't caught twice. Same
+// normalization used by `test/round-trip.spec.ts`.
 function stripIds(mermaid: string): string {
   return mermaid
-    .replace(/\bs\d+\b/g, 'sX')
-    .replace(/\bc\d+\b/g, 'cX')
+    .replace(/\bs0-\d+\b/g, 's0-X')
+    .replace(/\bu\d+\b/g, 'uX')
     .replace(/\bw_\d+\b/g, 'w_X');
 }
 
@@ -896,7 +926,7 @@ describe('spec doc: worked union shapes are real engine emit', () => {
     expect(graph.nodes[X.id].frameId).toBe(graph.nodes[A.id].frameId);
     expect(out).toContain('"callable scope: A ∪ B"');
     expect(out.match(/== "call" ==>/g)).toHaveLength(2); // one per wrapper
-    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+/); // ribbon on return side
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> u\d+ & u\d+/); // ribbon on return side
     expect(out).not.toMatch(/-\. "halt" \.->/); // no non-wrapper entry to frame
 
     // Snapshot (id-normalized). Doubles as the cosmetic-drift detector for
@@ -904,32 +934,32 @@ describe('spec doc: worked union shapes are real engine emit', () => {
     const expected = [
       'flowchart TD',
       '%% alphabets: [[" ","1","2"]]',
-      '  sX(((halt)))',
-      '  sX["t1"]',
-      '  sX["t2"]',
-      '  sX["dispatcher"]',
-      '  sX[["A(t1)"]]',
-      '  sX[["B(t2)"]]',
+      '  s0(((halt)))',
+      '  uX["t1"]',
+      '  uX["t2"]',
+      '  uX["dispatcher"]',
+      '  uX[["A(t1)"]]',
+      '  uX[["B(t2)"]]',
       '  idle([idle])',
       '  subgraph w_X["callable scope: A ∪ B"]',
-      '    sX["X"]',
-      '    sX["A"]',
-      '    sX["B"]',
-      '    cX(((halt)))',
+      '    uX["X"]',
+      '    uX["A"]',
+      '    uX["B"]',
+      '    s0-X(((halt)))',
       '  end',
-      '  idle -. enter .-> sX',
-      '  sX == "call" ==> sX',
-      '  sX == "call" ==> sX',
-      '  w_X -. "return" .-> sX & sX',
-      '  sX --> sX',
-      '  sX --> sX',
-      '  sX -- "[*] → [K]/[S]" --> cX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      "  sX -- \"['1'] → [K]/[S]\" --> sX",
-      "  sX -- \"['2'] → [K]/[S]\" --> sX",
+      '  idle -. enter .-> uX',
+      '  uX == "call" ==> uX',
+      '  uX == "call" ==> uX',
+      '  w_X -. "return" .-> uX & uX',
+      '  uX --> uX',
+      '  uX --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0-X',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      "  uX -- \"['1'] → [K]/[S]\" --> uX",
+      "  uX -- \"['2'] → [K]/[S]\" --> uX",
     ].join('\n');
 
     expect(stripIds(out)).toBe(expected);
@@ -965,46 +995,46 @@ describe('spec doc: worked union shapes are real engine emit', () => {
     expect(graph.nodes[X.id].frameId).toBe(frameA);
     expect(out).toContain('"callable scope: A ∪ B ∪ C"');
     expect(out.match(/== "call" ==>/g)).toHaveLength(3); // one per wrapper, no ribbon
-    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+ & s\d+/);
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> u\d+ & u\d+ & u\d+/);
     expect(out).not.toMatch(/-\. "halt" \.->/);
 
     const expected = [
       'flowchart TD',
       '%% alphabets: [[" ","1","2","3"]]',
-      '  sX(((halt)))',
-      '  sX["t1"]',
-      '  sX["t2"]',
-      '  sX["t3"]',
-      '  sX["dispatcher"]',
-      '  sX[["A(t1)"]]',
-      '  sX[["B(t2)"]]',
-      '  sX[["C(t3)"]]',
+      '  s0(((halt)))',
+      '  uX["t1"]',
+      '  uX["t2"]',
+      '  uX["t3"]',
+      '  uX["dispatcher"]',
+      '  uX[["A(t1)"]]',
+      '  uX[["B(t2)"]]',
+      '  uX[["C(t3)"]]',
       '  idle([idle])',
       '  subgraph w_X["callable scope: A ∪ B ∪ C"]',
-      '    sX["X"]',
-      '    sX["A"]',
-      '    sX["B"]',
-      '    sX["C"]',
-      '    cX(((halt)))',
+      '    uX["X"]',
+      '    uX["A"]',
+      '    uX["B"]',
+      '    uX["C"]',
+      '    s0-X(((halt)))',
       '  end',
-      '  idle -. enter .-> sX',
-      '  sX == "call" ==> sX',
-      '  sX == "call" ==> sX',
-      '  sX == "call" ==> sX',
-      '  w_X -. "return" .-> sX & sX & sX',
-      '  sX --> sX',
-      '  sX --> sX',
-      '  sX --> sX',
-      '  sX -- "[*] → [K]/[S]" --> cX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      "  sX -- \"['1'] → [K]/[S]\" --> sX",
-      "  sX -- \"['2'] → [K]/[S]\" --> sX",
-      "  sX -- \"['3'] → [K]/[S]\" --> sX",
+      '  idle -. enter .-> uX',
+      '  uX == "call" ==> uX',
+      '  uX == "call" ==> uX',
+      '  uX == "call" ==> uX',
+      '  w_X -. "return" .-> uX & uX & uX',
+      '  uX --> uX',
+      '  uX --> uX',
+      '  uX --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0-X',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      "  uX -- \"['1'] → [K]/[S]\" --> uX",
+      "  uX -- \"['2'] → [K]/[S]\" --> uX",
+      "  uX -- \"['3'] → [K]/[S]\" --> uX",
     ].join('\n');
 
     expect(stripIds(out)).toBe(expected);
@@ -1047,49 +1077,49 @@ describe('spec doc: worked union shapes are real engine emit', () => {
     expect(graph.nodes[Y.id].frameId).toBe(frameA); // critical: B-C don't share directly
     expect(out).toContain('"callable scope: A ∪ B ∪ C"');
     expect(out.match(/== "call" ==>/g)).toHaveLength(3);
-    expect(out).toMatch(/w_\d+ -\. "return" \.-> s\d+ & s\d+ & s\d+/);
+    expect(out).toMatch(/w_\d+ -\. "return" \.-> u\d+ & u\d+ & u\d+/);
     expect(out).not.toMatch(/-\. "halt" \.->/);
 
     const expected = [
       'flowchart TD',
       '%% alphabets: [[" ","1","2","3"]]',
-      '  sX(((halt)))',
-      '  sX["t1"]',
-      '  sX["t2"]',
-      '  sX["t3"]',
-      '  sX["dispatcher"]',
-      '  sX[["A(t1)"]]',
-      '  sX[["B(t2)"]]',
-      '  sX[["C(t3)"]]',
+      '  s0(((halt)))',
+      '  uX["t1"]',
+      '  uX["t2"]',
+      '  uX["t3"]',
+      '  uX["dispatcher"]',
+      '  uX[["A(t1)"]]',
+      '  uX[["B(t2)"]]',
+      '  uX[["C(t3)"]]',
       '  idle([idle])',
       '  subgraph w_X["callable scope: A ∪ B ∪ C"]',
-      '    sX["X"]',
-      '    sX["Y"]',
-      '    sX["A"]',
-      '    sX["B"]',
-      '    sX["C"]',
-      '    cX(((halt)))',
+      '    uX["X"]',
+      '    uX["Y"]',
+      '    uX["A"]',
+      '    uX["B"]',
+      '    uX["C"]',
+      '    s0-X(((halt)))',
       '  end',
-      '  idle -. enter .-> sX',
-      '  sX == "call" ==> sX',
-      '  sX == "call" ==> sX',
-      '  sX == "call" ==> sX',
-      '  w_X -. "return" .-> sX & sX & sX',
-      '  sX --> sX',
-      '  sX --> sX',
-      '  sX --> sX',
-      '  sX -- "[*] → [K]/[S]" --> cX',
-      '  sX -- "[*] → [K]/[S]" --> cX',
-      "  sX -- \"['1'] → [K]/[R]\" --> sX",
-      "  sX -- \"['2'] → [K]/[R]\" --> sX",
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[R]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      '  sX -- "[*] → [K]/[S]" --> sX',
-      "  sX -- \"['1'] → [K]/[S]\" --> sX",
-      "  sX -- \"['2'] → [K]/[S]\" --> sX",
-      "  sX -- \"['3'] → [K]/[S]\" --> sX",
+      '  idle -. enter .-> uX',
+      '  uX == "call" ==> uX',
+      '  uX == "call" ==> uX',
+      '  uX == "call" ==> uX',
+      '  w_X -. "return" .-> uX & uX & uX',
+      '  uX --> uX',
+      '  uX --> uX',
+      '  uX --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0-X',
+      '  uX -- "[*] → [K]/[S]" --> s0-X',
+      "  uX -- \"['1'] → [K]/[R]\" --> uX",
+      "  uX -- \"['2'] → [K]/[R]\" --> uX",
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[R]" --> uX',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      '  uX -- "[*] → [K]/[S]" --> s0',
+      "  uX -- \"['1'] → [K]/[S]\" --> uX",
+      "  uX -- \"['2'] → [K]/[S]\" --> uX",
+      "  uX -- \"['3'] → [K]/[S]\" --> uX",
     ].join('\n');
 
     expect(stripIds(out)).toBe(expected);
@@ -1120,7 +1150,7 @@ describe('toMermaid: tags (#186)', () => {
     const out = toMermaid(State.toGraph(s, tapeBlock));
 
     expect(out).toMatch(/classDef tag_hot /);
-    expect(out).toMatch(/class s\d+ tag_hot/);
+    expect(out).toMatch(/class u\d+ tag_hot/);
   });
 
   test('multiple states sharing a tag → one classDef, comma-joined ids in class', () => {
@@ -1139,7 +1169,7 @@ describe('toMermaid: tags (#186)', () => {
     expect((out.match(/classDef tag_hot /g) ?? []).length).toBe(1);
     // Two states share the tag — emitted on one `class` line with
     // comma-joined ids.
-    expect(out).toMatch(/class s\d+,s\d+ tag_hot/);
+    expect(out).toMatch(/class u\d+,u\d+ tag_hot/);
   });
 
   test('multiple tags on one state → one class line per tag', () => {
@@ -1153,8 +1183,8 @@ describe('toMermaid: tags (#186)', () => {
 
     expect(out).toMatch(/classDef tag_hot /);
     expect(out).toMatch(/classDef tag_sampled /);
-    expect(out).toMatch(/class s\d+ tag_hot/);
-    expect(out).toMatch(/class s\d+ tag_sampled/);
+    expect(out).toMatch(/class u\d+ tag_hot/);
+    expect(out).toMatch(/class u\d+ tag_sampled/);
   });
 });
 
@@ -1164,12 +1194,12 @@ describe('fromMermaid: tags (#186)', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
       '  s0(((halt)))',
-      '  s1["a"]',
+      '  u1["a"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      "  s1 -- \"['0'] → [K]/[S]\" --> s0",
+      '  idle -. enter .-> u1',
+      "  u1 -- \"['0'] → [K]/[S]\" --> s0",
       '  classDef tag_hot fill:#fef3c7',
-      '  class s1 tag_hot',
+      '  class u1 tag_hot',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);
@@ -1371,10 +1401,10 @@ describe('Mermaid label escaping (#194)', () => {
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
       '  s0(((halt)))',
-      '  s1["a&#x22;b"]',
+      '  u1["a&#x22;b"]',
       '  idle([idle])',
-      '  idle -. enter .-> s1',
-      '  s1 -- "[\'0\'] → [K]/[S]" --> s0',
+      '  idle -. enter .-> u1',
+      '  u1 -- "[\'0\'] → [K]/[S]" --> s0',
     ].join('\n');
 
     const graph = fromMermaid(mermaid);

@@ -1,5 +1,5 @@
 import type { GraphHighlight } from './types';
-import type { Graph } from '@turing-machine-js/machine';
+import { mermaidIdFor, type Graph } from '@turing-machine-js/machine';
 import type { GraphIndexes } from './graphIndexes';
 import type { HighlightOps, IndicatorOps, NodeKey } from './highlightOps';
 import { bareIdOf, highlightExpand } from './graphUtils';
@@ -36,12 +36,14 @@ export function applyHighlight(
   }
 
   // §5 Halt-target retargeting: real halt (id 0) reached from an in-frame
-  // state retargets to the frame's halt marker (id = -frameId), so the
-  // visible edge lands inside the cluster.
+  // state retargets to the frame's halt marker (id = -2 * frameId — #239
+  // namespacing: even negatives are halt markers, odd negatives are
+  // reserved for engine sentinels like abortState), so the visible edge
+  // lands inside the cluster.
   let toId: number | null = highlight.toId;
   if (toId === 0 && typeof highlight.fromId === 'number') {
     const fromFrameId = indexes.nodeFrameMap.get(highlight.fromId);
-    if (fromFrameId !== undefined) toId = -fromFrameId;
+    if (fromFrameId !== undefined) toId = -2 * fromFrameId;
   }
 
   // §2 Equivalence-class expansion (asymmetric, via highlightExpand):
@@ -79,12 +81,12 @@ export function applyHighlight(
     if (highlight.strong === 'to') ops.addNodeClass(id, 'mg-highlight-strong');
   }
 
-  // Edge highlight: the data-id token form mermaid emits.
-  const fromKey = highlight.fromId === 'idle' ? 'idle' : `s${highlight.fromId}`;
-  const toKey =
-    toId === null ? null
-    : toId < 0 ? `c${-toId}`  // halt marker
-    : `s${toId}`;
+  // Edge highlight: the data-id token form mermaid emits. #239: `toId` is
+  // always a genuine engine GraphNode id by this point (retargeted above
+  // when needed), so `mermaidIdFor` maps it directly — no manual sign
+  // branching (it already namespaces u/s0/s0-f/s by prefix).
+  const fromKey = highlight.fromId === 'idle' ? 'idle' : mermaidIdFor(highlight.fromId);
+  const toKey = toId === null ? null : mermaidIdFor(toId);
   if (toKey !== null) ops.highlightEdge(fromKey, toKey);
 
   // §10 Wrapper-entry "call" edge: when to-side expanded to [wrapper, bare],
@@ -93,21 +95,25 @@ export function applyHighlight(
     const wrapperId = toEqIds.find((id) => graph.nodes[id]?.isWrapper);
     const bareId = toEqIds.find((id) => !graph.nodes[id]?.isWrapper);
     if (wrapperId !== undefined && bareId !== undefined) {
-      ops.highlightEdge(`s${wrapperId}`, `s${bareId}`);
+      ops.highlightEdge(mermaidIdFor(wrapperId), mermaidIdFor(bareId));
     }
   }
 
   // §6 Source return chain: just-fired transition landed on a frame's
   // halt marker. Light up the post-pop trajectory before the next iter
-  // moves the strong node.
-  if (toId !== null && toId < 0) {
-    const frameId = -toId;
+  // moves the strong node. `toId` is the marker's real graph id (-2 *
+  // frameId, #239); invert to recover frameId for the frame-keyed lookups
+  // and the `w_${frameId}` subgraph key (unchanged by #239). Parity-gated:
+  // ONLY even negatives are markers — an abort-bound transition (toId -1,
+  // odd sentinel) has no return chain (abort punches through the stack).
+  if (toId !== null && toId < 0 && toId % 2 === 0) {
+    const frameId = -toId / 2;
     const wrappers = indexes.frameWrappersMap.get(frameId) ?? [];
     for (const { wrapperId, overrideId } of wrappers) {
-      ops.highlightEdge(`w_${frameId}`, `s${wrapperId}`);
+      ops.highlightEdge(`w_${frameId}`, mermaidIdFor(wrapperId));
       ops.addNodeClass(wrapperId, 'mg-highlight-to');
       if (overrideId !== null) {
-        ops.highlightEdge(`s${wrapperId}`, `s${overrideId}`);
+        ops.highlightEdge(mermaidIdFor(wrapperId), mermaidIdFor(overrideId));
         ops.addNodeClass(overrideId, 'mg-highlight-to');
       }
     }
@@ -124,12 +130,14 @@ export function applyHighlight(
       const wrappers = indexes.frameWrappersMap.get(fromFrameId) ?? [];
       const matching = wrappers.filter((w) => w.overrideId === toId);
       if (matching.length > 0) {
-        ops.addNodeClass(-fromFrameId, 'mg-highlight-to');
-        ops.highlightEdge(`s${highlight.fromId}`, `c${fromFrameId}`);
+        // `fromFrameId` here holds a FRAME id (from nodeFrameMap), so the
+        // marker's real graph id is -2 * fromFrameId (#239).
+        ops.addNodeClass(-2 * fromFrameId, 'mg-highlight-to');
+        ops.highlightEdge(mermaidIdFor(highlight.fromId), mermaidIdFor(-2 * fromFrameId));
         for (const { wrapperId } of matching) {
-          ops.highlightEdge(`w_${fromFrameId}`, `s${wrapperId}`);
+          ops.highlightEdge(`w_${fromFrameId}`, mermaidIdFor(wrapperId));
           ops.addNodeClass(wrapperId, 'mg-highlight-to');
-          ops.highlightEdge(`s${wrapperId}`, `s${toId}`);
+          ops.highlightEdge(mermaidIdFor(wrapperId), mermaidIdFor(toId));
         }
         ops.markFrameActive(fromFrameId);
       }

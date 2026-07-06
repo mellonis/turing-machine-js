@@ -10,10 +10,13 @@ The engine's `Graph.nodes` keys are positive integer ids assigned at graph-build
 |---|---|---|---|
 | `> 0` | Regular state, wrapper, or bare | `State.toGraph` walks reachable States | yes |
 | `0` | Halt singleton (`haltState`) | Engine sentinel, process-wide | no — global, not per-machine |
-| `< 0` | Halt marker (`isHaltMarker: true`, id = `-frameId`) | `toGraph` rewrites in-frame halts so they land inside the subgraph cluster instead of the global singleton | no — collapses to `haltState` at runtime |
+| even `< 0` | Halt marker (`isHaltMarker: true`, id = `-2 * frameId`) | `toGraph` rewrites in-frame halts so they land inside the subgraph cluster instead of the global singleton | no — collapses to `haltState` at runtime |
+| odd `< 0` | Engine sentinel (e.g. `abortState` at id `-1`) | Reserved id space, disjoint from halt markers so the two never collide (#239) | its own breakpoint class (`bareIdOf` returns sentinels unchanged — never folded into halt's class); highlight targets it directly (`toId: -1` lights `s1`) |
 | `'idle'` | Synthetic entry sentinel | `toGraph` always emits a stadium-shape `idle` node with `idle -. enter .-> sN` | no |
 
 Click handlers are attached only to nodes whose key is `typeof === 'number' && > 0` — see `MachineGraph.svelte`'s cache-build `$effect`.
+
+**Mermaid string ids (#239):** `applyHighlight`'s edge keys (the `HighlightOps.highlightEdge` `fromKey`/`toKey` arguments) are the mermaid *string* id, built via `mermaidIdFor(id)` / inverted via `parseMermaidId(s)` from `@turing-machine-js/machine` — not hand-built string literals. Namespacing: positive `N` → `uN`; `0` → `s0`; even negative `-2f` → `s0-f`; odd negative → `s{(1-id)/2}` (sentinel). The `w_${frameId}` callable-subtree subgraph key is a visuals-local convention, untouched by this namespacing.
 
 ## 2. Wrapper / bare equivalence
 
@@ -76,21 +79,21 @@ type GraphHighlight = {
 
 ## 5. Halt-target retargeting
 
-`toGraph` rewrites halt-bound transitions of in-frame states so they land on the **frame's halt marker** (id `= -frameId`), not the real `haltState` (id `0`). The engine's runtime, however, reports `nextState.id === 0` for any halt. The apply-highlight effect bridges:
+`toGraph` rewrites halt-bound transitions of in-frame states so they land on the **frame's halt marker** (id `= -2 * F`), not the real `haltState` (id `0`). The engine's runtime, however, reports `nextState.id === 0` for any halt. The apply-highlight effect bridges:
 
 ```
-if toId === 0 AND fromId is in some frame F → toId := -F
+if toId === 0 AND fromId is in some frame F → toId := -2 * F
 ```
 
-This makes the visible edge (`L_sX_cF_*`) the one that lights up. If `fromId` isn't in any frame (e.g. `writeMarker → halt` in the callable-subtree example), `toId` stays `0` and falls into the halt-singleton branch (§7).
+This makes the visible edge (`L_uX_s0-F_*`) the one that lights up. If `fromId` isn't in any frame (e.g. `writeMarker → halt` in the callable-subtree example), `toId` stays `0` and falls into the halt-singleton branch (§7).
 
 ## 6. Source return chain (engine just halted into a frame)
 
 Fires when `toId < 0` (an in-frame halt marker). The engine will pop the stack and resume at the wrapper's override. To visualize the post-pop trajectory **before** the next iter relocates the strong node:
 
-- Highlight the return arrow `L_w_${F}_s${wrapperId}` (dotted).
+- Highlight the return arrow `L_w_${F}_u${wrapperId}` (dotted).
 - Mark each wrapper of frame F with `mg-highlight-to`.
-- Highlight each wrapper's call-target-replacement edge `L_s${wrapperId}_s${overrideId}` and the override node.
+- Highlight each wrapper's call-target-replacement edge `L_u${wrapperId}_u${overrideId}` and the override node.
 
 When multiple wrappers share the bare, the demo highlights all of them — the engine's runtime choice depends on stack state, which the demo doesn't track.
 
@@ -99,11 +102,11 @@ When multiple wrappers share the bare, the demo highlights all of them — the e
 Mirror of §6, fires when `toId > 0` AND `fromId` is in some frame F AND any wrapper of F has `overriddenHaltStateId === toId`. The engine *just popped* and is paused/running at the override. The straight `bare → override` edge doesn't exist in the graph — light up the actual visible path:
 
 - bare (`fromId`, gets `mg-highlight-from` from the standard pass)
-- bare → halt-marker edge `L_s${fromId}_c${F}`
-- halt-marker `c${F}` with `mg-highlight-to`
-- return arrow `L_w_${F}_s${wrapperId}` (dotted)
+- bare → halt-marker edge `L_u${fromId}_s0-${F}`
+- halt-marker `s0-${F}` with `mg-highlight-to`
+- return arrow `L_w_${F}_u${wrapperId}` (dotted)
 - wrapper with `mg-highlight-to`
-- wrapper → override edge `L_s${wrapperId}_s${toId}`
+- wrapper → override edge `L_u${wrapperId}_u${toId}`
 - override (= `toId`, gets `mg-highlight-to` + strong from standard pass)
 - frame F's cluster gets `mg-frame-active` (strong node lives outside the frame, so the frame-highlight pass otherwise wouldn't fire)
 
@@ -122,7 +125,7 @@ The first case handles "we're executing inside the subroutine"; the second handl
 
 ## 10. Wrapper-entry call-edge highlight
 
-When the to-side expansion via `highlightExpand` produced `[wrapper, bare]` (length 2), the connector between them is the wrapper→bare **call edge** `L_s${wrapperId}_s${bareId}`. The standard `highlightEdgeByDataId(fromKey, toKey)` call uses `toKey = s${wrapper}` so it wouldn't pick up this edge. An explicit follow-up call highlights it so the joined visual pair has a visible connector.
+When the to-side expansion via `highlightExpand` produced `[wrapper, bare]` (length 2), the connector between them is the wrapper→bare **call edge** `L_u${wrapperId}_u${bareId}`. The standard `highlightEdgeByDataId(fromKey, toKey)` call uses `toKey = u${wrapper}` so it wouldn't pick up this edge. An explicit follow-up call highlights it so the joined visual pair has a visible connector.
 
 ## 11. Pause-revisit pulse
 
@@ -258,8 +261,8 @@ mark toEqIds as highlight-to    (+ strong if h.strong === 'to')
 mark halt-marker  (toId < 0) directly with highlight-to (+ strong if matching)
 mark halt-singleton (toId === 0) directly with highlight-to (+ strong if matching)
 
-highlight edge L_{fromKey}_{toKey}
-if toEqIds had wrapper+bare: also highlight L_s{wrapper}_s{bare}  (call edge)
+highlight edge L_{fromKey}_{toKey}   # fromKey/toKey via mermaidIdFor (#239)
+if toEqIds had wrapper+bare: also highlight L_u{wrapper}_u{bare}  (call edge)
 
 if toId < 0:    source return chain    (halt-marker entry → wrappers → overrides)
 if toId > 0 AND fromFrame matches some wrapper.overrideId:

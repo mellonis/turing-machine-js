@@ -2,7 +2,7 @@ import Command from './Command';
 import Reference from './Reference';
 import TapeBlock from './TapeBlock';
 import TapeCommand from './TapeCommand';
-import {id} from '../utilities/functions';
+import {id, reserveSentinelId} from '../utilities/functions';
 import {
   type Graph,
   decodeMovement,
@@ -120,14 +120,15 @@ export default class State {
   // a runtime concern, not part of the structural graph.
   #debugRef: { current: DebugConfig | null } = {current: null};
 
-  // Storage for `haltState.debug` (#207). haltState is a singleton terminal
-  // state — it has no iter of its own, so the per-side `{ before, after }`
-  // DebugConfig shape doesn't model anything meaningful for it. Instead the
-  // halt breakpoint is a single boolean ("enabled / disabled"). The pause
-  // anchors on the iter whose transition LEADS to halt, fired at end-of-iter
-  // (after that iter's own after-pause if armed). Only used when `isHalt`;
-  // ignored on every other State (whose `#debugRef` flow is unchanged).
-  #haltDebug: boolean = false;
+  // Storage for `haltState.debug` and `abortState.debug` (#207, #239).
+  // Sentinels (haltState / abortState) are terminal states — they have no iter
+  // of their own, so the per-side `{ before, after }` DebugConfig shape doesn't
+  // model anything meaningful for them. Instead the breakpoint is a single
+  // boolean ("enabled / disabled"). The pause anchors on the iter whose
+  // transition LEADS to the sentinel, fired at end-of-iter (after that iter's
+  // own after-pause if armed). Only used when `isSentinel`; ignored on every
+  // other State (whose `#debugRef` flow is unchanged).
+  #sentinelDebug: boolean = false;
 
   // Out-of-band tags applied to this State (#186). Tags are visualization
   // and debugger-tooling metadata — they don't affect runtime transition
@@ -215,6 +216,18 @@ export default class State {
     return this.#id === 0;
   }
 
+  get isAbort() {
+    return this.#id === -1;
+  }
+
+  // Sentinels occupy id <= 0: halt at 0, then odd negatives in creation
+  // order (abort = -1, a hypothetical #3 = -3, #k = -(2k-3)). Even
+  // negatives are NOT sentinels — they're toGraph's synthetic per-frame
+  // halt markers, which never exist as State instances.
+  get isSentinel() {
+    return this.#id <= 0;
+  }
+
   // Plain States never override the halt state — only a `CallFrame` (produced
   // by `withOverriddenHaltState`) carries an override, via its own getter.
   get overriddenHaltState(): State | null {
@@ -226,16 +239,16 @@ export default class State {
   }
 
   get debug(): DebugConfig {
-    // haltState (#207): the canonical access path is the `haltState` singleton
-    // export, which is typed `HaltState` — its `debug` getter is narrowed to
-    // `boolean`. Generic `State` references statically see `DebugConfig` and
-    // (in practice) never refer to haltState — the run loop's `state` is
-    // never haltState because halt is terminal and doesn't iterate. The cast
-    // below makes the runtime boolean return type-compatible with the
-    // declared `DebugConfig` for any rare caller that holds a State
-    // reference happening to be haltState.
-    if (this.isHalt) {
-      return this.#haltDebug as unknown as DebugConfig;
+    // Sentinels (#207, #239): the canonical access path is via the singleton
+    // exports (`haltState` / `abortState`), which are typed `HaltState` /
+    // `AbortState` — their `debug` getters are narrowed to `boolean`. Generic
+    // `State` references statically see `DebugConfig` and (in practice) never
+    // refer to sentinels — the run loop's `state` is never a sentinel because
+    // they are terminal. The cast below makes the runtime boolean return
+    // type-compatible with the declared `DebugConfig` for any rare caller that
+    // holds a State reference happening to be a sentinel.
+    if (this.isSentinel) {
+      return this.#sentinelDebug as unknown as DebugConfig;
     }
 
     // Lazy-init: `state.debug` is never null at read time, so chained writes
@@ -250,44 +263,45 @@ export default class State {
     return this.#debugRef.current;
   }
 
-  // TS signature: non-halt callers (generic `State` reference) get the
+  // TS signature: non-sentinel callers (generic `State` reference) get the
   // `DebugConfig | object | null` surface; boolean is rejected statically.
-  // The `HaltState` typed alias on the singleton export overrides this to
-  // `boolean | null` for the canonical halt access path. Runtime checks
-  // below are defensive against type-bypass / mixed-source callers.
+  // The `HaltState` / `AbortState` typed aliases on the singleton exports
+  // override this to `boolean | null` for the canonical sentinel access paths.
+  // Runtime checks below are defensive against type-bypass / mixed-source callers.
   set debug(
     value: DebugConfig | { before?: symbol[] | readonly symbol[] | true; after?: symbol[] | readonly symbol[] | true } | null,
   ) {
     // Defensive runtime cast: TS signature excludes boolean for the generic
-    // State surface, but haltState (via the HaltState alias) DOES accept
-    // boolean, and the runtime needs to handle it for the singleton path.
+    // State surface, but sentinels (via the HaltState / AbortState aliases)
+    // DO accept boolean, and the runtime needs to handle it for the
+    // singleton paths.
     const v = value as DebugConfig | { before?: unknown; after?: unknown } | boolean | null;
-    // haltState (#207): only `boolean | null` is accepted. `null` aliases
+    // Sentinels (#207, #239): only `boolean | null` is accepted. `null` aliases
     // to `false` (reset). Any object-shaped write throws at write-time so
     // misuse surfaces immediately rather than silently no-op'ing — the
-    // `{before, after}` shape doesn't model anything meaningful for halt
-    // (no own iter to anchor on; halt is terminal).
-    if (this.isHalt) {
+    // `{before, after}` shape doesn't model anything meaningful for sentinels
+    // (no own iter to anchor on; sentinels are terminal).
+    if (this.isSentinel) {
       if (v === null || typeof v === 'boolean') {
-        this.#haltDebug = v === true;
+        this.#sentinelDebug = v === true;
         return;
       }
 
+      const label = this.isHalt ? 'haltState' : this.isAbort ? 'abortState' : this.name;
+
       throw new Error(
-        'haltState.debug only accepts boolean (or null to reset). Use '
-        + '`haltState.debug = true` to enable the halt breakpoint, false to '
-        + 'disable. The pause fires after the iter whose transition leads to '
-        + 'halt (post-iter, before halt processing).',
+        `${label}.debug only accepts boolean (or null to reset). Use `
+        + `\`${label}.debug = true\` to enable the ${label} breakpoint, false to `
+        + 'disable it.',
       );
     }
 
-    // Non-halt states: boolean writes are rejected — the per-side
+    // Non-sentinel states: boolean writes are rejected — the per-side
     // `{before, after}` granularity is the contract. A boolean shortcut
     // would hide the asymmetry between before / after.
     if (typeof v === 'boolean') {
       throw new Error(
-        'state.debug only accepts a DebugConfig or `{ before, after }` object '
-        + '(or null to reset). Boolean assignment is reserved for `haltState`.',
+        'Boolean assignment is reserved for sentinel states (haltState / abortState).',
       );
     }
 
@@ -433,6 +447,20 @@ export default class State {
   }
 
   withOverriddenHaltState(overriddenHaltState: State): CallFrame {
+    if (this.isAbort) {
+      throw new Error(
+        'abortState cannot be overridden — it is non-composable by definition; '
+        + 'it punches through the call stack and terminates the run (#239)',
+      );
+    }
+
+    if (overriddenHaltState instanceof State && overriddenHaltState.isAbort) {
+      throw new Error(
+        'abortState cannot be used as a withOverriddenHaltState continuation — '
+        + 'abort never sits on the subroutine stack; transition to abortState directly (#239)',
+      );
+    }
+
     // Unwrap `this` if it's itself a CallFrame — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
     // pushed onto the halt-stack on entry; verified empirically). Composite
@@ -633,6 +661,18 @@ export type HaltState = State & {
 };
 
 export const haltState: HaltState = new State(null) as HaltState;
+
+/**
+ * Typed alias for the abortState singleton (#239). Same narrowing rationale
+ * as `HaltState`: sentinel debug is a single boolean.
+ */
+export type AbortState = State & {
+  get debug(): boolean;
+  set debug(value: boolean | null);
+};
+
+reserveSentinelId(-1);
+export const abortState: AbortState = new State(null, 'abort') as AbortState;
 
 /**
  * A first-class call frame produced by `State.withOverriddenHaltState`

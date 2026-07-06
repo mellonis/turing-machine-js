@@ -1,4 +1,4 @@
-import State, {haltState} from './State';
+import State, {abortState, haltState} from './State';
 import TuringMachine, {
   MACHINE_STATE_INTERNAL,
   matchFilter,
@@ -7,6 +7,7 @@ import TuringMachine, {
   type PauseInfo,
   type PausedMachineState,
   type ResumeDirective,
+  type RunResult,
 } from './TuringMachine';
 
 /**
@@ -18,7 +19,7 @@ export type DebugSessionParameter = {
   stepsLimit?: number;
 };
 
-export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt';
+export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt' | 'abort';
 
 /**
  * Listener signatures and dispatch contract by event:
@@ -35,15 +36,19 @@ export type DebugSessionEvent = 'pause' | 'step' | 'iter' | 'halt';
  *   call to `session.continue()` / `stepIn` / `stepOver` / `stepOut` /
  *   `stop` — fundamentally external to the listener's call site (UI click,
  *   postMessage, timer, etc.).
- * - `halt` — fire-and-forget. Terminal notification.
+ * - `halt` / `abort` — fire-and-forget. **Terminal, mutually exclusive**: a
+ *   run ends in exactly one of the two (never both), and neither fires if
+ *   `stop()` ended the session first. Both carry the underlying
+ *   `runStepByStep` generator's `RunResult` return value (#239) —
+ *   `{outcome, state, stack, step}`.
  *
  * `pause` listeners receive a `PausedMachineState` (a `MachineState` plus the
  * one-sided `pause: {side, cause}` descriptor). `step` / `iter` listeners
  * receive a plain `MachineState` — raw yields carry no pause info.
  */
 export type DebugSessionListener<E extends DebugSessionEvent> =
-  E extends 'halt'
-    ? () => void | Promise<void>
+  E extends 'halt' | 'abort'
+    ? (result: RunResult) => void | Promise<void>
     : E extends 'pause'
       ? (machineState: PausedMachineState) => void | Promise<void>
       : (machineState: MachineState) => void | Promise<void>;
@@ -52,7 +57,8 @@ type ListenerMap = {
   pause: Array<(m: PausedMachineState) => void | Promise<void>>;
   step: Array<(m: MachineState) => void | Promise<void>>;
   iter: Array<(m: MachineState) => void | Promise<void>>;
-  halt: Array<() => void | Promise<void>>;
+  halt: Array<(result: RunResult) => void | Promise<void>>;
+  abort: Array<(result: RunResult) => void | Promise<void>>;
 };
 
 /**
@@ -82,6 +88,7 @@ export default class DebugSession {
     step: [],
     iter: [],
     halt: [],
+    abort: [],
   };
   #started = false;
   #stopped = false;
@@ -297,80 +304,111 @@ export default class DebugSession {
   }
 
   async #drive(): Promise<void> {
-    for (const machineState of this.#machine.runStepByStep(this.#parameter)) {
-      this.#iterating = true;
-      if (this.#stopped) return;
+    // Manual iteration (#239), replacing the previous `for...of` — a for-of
+    // discards the generator's `return` value, and the terminal RunResult
+    // (needed to tell `halt` from `abort` and to pass as the terminal
+    // listeners' payload) only appears there.
+    const gen = this.#machine.runStepByStep(this.#parameter);
+    let r = gen.next();
 
-      // Breakpoint detection lives HERE (not in the generator). Evaluate the
-      // current state's debug filters against the matched symbol the generator
-      // stashed in the internal accessor. `machineState.state` is always
-      // non-halt (halt is terminal), so `.debug` is a DebugConfig at runtime.
-      // The after side also fires on halt-imminent (`haltState.debug`, #207) —
-      // read via the internal flag, since the yielded `nextState` shows the
-      // post-pop continuation on subroutine-return iters, not haltState.
-      const internal = this.#readInternal(machineState);
-      const matchedSymbol = internal?.matchedSymbol;
-      const hasBeforeBreakpoint = matchedSymbol !== undefined
-        && matchFilter(machineState.state.debug?.before, matchedSymbol);
-      const hasAfterBreakpoint = (matchedSymbol !== undefined
-        && matchFilter(machineState.state.debug?.after, matchedSymbol))
-        || (internal?.haltImminent === true && haltState.debug === true);
-      const stepInForcesPause = this.#activeStepMode === 'step-in';
-      // Depth-based endpoints (DevTools semantics). currentDepth = pre-iter
-      // halt-stack length. stepOver: back at/above click-time depth (skip
-      // pushed frames). stepOut: strictly shallower (current frame exited).
-      const currentDepth = this.#readStack(machineState).length;
-      const stepOverEndpointReached =
-        this.#activeStepMode === 'step-over' && currentDepth <= this.#clickTimeDepth;
-      const stepOutEndpointReached =
-        this.#activeStepMode === 'step-out' && currentDepth < this.#clickTimeDepth;
-      // Consume the manual-pause flag at iter start. If a breakpoint also
-      // matches this iter, the request is silently consumed by the
-      // breakpoint dispatch (one pause, cause: 'breakpoint').
-      const manualPauseFires = this.#pauseRequested;
-      if (manualPauseFires) this.#pauseRequested = false;
-
-      // Before-side pause: fires if any of breakpoint / step-mode endpoint /
-      // manual request is true. Precedence: breakpoint > step > manual.
-      const fireBeforePause =
-        hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached || manualPauseFires;
-      if (fireBeforePause) {
-        const cause: PauseInfo['cause'] =
-          hasBeforeBreakpoint ? 'breakpoint'
-            : (stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached) ? 'step'
-              : 'manual';
-        await this.#dispatchPause(machineState, {side: 'before', cause});
+    try {
+      while (!r.done) {
+        const machineState = r.value;
+        this.#iterating = true;
         if (this.#stopped) return;
-      }
 
-      // step: fires once per iter, after any before-pause and before any after-pause.
-      for (const fn of this.#listeners.step) {
-        void fn(machineState);
-      }
+        // Breakpoint detection lives HERE (not in the generator). Evaluate the
+        // current state's debug filters against the matched symbol the generator
+        // stashed in the internal accessor. `machineState.state` is always
+        // non-halt (halt is terminal), so `.debug` is a DebugConfig at runtime.
+        // The after side also fires on halt-imminent (`haltState.debug`, #207) —
+        // read via the internal flag, since the yielded `nextState` shows the
+        // post-pop continuation on subroutine-return iters, not haltState.
+        const internal = this.#readInternal(machineState);
+        const matchedSymbol = internal?.matchedSymbol;
+        const hasBeforeBreakpoint = matchedSymbol !== undefined
+          && matchFilter(machineState.state.debug?.before, matchedSymbol);
+        const hasAfterBreakpoint = (matchedSymbol !== undefined
+          && matchFilter(machineState.state.debug?.after, matchedSymbol))
+          || (internal?.haltImminent === true && haltState.debug === true)
+          || (internal?.abortImminent === true && abortState.debug === true);
+        const stepInForcesPause = this.#activeStepMode === 'step-in';
+        // Depth-based endpoints (DevTools semantics). currentDepth = pre-iter
+        // halt-stack length. stepOver: back at/above click-time depth (skip
+        // pushed frames). stepOut: strictly shallower (current frame exited).
+        const currentDepth = this.#readStack(machineState).length;
+        const stepOverEndpointReached =
+          this.#activeStepMode === 'step-over' && currentDepth <= this.#clickTimeDepth;
+        const stepOutEndpointReached =
+          this.#activeStepMode === 'step-out' && currentDepth < this.#clickTimeDepth;
+        // Consume the manual-pause flag at iter start. If a breakpoint also
+        // matches this iter, the request is silently consumed by the
+        // breakpoint dispatch (one pause, cause: 'breakpoint').
+        const manualPauseFires = this.#pauseRequested;
+        if (manualPauseFires) this.#pauseRequested = false;
 
-      if (hasAfterBreakpoint) {
-        await this.#dispatchPause(machineState, {side: 'after', cause: 'breakpoint'});
+        // Before-side pause: fires if any of breakpoint / step-mode endpoint /
+        // manual request is true. Precedence: breakpoint > step > manual.
+        const fireBeforePause =
+          hasBeforeBreakpoint || stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached || manualPauseFires;
+        if (fireBeforePause) {
+          const cause: PauseInfo['cause'] =
+            hasBeforeBreakpoint ? 'breakpoint'
+              : (stepInForcesPause || stepOverEndpointReached || stepOutEndpointReached) ? 'step'
+                : 'manual';
+          await this.#dispatchPause(machineState, {side: 'before', cause});
+          if (this.#stopped) return;
+        }
+
+        // step: fires once per iter, after any before-pause and before any after-pause.
+        for (const fn of this.#listeners.step) {
+          void fn(machineState);
+        }
+
+        if (hasAfterBreakpoint) {
+          await this.#dispatchPause(machineState, {side: 'after', cause: 'breakpoint'});
+          if (this.#stopped) return;
+        }
+
+        // iter: end-of-iter, after both before- and after-pause have fired.
+        // Listeners are AWAITED (sequenced, blocking the engine) — matches the
+        // v6 `onIter` contract that downstream consumers rely on for
+        // throttle / per-iter coordination / step-boundary synthesis.
+        for (const fn of this.#listeners.iter) {
+          await fn(machineState);
+        }
         if (this.#stopped) return;
-      }
 
-      // iter: end-of-iter, after both before- and after-pause have fired.
-      // Listeners are AWAITED (sequenced, blocking the engine) — matches the
-      // v6 `onIter` contract that downstream consumers rely on for
-      // throttle / per-iter coordination / step-boundary synthesis.
-      for (const fn of this.#listeners.iter) {
-        await fn(machineState);
-      }
-      if (this.#stopped) return;
+        if (this.#runIntervalMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, this.#runIntervalMs));
+          if (this.#stopped) return;
+        }
 
-      if (this.#runIntervalMs > 0) {
-        await new Promise<void>((resolve) => setTimeout(resolve, this.#runIntervalMs));
-        if (this.#stopped) return;
+        r = gen.next();
+      }
+    } finally {
+      // Any early `return` above leaves the generator suspended mid-iter
+      // (`r.done` still false at that point) — the `for...of` this replaced
+      // used to call the iterator's `.return()` implicitly on an early exit
+      // (`IteratorClose`), which drives the engine's own `finally { unlock(...) }`
+      // and releases the TapeBlock lock. Manual iteration doesn't get that for
+      // free, so it's reproduced explicitly here. No-op on natural completion,
+      // where `r.done` is already `true`.
+      if (!r.done) {
+        gen.return(undefined as unknown as RunResult);
       }
     }
 
+    // Terminal dispatch (#239): `r.value` here is the generator's RunResult
+    // return — unreachable from a for-of, which discards it. Exactly one of
+    // halt/abort fires, and only when the session wasn't stopped early (an
+    // early `return` above exits the function before this point is reached).
+    const result = r.value;
+
     if (!this.#stopped) {
-      for (const fn of this.#listeners.halt) {
-        void fn();
+      const listeners = result.outcome === 'aborted' ? this.#listeners.abort : this.#listeners.halt;
+      for (const fn of listeners) {
+        void fn(result);
       }
     }
   }

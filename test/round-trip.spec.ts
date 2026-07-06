@@ -131,11 +131,18 @@ describe('toGraph / toMermaid / fromMermaid / fromGraph round trip', () => {
     const reEmittedMermaid = toMermaid(State.toGraph(rebuilt, rebuiltTapeBlock));
 
     // State IDs auto-reassign on each rebuild, so normalize them before
-    // comparing. v7's emit also uses `cN` for halt-marker ids and `w_N` for
-    // subgraph names — normalize all three.
+    // comparing. Under the namespaced id scheme (#239), user/bare/wrapper
+    // states render as `uN` and per-frame halt markers as `s0-N` — both
+    // derive from the same reassigning runtime State-id counter (a frame's
+    // id is the smallest bare id in its component), so both churn together
+    // across a rebuild and must both be normalized. `w_N` subgraph names
+    // are frame-id-derived too. Real halt (`s0`, id always 0) and the abort
+    // sentinel (`s1`, id always -1) are genuine constants — not normalized
+    // — since neither is reassigned by a rebuild; `s0-N` is matched BEFORE
+    // the bare `u\d+` rule so the marker's own digits aren't caught twice.
     const normalize = (mermaid: string): string => mermaid
-      .replace(/\bs\d+\b/g, 'sX')
-      .replace(/\bc\d+\b/g, 'cX')
+      .replace(/\bs0-\d+\b/g, 's0-X')
+      .replace(/\bu\d+\b/g, 'uX')
       .replace(/\bw_\d+\b/g, 'w_X');
 
     expect(normalize(reEmittedMermaid)).toBe(normalize(originalMermaid));

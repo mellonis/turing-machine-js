@@ -1,6 +1,6 @@
 import Alphabet from '../classes/Alphabet';
 import Reference from '../classes/Reference';
-import State, {haltState, ifOtherSymbol} from '../classes/State';
+import State, {abortState, haltState, ifOtherSymbol} from '../classes/State';
 import TapeBlock from '../classes/TapeBlock';
 import {movements} from '../classes/TapeCommand';
 import {collectStates, toGraph} from './stateGraph';
@@ -128,7 +128,7 @@ describe('collectStates (#195)', () => {
 
   test('halt markers (negative ids) are excluded from the map', () => {
     // A wrapper produces a callable-subtree frame, which gets a synthetic
-    // halt marker with id = -frameId. collectStates must skip it — the
+    // halt marker with id = -2 * frameId. collectStates must skip it — the
     // marker is visualization-only.
     const bare = new State({
       [symbol(['0'])]: {nextState: haltState},
@@ -203,5 +203,86 @@ describe('State.collectStates (#195) — static delegate', () => {
       expect(staticEntry.state).toBe(entry.state);
       expect(staticEntry.transitionSymbols).toEqual(entry.transitionSymbols);
     }
+  });
+});
+
+describe('graph layer × abortState (#239)', () => {
+  // Wrapper fixture: a single bare in a frame. Its halt-bound transition
+  // retargets to the frame's halt marker (Pass 4), giving every test in
+  // this block a marker to inspect.
+  const outerBare = new State({
+    [symbol(['0'])]: {nextState: haltState},
+  }, 'outerBare');
+  const outer = outerBare.withOverriddenHaltState(haltState);
+
+  // Wrapper fixture referencing abortState: the bare's '1'-transition
+  // targets abortState directly — a legal transition TARGET (only
+  // withOverriddenHaltState composition with abort is banned, see
+  // State.spec.ts's "withOverriddenHaltState × abortState" suite). Its
+  // fallback halts, which (being in-frame) DOES retarget to the frame's
+  // halt marker — only the abort-bound transition must stay untouched.
+  const innerAbortBare = new State({
+    [symbol(['1'])]: {nextState: abortState},
+    [ifOtherSymbol]: {nextState: haltState},
+  }, 'innerAbortBare');
+  const contAbort = new State({
+    [ifOtherSymbol]: {nextState: haltState},
+  }, 'contAbort');
+  const outerWithAbort = innerAbortBare.withOverriddenHaltState(contAbort);
+
+  // A machine that never references abortState at all.
+  const plainHaltMachineStart = new State({
+    [symbol(['0'])]: {nextState: haltState},
+  }, 'plainHaltMachineStart');
+
+  it('halt markers use even negative ids -2f', () => {
+    const graph = toGraph(outer, tapeBlock);
+    const markers = Object.values(graph.nodes).filter((n) => n.isHaltMarker);
+
+    expect(markers.length).toBeGreaterThan(0);
+
+    for (const m of markers) {
+      expect(m.id).toBeLessThan(0);
+      expect(Math.abs(m.id) % 2).toBe(0);
+      expect(m.id).toBe(-2 * m.frameId!);
+    }
+  });
+
+  it('abort emits as a single top-level node with id -1', () => {
+    const graph = toGraph(outerWithAbort, tapeBlock);
+    const abortNode = graph.nodes[-1];
+
+    expect(abortNode).toMatchObject({id: -1, isAbort: true, isHalt: false, frameId: null, name: 'abort'});
+    expect(abortNode.transitions).toEqual([]);
+  });
+
+  it('machines that never abort get no abort node', () => {
+    const graph = toGraph(plainHaltMachineStart, tapeBlock);
+
+    expect(graph.nodes[-1]).toBeUndefined();
+  });
+
+  it('in-frame abort transitions keep nextStateId -1 (no marker retarget)', () => {
+    const graph = toGraph(outerWithAbort, tapeBlock);
+    const innerNode = Object.values(graph.nodes).find(
+      (n) => n.frameId !== null && !n.isHaltMarker && n.transitions.some((t) => t.nextStateId === -1),
+    );
+
+    expect(innerNode).toBeDefined();
+  });
+
+  it('fromGraph maps the abort node back to the singleton', () => {
+    const graph = toGraph(outerWithAbort, tapeBlock);
+    const {start, tapeBlock: rebuiltTapeBlock} = State.fromGraph(graph);
+    const rebuilt = State.toGraph(start, rebuiltTapeBlock);
+
+    expect(rebuilt.nodes[-1]).toMatchObject({isAbort: true});
+  });
+
+  it('collectStates includes the abort singleton with empty transitionSymbols', () => {
+    const map = State.collectStates(outerWithAbort, tapeBlock);
+
+    expect(map.get(-1)?.state).toBe(abortState);
+    expect(map.get(-1)?.transitionSymbols).toEqual([]);
   });
 });
