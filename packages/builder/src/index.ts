@@ -30,7 +30,7 @@ export type States = Record<string, Record<string, {
  * the builder translates each to a `tapeBlock.symbol([char])`-interned
  * Symbol at construction time. `true` is the wildcard.
  *
- * Out of scope (#101): final-state entries — `finalStateList` names map to
+ * Out of scope: final-state entries — `finalStateList` names map to
  * `haltState`, which is not a state in the table. Pass `before` / `after`
  * directly on `haltState.debug` if you need to pause on halt entry.
  */
@@ -129,11 +129,11 @@ export default function buildMachine({
       [stateName]: stateOrReference[stateKey],
     }), {});
 
-  // #101: apply per-state debug config. Filter values are raw alphabet
+  // Apply per-state debug config. Filter values are raw alphabet
   // characters; translate each via tapeBlock.symbol([char]) so they match
   // the same interned Symbol used in transitions. `true` passes through
   // as-is (wildcard). final-state names are rejected — they alias to
-  // haltState which is out of scope per the issue spec.
+  // haltState which is out of scope by design.
   if (debug) {
     Object.entries(debug).forEach(([stateName, config]) => {
       if (finalStateList.includes(stateName)) {

@@ -43,7 +43,7 @@ export type ResumeDirective = 'continue' | 'step-in' | 'step-over' | 'step-out';
  * Re-exported from this module so the sibling `DebugSession` module can import
  * it; intentionally NOT re-exported from the package's public `index.ts` —
  * downstream consumers shouldn't reach for the stack. Same pattern as
- * `STATE_INTERNAL` (#180).
+ * `STATE_INTERNAL`.
  */
 export const MACHINE_STATE_INTERNAL = Symbol('MachineState.internal');
 
@@ -60,7 +60,7 @@ export type MachineStateInternal = {
    *  can't recover halt-imminence from it; DebugSession reads this flag to
    *  honor `haltState.debug` on subroutine-return (halt-pop) iters. */
   haltImminent: boolean;
-  /** Whether this iter's transition targets `abortState` (#239) — computed
+  /** Whether this iter's transition targets `abortState` — computed
    *  on the RAW next-state, same timing discipline as `haltImminent`. Unlike
    *  halt, abort never pops the stack, so there's no post-pop redirect to
    *  worry about; the flag exists for symmetry so a `DebugSession` consumer
@@ -76,7 +76,7 @@ export type MachineState = {
   movements: symbol[];
   nextState: State;
   /**
-   * The transition the engine picked for this iter (#205). Always present
+   * The transition the engine picked for this iter. Always present
    * — `runStepByStep` resolves it at the very start of every iter via
    * `state.getMatchedTransition(symbol)`, well before any callback fires.
    *
@@ -108,7 +108,7 @@ export type MachineState = {
 export type PausedMachineState = MachineState & { pause: PauseInfo };
 
 /**
- * The return value of `run()` / `runStepByStep()` (#239). A run always ends
+ * The return value of `run()` / `runStepByStep()`. A run always ends
  * one of two ways: it reaches `haltState` (the normal terminal case, `stack`
  * is `[]` by construction — every subroutine frame already popped) or it
  * punches through to `abortState` (the call stack is NOT unwound; `stack`
@@ -185,7 +185,7 @@ export default class TuringMachine {
    * async to support awaited `onPause`; with callbacks moved to `DebugSession`
    * there's no async work left, so the method returns `void` again.
    *
-   * As of #239, `run()` returns a `RunResult` — the generator's `return`
+   * As of v7.1, `run()` returns a `RunResult` — the generator's `return`
    * value, captured by draining it manually instead of a `for...of` (which
    * discards the return). Additive: existing callers that ignored the
    * previous `void` return stay valid.
@@ -209,7 +209,7 @@ export default class TuringMachine {
       this.#tapeBlock[lockSymbol].lock(executionSymbol);
 
 
-      // Halt-stack is run-scoped, not machine-scoped (#196) — local
+      // Halt-stack is run-scoped, not machine-scoped — local
       // declaration prevents leftover entries from a previous
       // `runStepByStep` call (e.g. a build-time peek that never drained
       // the generator) from leaking into a subsequent halt-bound transition.
@@ -221,13 +221,13 @@ export default class TuringMachine {
       }
 
       let i = 0;
-      // Triggering state of the most recently completed iter (#239) — used
+      // Triggering state of the most recently completed iter — used
       // by the post-loop halted-result return. Stays `null` when the loop
       // never runs (`initialState` is itself a sentinel), in which case the
       // result falls back to `state` (= initialState) directly.
       let lastIterState: State | null = null;
 
-      // `isHalt` -> `isSentinel` (#239): covers a caller passing `abortState`
+      // `isHalt` -> `isSentinel`: covers a caller passing `abortState`
       // (or any future sentinel) directly as `initialState` without trying
       // to iterate a transitionless sentinel.
       while (!state.isSentinel) {
@@ -244,7 +244,7 @@ export default class TuringMachine {
         // For wrapper-entry iters, a CallFrame's own transitions in `toGraph`
         // are empty (it delegates lookups to its bare); the resolvable
         // transition id lives under the bare's stateId. The same unwrap is
-        // used below (#239) to report the triggering state on an abort
+        // used below to report the triggering state on an abort
         // punch-through — the wrapper is call-stack plumbing, not the state
         // whose transition actually fired.
         const resolvableState = state instanceof CallFrame ? state.bare : state;
@@ -285,7 +285,7 @@ export default class TuringMachine {
             matchedTransition,
           };
 
-          // #102: expose the pre-iter halt-stack + the matched symbol to
+          // Expose the pre-iter halt-stack + the matched symbol to
           // DebugSession via a Symbol-keyed accessor (non-enumerable, so it
           // doesn't leak into serialization / spread / toEqual). The stack
           // snapshot is frozen so a consumer holding a reference can't mutate
@@ -297,7 +297,7 @@ export default class TuringMachine {
           // post-yield pop reassigns `nextState` — so the closure can't capture
           // the mutated value.
           const haltImminent = nextState === haltState;
-          // Same timing discipline as haltImminent (#239) — snapshotted on
+          // Same timing discipline as haltImminent — snapshotted on
           // the RAW nextState before anything downstream can change it.
           const abortImminent = nextState === abortState;
           Object.defineProperty(yielded, MACHINE_STATE_INTERNAL, {
@@ -312,9 +312,9 @@ export default class TuringMachine {
           this.#tapeBlock.applyCommand(command, executionSymbol);
 
           if (nextState.isAbort) {
-            // Punch-through (#239): the stack is NOT popped — it becomes the
+            // Punch-through: the stack is NOT popped — it becomes the
             // backtrace in the result. Freeze so the caller can't mutate
-            // engine internals (same discipline as the #102 stack snapshot).
+            // engine internals (same discipline as the stack snapshot above).
             // `state` is reported via `resolvableState` so a wrapper-entry
             // abort reports the bare — the state whose own transition table
             // matched — rather than the transient CallFrame.
@@ -340,7 +340,7 @@ export default class TuringMachine {
         }
       }
 
-      // Terminal return (#239): reached when the loop condition falls false
+      // Terminal return: reached when the loop condition falls false
       // (state became a sentinel — halt via the normal pop-to-empty path, or
       // `initialState` itself was a sentinel and the loop never ran) or the
       // `catch` above breaks out on an externally-thrown `haltState`. The

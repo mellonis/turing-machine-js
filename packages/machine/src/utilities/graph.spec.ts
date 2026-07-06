@@ -428,7 +428,7 @@ describe('fromMermaid ensureNode update branches', () => {
     expect(graph.nodes[1].isHalt).toBe(true);
   });
 
-  test('a later abort-node declaration updates isAbort of an already-created node (#239)', () => {
+  test('a later abort-node declaration updates isAbort of an already-created node', () => {
     const mermaid = [
       'flowchart TD',
       '%% alphabets: [[" ","0"]]',
@@ -657,14 +657,14 @@ describe('README diagrams: engine-generated outputs', () => {
 //     path compression + ufUnion)
 //   - `callable scope: A ∪ B` subgraph label (graphFormats frameBareNames sort)
 //   - `-. "halt" .->` demand-emit arrow (graphFormats hasNonWrapperEntry path)
-describe('callable-subtree: wrapper continuation joins caller frame (#223)', () => {
+describe('callable-subtree: wrapper continuation joins caller frame', () => {
   // When a bare's body invokes a sub-call via `withOverriddenHaltState`, the
   // wrapper's continuation (the `--> override` arrow in the rendered diagram,
   // sourced from `overriddenHaltStateId`) is the state the bare's body resumes
-  // at after the inner call returns. Pre-#223 the reach-set sweep stopped
+  // at after the inner call returns. Before the framed-wrapper fix the reach-set sweep stopped
   // dead at the wrapper, leaving the continuation unframed: it rendered
   // outside the subgraph and its halt-bound transitions kept pointing at the
-  // top-level halt instead of the bare's frame halt marker. Post-#223, the
+  // top-level halt instead of the bare's frame halt marker. Post-fix, the
   // sweep tunnels through wrappers via their continuation, so the continuation
   // (and any further body states it reaches) join the bare's frame.
   test('after-return continuation state is in the bare frame; its halt retargets to the frame halt marker', () => {
@@ -679,7 +679,7 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
 
     // Continuation Y: invertNumberGoToNumberWithInversion-shaped — A's bare
     // returns here after X halts. Y itself halts on 'b' (this halt should
-    // retarget to A's frame halt marker post-#223).
+    // retarget to A's frame halt marker under the fixed emit).
     const Y = new State({
       [symbol(['b'])]: {command: {movement: movements.stay}, nextState: haltState},
       [ifOtherSymbol]: {command: {movement: movements.right}, nextState: haltState},
@@ -728,7 +728,7 @@ describe('callable-subtree: wrapper continuation joins caller frame (#223)', () 
     expect(wrapperAroundA!.frameId).toBeNull();
 
     // Y's halt-bound transitions retarget to A's frame halt marker
-    // (id = -2 * frameId, even negatives, #239, isHaltMarker), NOT to
+    // (id = -2 * frameId, even negatives, isHaltMarker), NOT to
     // top-level halt s0.
     for (const t of nodeY.transitions) {
       const targetNode = graph.nodes[t.nextStateId];
@@ -1126,7 +1126,7 @@ describe('spec doc: worked union shapes are real engine emit', () => {
   });
 });
 
-describe('toMermaid: tags (#186)', () => {
+describe('toMermaid: tags', () => {
   test('no tags → no classDef / class lines', () => {
     const alphabet = new Alphabet([' ', '0']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
@@ -1188,7 +1188,7 @@ describe('toMermaid: tags (#186)', () => {
   });
 });
 
-describe('fromMermaid: tags (#186)', () => {
+describe('fromMermaid: tags', () => {
   test('parses classDef + class lines back into GraphNode.tags', () => {
     const mermaid = [
       'flowchart TD',
@@ -1222,7 +1222,7 @@ describe('fromMermaid: tags (#186)', () => {
   });
 });
 
-describe('Mermaid label escaping (#194)', () => {
+describe('Mermaid label escaping', () => {
   test('alphabet symbol containing literal " produces parseable output', () => {
     // Repro from the issue: a write of `"` would land inside the
     // `"..."`-wrapped edge label and terminate the string early on
@@ -1271,7 +1271,7 @@ describe('Mermaid label escaping (#194)', () => {
     // The round-trip also picks up the `class tag_<sanitized>` line from
     // the emit — that adds a second copy of each tag in its sanitized
     // form (`has"quote` → `has_quote`). That's a known artifact of the
-    // #186 tag-emit design, not part of #194; this test only asserts
+    // tag-emit design, not of the label-escaping fix; this test only asserts
     // that the ORIGINAL forms come back intact.
     const alphabet = new Alphabet([' ', '0']);
     const tapeBlock = TapeBlock.fromAlphabets([alphabet]);

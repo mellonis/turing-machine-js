@@ -26,11 +26,11 @@ export type HighlightClass =
  * function never reads back from the consumer; it just emits ops.
  *
  * Edge keys follow mermaid's data-id token form, built via `mermaidIdFor`
- * from `@turing-machine-js/machine` (#239 namespacing): `'idle'` for the
+ * from `@turing-machine-js/machine` (sentinel-id namespacing): `'idle'` for the
  * synthetic entry sentinel, `'u${id}'` for regular/wrapper/bare states,
  * `'s0'` for the halt singleton, `'s0-${frameId}'` for halt markers (real
  * graph id `-2 * frameId`), `'w_${id}'` for callable-subtree subgraph
- * clusters (unchanged by #239). Mermaid emits `L_${from}_${to}_${ix}` per
+ * clusters (unchanged by the namespacing). Mermaid emits `L_${from}_${to}_${ix}` per
  * edge; ix-resolution is the consumer's concern (multiple edges between
  * the same pair are rare; the consumer typically picks the first match).
  */

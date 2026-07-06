@@ -71,7 +71,7 @@ describe('Tape constructor', () => {
         .toThrow('Invalid viewportWidth');
     });
 
-    test('normalises and pads symbols (issue #95)', () => {
+    test('normalises and pads symbols', () => {
       const a = new Alphabet(['␣', 'a', 'b']);
       const tape = new Tape({
         alphabet: a,
@@ -152,7 +152,7 @@ describe('Tape.left / .right movement', () => {
     expect(tape.symbols).toEqual(alphabetSymbols.slice().reverse());
   });
 
-  test('repeated left() preserves all written symbols and pads blanks (#94)', () => {
+  test('repeated left() preserves all written symbols and pads blanks', () => {
     const alphabet = new Alphabet(['␣', 'x']);
     const ttape = new Tape({alphabet, symbols: ['x']});
 

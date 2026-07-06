@@ -5,7 +5,7 @@ import TapeBlock from '../classes/TapeBlock';
 import TuringMachine from '../classes/TuringMachine';
 import {fromMermaid, mermaidIdFor, parseMermaidId, toMermaid} from './graphFormats';
 
-describe('mermaidIdFor / parseMermaidId namespacing (#239)', () => {
+describe('mermaidIdFor / parseMermaidId namespacing', () => {
   const cases: Array<[number, string]> = [
     [1, 'u1'], [2, 'u2'], [42, 'u42'], // user states
     [0, 's0'], // halt
@@ -23,7 +23,7 @@ describe('mermaidIdFor / parseMermaidId namespacing (#239)', () => {
 // describe block: a wrapper whose bare has a transition TARGETING abortState
 // directly (a legal transition target — only wohs *composition* with abort
 // is banned, see State.spec.ts's "withOverriddenHaltState × abortState").
-describe('toMermaid × abortState (#239)', () => {
+describe('toMermaid × abortState', () => {
   const alphabet = new Alphabet(' 01'.split(''));
   const tapeBlock = TapeBlock.fromAlphabets([alphabet]);
   const {symbol} = tapeBlock;
@@ -71,8 +71,8 @@ describe('toMermaid × abortState (#239)', () => {
     expect(Object.values(reparsed.nodes).find((n) => n.isAbort)).toMatchObject({id: -1, name: 'abort'});
     expect(toMermaid(reparsed)).toBe(text); // bytewise, matching the existing round-trip discipline
 
-    // Semantic round-trip (beyond the structural assertions above, #239
-    // review finding): rebuild a State graph via `State.fromGraph` — like
+    // Semantic round-trip (beyond the structural assertions above — an
+    // abort-feature review finding): rebuild a State graph via `State.fromGraph` — like
     // `test/round-trip.spec.ts` does — and confirm the abort path still
     // actually aborts at runtime. If `fromMermaid` ever dropped the abort
     // node (the pre-fix bug: abort rendered as a plain `["abort"]` node and

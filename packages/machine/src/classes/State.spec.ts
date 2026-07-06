@@ -199,7 +199,7 @@ describe('State.withOverriddenHaltState', () => {
     const B = new State({[ifOtherSymbol]: {}}, 'B');
 
     // bare=A, override=(B with override A) — outer1 = A.wohs(B.wohs(A))
-    // Under #176, only `this` is unwrapped; the override (B.wohs(A)) is preserved as-is.
+    // Only `this` is unwrapped; the override (B.wohs(A)) is preserved as-is.
     const inner1 = B.withOverriddenHaltState(A);
     const outer1 = A.withOverriddenHaltState(inner1);
 
@@ -207,7 +207,7 @@ describe('State.withOverriddenHaltState', () => {
     expect(outer1.overriddenHaltState).toBe(inner1);
   });
 
-  test('nested `.wohs()` chain collapses inner overrides (#176)', () => {
+  test('nested `.wohs()` chain collapses inner overrides', () => {
     // `A.wohs(t1).wohs(t2)` is equivalent to `A.wohs(t2)` — t1 is dead at
     // runtime (only the outermost wohs's override is pushed onto the stack
     // when the wrapper is entered; verified empirically by probe). The
@@ -230,7 +230,7 @@ describe('State.withOverriddenHaltState', () => {
     expect(W2.overriddenHaltState).toBe(W2direct.overriddenHaltState);
   });
 
-  test('memoization: same (bare, override) pair returns the same wrapper instance (#175)', () => {
+  test('memoization: same (bare, override) pair returns the same wrapper instance', () => {
     // `withOverriddenHaltState` interns its results keyed by (bare, override).
     // Two calls with the same arguments — even with chained construction —
     // return the literally same JS object.
@@ -245,8 +245,8 @@ describe('State.withOverriddenHaltState', () => {
     expect(W1.name).toBe('A(t)');
   });
 
-  test('memoization composes with chain collapse: A.wohs(t1).wohs(t2) === A.wohs(t2) (#175 + #176)', () => {
-    // After #176 collapses the chain to (A, t2), the cache hit on (A, t2)
+  test('memoization composes with chain collapse: A.wohs(t1).wohs(t2) === A.wohs(t2)', () => {
+    // After the chain collapses to (A, t2), the cache hit on (A, t2)
     // returns the same instance as the direct call.
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const t1 = new State({[ifOtherSymbol]: {}}, 't1');
@@ -258,7 +258,7 @@ describe('State.withOverriddenHaltState', () => {
     expect(Wchained).toBe(Wdirect);
   });
 
-  test('memoization is per-(bare, override) pair: different override → different instance (#175)', () => {
+  test('memoization is per-(bare, override) pair: different override → different instance', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const t1 = new State({[ifOtherSymbol]: {}}, 't1');
     const t2 = new State({[ifOtherSymbol]: {}}, 't2');
@@ -271,7 +271,7 @@ describe('State.withOverriddenHaltState', () => {
     expect(W2.name).toBe('A(t2)');
   });
 
-  test('memoization is per-(bare, override) pair: different bare → different instance (#175)', () => {
+  test('memoization is per-(bare, override) pair: different bare → different instance', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const B = new State({[ifOtherSymbol]: {}}, 'B');
     const t = new State({[ifOtherSymbol]: {}}, 't');
@@ -284,7 +284,7 @@ describe('State.withOverriddenHaltState', () => {
     expect(W_B.name).toBe('B(t)');
   });
 
-  test('3-deep `.wohs()` chain collapses to outermost override (#176)', () => {
+  test('3-deep `.wohs()` chain collapses to outermost override', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const t1 = new State({[ifOtherSymbol]: {}}, 't1');
     const t2 = new State({[ifOtherSymbol]: {}}, 't2');
@@ -297,7 +297,7 @@ describe('State.withOverriddenHaltState', () => {
   });
 });
 
-describe('withOverriddenHaltState × abortState (#239)', () => {
+describe('withOverriddenHaltState × abortState', () => {
   it('cannot override abortState', () => {
     const cont = new State(null);
     expect(() => abortState.withOverriddenHaltState(cont))
@@ -331,7 +331,7 @@ describe('CallFrame', () => {
     expect(w.bare).toBe(A);
   });
 
-  test('a wrapped wohs unwraps to the original bare (#176)', () => {
+  test('a wrapped wohs unwraps to the original bare', () => {
     const A = new State({[ifOtherSymbol]: {}}, 'A');
     const t1 = new State({[ifOtherSymbol]: {}}, 't1');
     const t2 = new State({[ifOtherSymbol]: {}}, 't2');
@@ -407,7 +407,7 @@ describe('State.toGraph — unbound Reference', () => {
   });
 });
 
-describe('State tags (#186)', () => {
+describe('State tags', () => {
   test('a fresh State has an empty tags array', () => {
     const s = new State({[ifOtherSymbol]: {nextState: haltState}});
 
@@ -464,8 +464,8 @@ describe('State tags (#186)', () => {
     expect(s.tags).toEqual(['a']);
   });
 
-  test('tags are scoped to the wrapper instance, not the shared bare (#175 sharing)', () => {
-    // Engine #175 memoization means `A.wohs(t1)` and `A.wohs(t2)` produce
+  test('tags are scoped to the wrapper instance, not the shared bare (memoization sharing)', () => {
+    // Wrapper memoization means `A.wohs(t1)` and `A.wohs(t2)` produce
     // distinct wrapper instances even though they share the same `#symbolToDataMap`.
     // Tags must live on the wrapper instance — tagging one wrapper must NOT
     // propagate to siblings sharing the same bare.
@@ -495,7 +495,7 @@ describe('State tags (#186)', () => {
     expect(haltState.tags).not.toContain('halt-debug-marker');
   });
 
-  // Round-trip tag application (#186) — exercises both fromGraph branches:
+  // Round-trip tag application — exercises both fromGraph branches:
   // tagging a bare/regular node (the simple branch) and tagging a wrapper
   // node (the path that goes through `state.tag(...node.tags)` after
   // `withOverriddenHaltState`).
@@ -647,7 +647,7 @@ describe('State.fromGraph — cyclic override-halt chain', () => {
   });
 });
 
-describe('STATE_INTERNAL accessor (#180)', () => {
+describe('STATE_INTERNAL accessor', () => {
   test('exposes id, name, bareState, overriddenHaltState, symbolToDataMap, tags', () => {
     const bare = new State({
       [symbol(['0'])]: {nextState: haltState},
@@ -695,7 +695,7 @@ describe('STATE_INTERNAL accessor (#180)', () => {
   });
 
   test('symbolToDataMap exposes the live Map for sibling-module enumeration', () => {
-    // #195 will enumerate this Map's keys to expose per-transition
+    // `collectStates` will enumerate this Map's keys to expose per-transition
     // pattern Symbols by patternIx. The accessor returns the same
     // instance the State holds, in insertion order — not a copy.
     const sym0 = symbol(['0']);
@@ -710,7 +710,7 @@ describe('STATE_INTERNAL accessor (#180)', () => {
 
     expect(keys).toContain(sym0);
     expect(keys).toContain(sym1);
-    // Order matches construction order — the contract that #195's
+    // Order matches construction order — the contract that `collectStates`'s
     // `transitionSymbols[patternIx]` will lean on.
     expect(keys.indexOf(sym0)).toBeLessThan(keys.indexOf(sym1));
   });
@@ -739,7 +739,7 @@ describe('STATE_INTERNAL accessor (#180)', () => {
   });
 });
 
-describe('abortState sentinel (#239)', () => {
+describe('abortState sentinel', () => {
   it('has reserved id -1 with sentinel predicates', () => {
     expect(abortState.id).toBe(-1);
     expect(abortState.isAbort).toBe(true);
@@ -767,7 +767,7 @@ describe('abortState sentinel (#239)', () => {
   });
 });
 
-describe('abortState.debug (#239, mirrors #207)', () => {
+describe('abortState.debug', () => {
   afterEach(() => { abortState.debug = null; haltState.debug = null; });
 
   it('accepts boolean and null', () => {

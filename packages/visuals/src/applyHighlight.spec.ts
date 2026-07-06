@@ -24,12 +24,12 @@ import type { Graph } from '@turing-machine-js/machine';
  *   writeMarker (override)       = 4
  *   wrapper walkToBlank(writeMarker) = 5  (bareStateId 3, overriddenHaltStateId 4)
  *   halt singleton               = 0
- *   frame halt marker            = -6  (id = -2 * frameId; #239 namespacing —
+ *   frame halt marker            = -6  (id = -2 * frameId; sentinel-id namespacing —
  *                                       even negatives are halt markers, odd
  *                                       negatives are reserved for sentinels
  *                                       like `abortState`)
  *
- * Mermaid id scheme (#239, `mermaidIdFor`/`parseMermaidId` from
+ * Mermaid id scheme (`mermaidIdFor`/`parseMermaidId` from
  * `@turing-machine-js/machine`): positive N → `uN`; 0 → `s0`; even negative
  * `-2f` → `s0-f` (frame f's halt marker); odd negative → `s{(1-id)/2}`
  * (sentinel, e.g. `abortState` at id -1 → `s1`).
@@ -76,7 +76,7 @@ describe('applyHighlight', () => {
       expect(classOps).not.toContainEqual({ op: 'addNodeClass', id: 0, cls: 'mg-highlight-to' });
     });
 
-    it('emits u-prefixed keys for user states and s0-f for halt markers (#239)', () => {
+    it('emits u-prefixed keys for user states and s0-f for halt markers', () => {
       const g = loadGraph('turing-callable-subtree');
       // Same scenario: bare(3) retargets to its frame's halt marker. The
       // bare→marker edge is the one place this fixture emits both new
@@ -132,7 +132,7 @@ describe('applyHighlight', () => {
       const classOps = ops.filter((o) => o.op === 'addNodeClass');
       const edgeOps = ops.filter((o) => o.op === 'highlightEdge');
       // Return arrow w_3 → wrapper(5). Frame subgraph ids (`w_N`) are
-      // unchanged by #239; wrapper/bare keys move 's'→'u' (#239).
+      // unchanged by the id namespacing; wrapper/bare keys move 's'→'u'.
       expect(edgeOps).toContainEqual({ op: 'highlightEdge', fromKey: 'w_3', toKey: 'u5' });
       // Wrapper gets highlight-to.
       expect(classOps).toContainEqual({ op: 'addNodeClass', id: 5, cls: 'mg-highlight-to' });
@@ -193,7 +193,7 @@ describe('applyHighlight', () => {
     });
   });
 
-  describe('abort terminal highlight targets the abort node, never halt (#239)', () => {
+  describe('abort terminal highlight targets the abort node, never halt', () => {
     it('lights abort node (-1 / s1) when toId is -1, not halt singleton (0)', () => {
       const g = loadGraph('turing-callable-subtree');
       // Abort is an odd-negative sentinel: id -1 maps to mermaid key 's1'.
@@ -332,7 +332,7 @@ describe('applyHighlight', () => {
       expect(record.length).toBe(4);
     });
 
-    // machines-demo#37 — halt singleton (id 0) is a valid breakpoint
+    // Halt singleton (id 0) is a valid breakpoint
     // target (engine-wide haltState). The set stores canonical id 0;
     // both the halt singleton AND every halt marker (negative ids; one
     // per frame) collapse to that class via `bareIdOf(-N, g) === 0`.
@@ -352,7 +352,7 @@ describe('applyHighlight', () => {
       expect(onIds).not.toContain('idle');
     });
 
-    // Regression lock for the sentinel split (#239): abort (-1) is an odd
+    // Regression lock for the sentinel split: abort (-1) is an odd
     // negative — its own breakpoint class, NOT halt's. A halt breakpoint
     // must not light the abort node's indicator, and an abort-class entry
     // (canonical -1) must.

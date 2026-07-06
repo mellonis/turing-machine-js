@@ -20,7 +20,7 @@ export type GraphNode = {
   // Emitted only when the graph actually references `abortState` from a
   // transition — unlike real halt, abort is NOT unconditionally emitted.
   // Abort is always a leaf (`transitions: []`, `frameId: null`) — it can
-  // never be a bare or an override target (#239), only a transition
+  // never be a bare or an override target, only a transition
   // target, so it never joins a callable-subtree frame.
   isAbort: boolean;
   transitions: GraphTransition[];
@@ -54,9 +54,9 @@ export type GraphNode = {
   // both `true`. `fromGraph` maps halt-marker nodes back to the singleton
   // `haltState`. Halt marker id = `-2 * frameId` (even negatives; sits in
   // a disjoint negative-id range from real node ids; odd negatives are
-  // sentinel ids — e.g. `abortState` at `-1` — #239).
+  // sentinel ids — e.g. `abortState` at `-1`).
   isHaltMarker: boolean;
-  // Out-of-band tags applied to this State (#186). Empty array if untagged.
+  // Out-of-band tags applied to this State. Empty array if untagged.
   // Survives `toGraph`/`fromGraph` round-trip and renders in `toMermaid` as
   // `classDef tag_<name>` + `class sN tag_<name>` lines. Doesn't affect
   // runtime semantics — purely a visualization/debugger-tooling channel.

@@ -58,4 +58,4 @@ npm install @turing-machine-js/machine @turing-machine-js/builder
 ## Links
 
 - [Turing Machine](https://en.wikipedia.org/wiki/Turing_machine) on Wikipedia
-- [`@turing-machine-js/machine`](https://github.com/mellonis/turing-machine-js/tree/master/packages/machine) — the core engine, sufficient on its own for most use cases
+- `@turing-machine-js/machine` — the core engine, sufficient on its own for most use cases

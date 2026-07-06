@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [7.1.0] - 2026-07-06
 
-Released in lockstep with `@turing-machine-js/machine` 7.1.0 — the abort feature ([#239](https://github.com/mellonis/turing-machine-js/issues/239)). No source or behavior changes in this package; the existing dependency range `^7.0.0` already accepts the 7.1.0 engine.
+Released in lockstep with `@turing-machine-js/machine` 7.1.0 — the abort feature. No source or behavior changes in this package; the existing dependency range `^7.0.0` already accepts the 7.1.0 engine.
 
 ## [7.0.0] - 2026-06-03
 
@@ -18,35 +18,35 @@ Stable v7. Lockstep release with `@turing-machine-js/machine` 7.0.0. See the mac
 
 ## [7.0.0-alpha.8] - 2026-06-02
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.8 — lifts `TapeSnapshot` + `tapeViewport` from `@turing-machine-js/visuals` into the engine ([#227](https://github.com/mellonis/turing-machine-js/issues/227)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.7` → `^7.0.0-alpha.8`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.8 — lifts `TapeSnapshot` + `tapeViewport` from `@turing-machine-js/visuals` into the engine. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.7` → `^7.0.0-alpha.8`.
 
 ## [7.0.0-alpha.7] - 2026-05-30
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.7 — adds `CallFrame` as a first-class `State` subclass ([#213](https://github.com/mellonis/turing-machine-js/issues/213)) and fixes a `toMermaid` framed-wrapper emit asymmetry ([#223](https://github.com/mellonis/turing-machine-js/issues/223)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.7 — adds `CallFrame` as a first-class `State` subclass and fixes a `toMermaid` framed-wrapper emit asymmetry. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.6` → `^7.0.0-alpha.7`.
 
 ## [7.0.0-alpha.6] - 2026-05-28
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.6 — adds the `DebugSession` interactive-debugging class and reshapes the engine debug surface: `run()` becomes synchronous + callback-free, `runStepByStep` becomes the pure-iteration primitive (no breakpoint detection), and the per-yield `m.debugBreak` is replaced by a one-sided `m.pause: { side, cause }` carried on `DebugSession` `pause` events ([#102](https://github.com/mellonis/turing-machine-js/issues/102)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.5` → `^7.0.0-alpha.6`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.6 — adds the `DebugSession` interactive-debugging class and reshapes the engine debug surface: `run()` becomes synchronous + callback-free, `runStepByStep` becomes the pure-iteration primitive (no breakpoint detection), and the per-yield `m.debugBreak` is replaced by a one-sided `m.pause: { side, cause }` carried on `DebugSession` `pause` events. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.5` → `^7.0.0-alpha.6`.
 
 ## [7.0.0-alpha.5] - 2026-05-25
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.5 — adds per-iter `MachineState.matchedTransition` + renames `GraphTransition.id` separator `-` → `.` ([#205](https://github.com/mellonis/turing-machine-js/issues/205)), collapses `haltState.debug` to a `boolean` with halt-imminent pause on the AFTER side of the halt-triggering iter ([#207](https://github.com/mellonis/turing-machine-js/issues/207)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.4` → `^7.0.0-alpha.5`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.5 — adds per-iter `MachineState.matchedTransition` + renames `GraphTransition.id` separator `-` → `.`, collapses `haltState.debug` to a `boolean` with halt-imminent pause on the AFTER side of the halt-triggering iter. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.4` → `^7.0.0-alpha.5`.
 
 ## [7.0.0-alpha.4] - 2026-05-23
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.4 — adds `State.collectStates` ([#195](https://github.com/mellonis/turing-machine-js/issues/195)), extracts graph serialization into `utilities/stateGraph.ts` ([#180](https://github.com/mellonis/turing-machine-js/issues/180)), fixes `toMermaid` label escape ([#194](https://github.com/mellonis/turing-machine-js/issues/194)) and `runStepByStep` halt-stack scope ([#196](https://github.com/mellonis/turing-machine-js/issues/196)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.3` → `^7.0.0-alpha.4`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.4 — adds `State.collectStates`, extracts graph serialization into `utilities/stateGraph.ts`, fixes `toMermaid` label escape and `runStepByStep` halt-stack scope. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.3` → `^7.0.0-alpha.4`.
 
 ## [7.0.0-alpha.3] - 2026-05-21
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.3 — first-class out-of-band State tags ([#186](https://github.com/mellonis/turing-machine-js/issues/186)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.2` → `^7.0.0-alpha.3`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.3 — first-class out-of-band State tags. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.2` → `^7.0.0-alpha.3`.
 
 ## [7.0.0-alpha.2] - 2026-05-21
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.2 — `toMermaid` callable-subtree emit refinement ([#174](https://github.com/mellonis/turing-machine-js/issues/174)), `withOverriddenHaltState` memoization ([#175](https://github.com/mellonis/turing-machine-js/issues/175)), nested `.wohs()` chain collapse ([#176](https://github.com/mellonis/turing-machine-js/issues/176)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.1` → `^7.0.0-alpha.2`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.2 — `toMermaid` callable-subtree emit refinement, `withOverriddenHaltState` memoization, nested `.wohs()` chain collapse. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^7.0.0-alpha.1` → `^7.0.0-alpha.2`.
 
 ## [7.0.0-alpha.1] - 2026-05-21
 
-Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.1 — composition-representation overhaul: `withOverrodeHaltState` → `withOverriddenHaltState` ([#149](https://github.com/mellonis/turing-machine-js/issues/149)), paren-based wrapped-state naming `A(B)` ([#148](https://github.com/mellonis/turing-machine-js/issues/148)), `toMermaid` callable-subtree emit alpha.1 collapsed-bare shape ([#138](https://github.com/mellonis/turing-machine-js/issues/138), [#139](https://github.com/mellonis/turing-machine-js/issues/139)). No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^6.0.0` → `^7.0.0-alpha.1`.
+Released in lockstep with `@turing-machine-js/machine` 7.0.0-alpha.1 — composition-representation overhaul: `withOverrodeHaltState` → `withOverriddenHaltState`, paren-based wrapped-state naming `A(B)`, `toMermaid` callable-subtree emit alpha.1 collapsed-bare shape. No source or behavior changes in this package. Peer dep `@turing-machine-js/machine` widened `^6.0.0` → `^7.0.0-alpha.1`.
 
 ## [6.4.0] - 2026-05-19
 
@@ -68,7 +68,7 @@ Released in lockstep with `@turing-machine-js/machine` 6.1.0. No source or behav
 
 ### Changed (BREAKING)
 
-- **`peerDependencies."@turing-machine-js/machine"` widened from `^5.0.0` to `^6.0.0`** to match the v6 lockstep. Consumers pinned to `@turing-machine-js/machine@5` will see an unmet-peer warning when installing this version. The v6 dispatch-order change in the engine ([#119](https://github.com/mellonis/turing-machine-js/issues/119)) doesn't affect this package directly (the builder doesn't call `run()`).
+- **`peerDependencies."@turing-machine-js/machine"` widened from `^5.0.0` to `^6.0.0`** to match the v6 lockstep. Consumers pinned to `@turing-machine-js/machine@5` will see an unmet-peer warning when installing this version. The v6 dispatch-order change in the engine doesn't affect this package directly (the builder doesn't call `run()`).
 
 Released in lockstep with `@turing-machine-js/machine` 6.0.0. No source or behavior changes in this package beyond the peer-dep widening.
 
@@ -76,8 +76,8 @@ Released in lockstep with `@turing-machine-js/machine` 6.0.0. No source or behav
 
 ### Added
 
-- **`debug` parameter on `buildMachine()`** ([#101](https://github.com/mellonis/turing-machine-js/issues/101)). Optional per-state breakpoint config; maps to `state.debug = { before, after }` on the matching `State` after construction. Filter values are raw alphabet characters (matching the input-symbol notation in `states`); the builder translates each to a `tapeBlock.symbol([char])`-interned `Symbol` at build time. `true` is the wildcard.
-  - Errors at build time on: unknown state name, final-state name (alias for `haltState`, out of scope per the issue spec), symbol not in alphabet.
+- **`debug` parameter on `buildMachine()`**. Optional per-state breakpoint config; maps to `state.debug = { before, after }` on the matching `State` after construction. Filter values are raw alphabet characters (matching the input-symbol notation in `states`); the builder translates each to a `tapeBlock.symbol([char])`-interned `Symbol` at build time. `true` is the wildcard.
+  - Errors at build time on: unknown state name, final-state name (alias for `haltState`, out of scope by design), symbol not in alphabet.
   - `haltState.debug` declarative support is out of scope — set it directly on the imported singleton if you need to pause on halt entry.
 
 ### Changed (BREAKING)

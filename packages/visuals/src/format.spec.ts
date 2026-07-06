@@ -63,7 +63,7 @@ describe('formatStep', () => {
     const gen = machine.runStepByStep({ initialState });
     // The first `next()` call always yields (never returns) — narrow past
     // the `MachineState | RunResult` union `runStepByStep`'s generator type
-    // carries since #239 gave it a non-void return value.
+    // carries since the abort feature gave it a non-void return value.
     const m = gen.next().value as MachineState;
 
     expect(formatStep(m)).toBe("['a'] → ['b']/[R]");

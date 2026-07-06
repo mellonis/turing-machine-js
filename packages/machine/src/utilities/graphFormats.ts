@@ -6,7 +6,7 @@ import {type Graph, type GraphCommand, type GraphNode} from './graph';
 // Currently only Mermaid flowchart syntax is supported. Future formats
 // (Graphviz, JSON-LD, custom DSL) belong here too.
 //
-// v7 callable-subtree emit (#174):
+// v7 callable-subtree emit:
 //   - Each `withOverriddenHaltState` wrapper produces TWO graph nodes — a
 //     wrapper node (`[[composite-name]]`, OUTSIDE any subgraph) and a bare
 //     node (regular shape, INSIDE its callable subtree subgraph).
@@ -25,12 +25,12 @@ import {type Graph, type GraphCommand, type GraphNode} from './graph';
 //     calls into the frame. The `halt` arrow (subgraph → s0) is emitted
 //     iff the halt marker has incoming AND there's at least one non-wrapper
 //     entry into the frame (cross-subgraph solid arrow from outside).
-//   - The `abortState` sentinel (#239), when referenced, emits as a single
+//   - The `abortState` sentinel, when referenced, emits as a single
 //     top-level stadium node `s1(((abort)))` with a dashed-red `classDef`
 //     (never inside a frame — see the `GraphNode.isAbort` doc in ./graph.ts).
 
 // Maps a graph node id to its Mermaid id. Namespaced by prefix with a total
-// parsing rule (#239): 'u' user state / 's0-' halt marker / other 's' sentinel.
+// parsing rule: 'u' user state / 's0-' halt marker / other 's' sentinel.
 //   - positive id N            → "uN"          (user state)
 //   - id 0                     → "s0"          (haltState)
 //   - odd negative id          → "s{(1-id)/2}" (sentinel: -1 → s1 abort, -3 → s2, …)
@@ -68,7 +68,7 @@ function frameSubgraphId(frameId: number): string {
 // `<`, `>`, `&` get interpreted as markup. Statement terminators (`\n`,
 // `\r`), C0 controls (except `\t`), DEL, bidi controls, and lone UTF-16
 // surrogates are encoded as numeric entities so they can't confuse the
-// tokenizer or flip text direction silently (#194).
+// tokenizer or flip text direction silently.
 //
 // Printable Unicode (Cyrillic, CJK, emoji, accented Latin, etc.) passes
 // through unchanged — a tape alphabet of Cyrillic or Brainfuck glyphs
@@ -145,7 +145,7 @@ export function toMermaid(graph: Graph): string {
   ];
 
   // Sort nodes by id ascending. With halt markers at -2f and sentinels
-  // (abortState at -1, any future sentinel at further odd negatives, #239)
+  // (abortState at -1, any future sentinel at further odd negatives)
   // sharing the negative range with real halt (0), ascending id order is no
   // longer "halt first" — it's halt markers (most negative, largest frameId
   // first) ⟶ odd-negative sentinels ⟶ real halt (0) ⟶ positive regular/bare/
@@ -153,7 +153,7 @@ export function toMermaid(graph: Graph): string {
   // and never appear in topLevelNodes (frameId !== null), so this reorder is
   // invisible to callers — what matters is that the order is FIXED, not which
   // one it is: toMermaid → fromMermaid → toMermaid still round-trips stably
-  // (#139) because the same deterministic sort runs both times.
+  // because the same deterministic sort runs both times.
   const nodes = Object.values(graph.nodes).slice().sort((a, b) => a.id - b.id);
 
   // Bucket nodes for emit order.
@@ -192,7 +192,7 @@ export function toMermaid(graph: Graph): string {
   // `<br>tag1, tag2, ...` suffix so the rendered Mermaid shows both. Tags
   // are the source of truth on the GraphNode; `<br>` is the universal
   // Mermaid line-break that works across renderers without `classDef`-
-  // pseudo-element hacks (#186).
+  // pseudo-element hacks.
   const labelOf = (node: GraphNode): string => {
     const name = escapeMermaidLabel(node.name);
     if (node.tags.length === 0) return name;
@@ -369,8 +369,8 @@ export function toMermaid(graph: Graph): string {
   }
 
   // 9. Regular transitions for non-wrapper non-halt-marker non-halt non-abort
-  // nodes. `isAbort` is defensive here — abort's `transitions` is always `[]`
-  // (#239), so the inner loop below is a no-op for it either way; the guard
+  // nodes. `isAbort` is defensive here — abort's `transitions` is always
+  // `[]`, so the inner loop below is a no-op for it either way; the guard
   // just documents the invariant rather than changing behavior.
   for (const node of nodes) {
     if (node.isHalt || node.isHaltMarker || node.isWrapper || node.isAbort) continue;
@@ -393,7 +393,7 @@ export function toMermaid(graph: Graph): string {
     }
   }
 
-  // 10. Abort sentinel classDef (#239) — demand-emit only when the graph
+  // 10. Abort sentinel classDef — demand-emit only when the graph
   //     actually references abortState (mirrors the always-vs-demand-emit
   //     split documented on `GraphNode.isAbort` in ./graph.ts). Dashed red
   //     stroke visually sets the terminal-error sentinel apart from the
@@ -405,7 +405,7 @@ export function toMermaid(graph: Graph): string {
     lines.push(`  class ${mermaidIdFor(-1)} abortSentinel`);
   }
 
-  // 11. Tags (#186) — emit one `classDef tag_<name> fill:#...` per unique
+  // 11. Tags — emit one `classDef tag_<name> fill:#...` per unique
   //     tag across all nodes, then one `class <ids> tag_<name>` line per
   //     tag listing every node that carries it (comma-joined for compact
   //     emit). Tag-name → CSS-class identifier sanitization replaces any
@@ -510,7 +510,7 @@ function isFrameBare(node: GraphNode, graph: Graph): boolean {
 //   per-tape segments are split on ','. If your alphabet contains '/' or ','
 //   as literal symbols, the parser cannot disambiguate. Stick to alphabets
 //   without those characters when round-tripping through Mermaid.
-// Any valid Mermaid node id under the new namespacing (#239): positive user
+// Any valid Mermaid node id under the new namespacing: positive user
 // states ("u{n}"), the real-halt / per-frame-halt-marker family ("s0",
 // "s0-{f}"), or an odd-negative sentinel ("s{k}", e.g. abortState at "s1").
 // Reused as a fragment wherever a generic node id may appear — mirrors the
@@ -520,7 +520,7 @@ function isFrameBare(node: GraphNode, graph: Graph): boolean {
 const MERMAID_ID_SRC = 'u\\d+|s\\d+(?:-\\d+)?';
 
 const haltNodeRegex = new RegExp(`^(${MERMAID_ID_SRC})\\(\\(\\(halt\\)\\)\\)$`);
-// Abort terminal (#239) — mirrors haltNodeRegex's shape one-for-one.
+// Abort terminal — mirrors haltNodeRegex's shape one-for-one.
 const abortNodeRegex = new RegExp(`^(${MERMAID_ID_SRC})\\(\\(\\(abort\\)\\)\\)$`);
 const regularNodeRegex = /^(u\d+)\["([^"]*)"\]$/;
 const wrappedNodeRegex = /^(u\d+)\[\["([^"]*)"\]\]$/;
@@ -551,7 +551,7 @@ const haltArrowRegex = /^w_(\d+)\s+-\.\s+"halt"\s+\.->\s+s0$/;
 // First capture char anchored as \S to avoid polynomial backtracking between
 // the preceding \s* and a permissive (.+); see CodeQL js/polynomial-redos.
 const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
-// Tag annotation lines (#186). Matches both `classDef tag_<sanitized>` and
+// Tag annotation lines. Matches both `classDef tag_<sanitized>` and
 // `class <id-list> tag_<sanitized>`. ClassDef declarations are decorative
 // (palette) and discarded on parse — toMermaid will regenerate them from
 // the tag set on re-emit. `class` lines carry the actual graph-node
@@ -561,21 +561,21 @@ const alphabetsRegex = /^%%\s*alphabets:\s*(\S.*)$/;
 // Inter-token gaps are fixed at single literal spaces (matching toMermaid's
 // canonical emit) rather than `\s+`. This avoids the polynomial-ReDoS
 // pattern CodeQL flags when `\s+` surrounds a content group (see also
-// `callArrowRegex` / `returnArrowRegex` tightening in PR #182).
+// `callArrowRegex` / `returnArrowRegex`, tightened for the same reason).
 const classDefTagRegex = /^classDef tag_([A-Za-z0-9_-]+) .+$/;
 const classAssignTagRegex = new RegExp(`^class ((?:${MERMAID_ID_SRC})(?:,(?:${MERMAID_ID_SRC}))*) tag_([A-Za-z0-9_-]+)$`);
-// Abort classDef/class lines (#239) — decorative, like the tag lines above:
+// Abort classDef/class lines — decorative, like the tag lines above:
 // toMermaid regenerates both from `GraphNode.isAbort` on re-emit, so parse
 // just skips them rather than round-tripping their literal text.
 const classDefAbortRegex = /^classDef abortSentinel .+$/;
 const classAssignAbortRegex = new RegExp(`^class (?:${MERMAID_ID_SRC}) abortSentinel$`);
 
-// Splits a node label like `"A<br>hot, sampled"` into its name and tags (#186).
+// Splits a node label like `"A<br>hot, sampled"` into its name and tags.
 // Labels without `<br>` have no tags. Tags are comma-joined; trimmed of
 // whitespace. The `<br>` is the single source of truth for tag-name parsing —
 // `class` lines are decorative-only and not consulted here.
 //
-// Mermaid-label entities (`&lt;`, `&quot;`, etc., #194) are decoded AFTER
+// Mermaid-label entities (`&lt;`, `&quot;`, etc.) are decoded AFTER
 // structural splitting: the `<br>` separator and `,` tag delimiter survive
 // encode unchanged, and a user state name / tag containing a literal `<br>`
 // or `,` was encoded leaf-side so it can't be confused with the structural
@@ -661,12 +661,12 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    // Tag annotations (#186) — classDef lines are decorative and skipped;
+    // Tag annotations — classDef lines are decorative and skipped;
     // `class` lines are parsed in the edge pass since they reference nodes
     // by id and need those nodes already created in the first pass.
     if (classDefTagRegex.test(line)) continue;
 
-    // Abort sentinel classDef (#239) — same decorative-skip treatment.
+    // Abort sentinel classDef — same decorative-skip treatment.
     if (classDefAbortRegex.test(line)) continue;
 
     const sgStart = line.match(subgraphStartRegex);
@@ -699,7 +699,7 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    // Abort terminal (#239) — mirrors the halt-node parse above. Always
+    // Abort terminal — mirrors the halt-node parse above. Always
     // top-level (frameId null): abort is never a bare or an override target
     // (see the `GraphNode.isAbort` doc in ./graph.ts), so — unlike halt —
     // there's no in-frame "marker" variant to distinguish here.
@@ -758,7 +758,7 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    // Abort sentinel classDef/class lines (#239) — decorative, like the tag
+    // Abort sentinel classDef/class lines — decorative, like the tag
     // classDef lines skipped in the first pass; `GraphNode.isAbort` is
     // already set from the `(((abort)))` node declaration, so there's
     // nothing left for this line to contribute.
@@ -766,7 +766,7 @@ export function fromMermaid(text: string): Graph {
       continue;
     }
 
-    // Tag class-assignment line (#186): `class u1,u5 tag_hot` — adds
+    // Tag class-assignment line: `class u1,u5 tag_hot` — adds
     // the tag to each listed node. Tag-name preserved as written
     // (sanitization on emit is lossy in principle; on parse we don't
     // un-sanitize, since the original could have any characters).
@@ -822,7 +822,7 @@ export function fromMermaid(text: string): Graph {
 
     if (tm) {
       const fromId = parseMermaidId(tm[1]);
-      // Decode the WHOLE captured label up front (#194). Structural
+      // Decode the WHOLE captured label up front. Structural
       // separators (`[`, `]`, `,`, `|`, `/`, ` → `) are all safe ASCII
       // outside the escape set and pass through encode unchanged, so it's
       // safe to decode before structural parsing; only embedded alphabet

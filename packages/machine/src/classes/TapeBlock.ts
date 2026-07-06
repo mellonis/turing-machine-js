@@ -162,7 +162,7 @@ export default class TapeBlock {
    * count.
    *
    * Used by `TuringMachine.runStepByStep` to populate
-   * `MachineState.matchedTransition.matchKinds` for #205. The "winning
+   * `MachineState.matchedTransition.matchKinds`. The "winning
    * alternative" disambiguation matters for alternations like
    * `[[ifOtherSymbol, 'c'], ['a', 'b']]` — different alternatives can
    * have different per-tape kinds, and only the alternative that matched

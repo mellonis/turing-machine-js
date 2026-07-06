@@ -29,7 +29,7 @@ const validateDebugFilter = Symbol('validateDebugFilter');
  *
  * Package-private accessor key for sibling modules in
  * `packages/machine/src` (e.g. `utilities/stateGraph.ts`, and the planned
- * `utilities/stateCollect.ts` for #195). Re-exported from this module so
+ * `utilities/stateCollect.ts` for `collectStates`). Re-exported from this module so
  * sibling files can import it; intentionally NOT re-exported from the
  * package's public `index.ts`, so downstream consumers don't see it on
  * the supported surface.
@@ -42,7 +42,7 @@ const validateDebugFilter = Symbol('validateDebugFilter');
  * that the public name validator would reject; see the JSDoc on the
  * accessor itself.
  *
- * Designed in #180 with #195 in mind so its surface doesn't need to grow
+ * Designed with `collectStates` in mind so its surface doesn't need to grow
  * when `collectStates` lands.
  */
 export const STATE_INTERNAL = Symbol('State.internal');
@@ -99,7 +99,7 @@ export class DebugConfig {
 
 export default class State {
   // Memoization cache for `withOverriddenHaltState`. Keyed by
-  // (bare, override) — same args return the same wrapper instance (#175).
+  // (bare, override) — same args return the same wrapper instance.
   // Two-level WeakMap so the outer entry is GC'd when the bare is collected;
   // WeakRef values let wrappers themselves be GC'd when nothing else holds
   // them, with cache misses simply reconstructing fresh wrappers.
@@ -120,7 +120,7 @@ export default class State {
   // a runtime concern, not part of the structural graph.
   #debugRef: { current: DebugConfig | null } = {current: null};
 
-  // Storage for `haltState.debug` and `abortState.debug` (#207, #239).
+  // Storage for `haltState.debug` and `abortState.debug`.
   // Sentinels (haltState / abortState) are terminal states — they have no iter
   // of their own, so the per-side `{ before, after }` DebugConfig shape doesn't
   // model anything meaningful for them. Instead the breakpoint is a single
@@ -130,12 +130,12 @@ export default class State {
   // other State (whose `#debugRef` flow is unchanged).
   #sentinelDebug: boolean = false;
 
-  // Out-of-band tags applied to this State (#186). Tags are visualization
+  // Out-of-band tags applied to this State. Tags are visualization
   // and debugger-tooling metadata — they don't affect runtime transition
   // lookup or `equivalentOn` comparisons. Stored as a Set for de-duplication;
   // exposed via the `tags` getter as a frozen array snapshot. Lives on the
   // State INSTANCE so wrappers (from `withOverriddenHaltState`) carry tags
-  // independently of their bare's tag set — see the #175 sharing test in
+  // independently of their bare's tag set — see the memoization sharing test in
   // State.spec.ts.
   #tags: Set<string> = new Set();
 
@@ -221,7 +221,7 @@ export default class State {
   }
 
   // Sentinels occupy id <= 0: halt at 0, then odd negatives in creation
-  // order (abort = -1, a hypothetical #3 = -3, #k = -(2k-3)). Even
+  // order (abort = -1, a hypothetical third sentinel = -3, the k-th = -(2k-3)). Even
   // negatives are NOT sentinels — they're toGraph's synthetic per-frame
   // halt markers, which never exist as State instances.
   get isSentinel() {
@@ -239,7 +239,7 @@ export default class State {
   }
 
   get debug(): DebugConfig {
-    // Sentinels (#207, #239): the canonical access path is via the singleton
+    // Sentinels: the canonical access path is via the singleton
     // exports (`haltState` / `abortState`), which are typed `HaltState` /
     // `AbortState` — their `debug` getters are narrowed to `boolean`. Generic
     // `State` references statically see `DebugConfig` and (in practice) never
@@ -255,7 +255,6 @@ export default class State {
     // like `state.debug.before = true` work on a fresh state without a prior
     // whole-object assignment. The setter still accepts `null` to reset the
     // filters; the next read recreates a fresh empty `DebugConfig` on demand.
-    // See #150.
     if (this.#debugRef.current === null) {
       this.#debugRef.current = new DebugConfig(this);
     }
@@ -276,7 +275,7 @@ export default class State {
     // DO accept boolean, and the runtime needs to handle it for the
     // singleton paths.
     const v = value as DebugConfig | { before?: unknown; after?: unknown } | boolean | null;
-    // Sentinels (#207, #239): only `boolean | null` is accepted. `null` aliases
+    // Sentinels: only `boolean | null` is accepted. `null` aliases
     // to `false` (reset). Any object-shaped write throws at write-time so
     // misuse surfaces immediately rather than silently no-op'ing — the
     // `{before, after}` shape doesn't model anything meaningful for sentinels
@@ -319,7 +318,7 @@ export default class State {
   }
 
   /**
-   * Add one or more tags to this State (#186). Tags are out-of-band metadata
+   * Add one or more tags to this State. Tags are out-of-band metadata
    * used by visualization (`toMermaid` emits `classDef`/`class` lines) and
    * debugger tooling — they don't affect runtime transition lookup,
    * `equivalentOn` comparisons, or any structural identity. Chainable.
@@ -333,7 +332,7 @@ export default class State {
   }
 
   /**
-   * Remove one or more tags from this State (#186). Untagging a tag the
+   * Remove one or more tags from this State. Untagging a tag the
    * State doesn't carry is a no-op. Chainable.
    */
   untag(...tags: string[]): this {
@@ -345,7 +344,7 @@ export default class State {
   }
 
   /**
-   * Frozen snapshot of this State's current tags (#186). The returned array
+   * Frozen snapshot of this State's current tags. The returned array
    * is `Object.freeze`d — mutating it throws in strict mode (which TS-emitted
    * code uses). Order matches insertion order of the underlying Set.
    */
@@ -413,7 +412,7 @@ export default class State {
    * Like `getNextState`, but also returns the matched Symbol and its index
    * in this State's transition declaration order (= the `K` in `toGraph`'s
    * `${stateId}.${K}` transition ids). Used by `TuringMachine.runStepByStep`
-   * to populate `MachineState.matchedTransition` for #205 — exposes which
+   * to populate `MachineState.matchedTransition` — exposes which
    * transition fired so consumers (UIs, log tools, coverage maps) can
    * resolve the firing edge without re-deriving from `(source, nextState)`,
    * which is ambiguous when multiple transitions on the same source go to
@@ -450,25 +449,25 @@ export default class State {
     if (this.isAbort) {
       throw new Error(
         'abortState cannot be overridden — it is non-composable by definition; '
-        + 'it punches through the call stack and terminates the run (#239)',
+        + 'it punches through the call stack and terminates the run',
       );
     }
 
     if (overriddenHaltState instanceof State && overriddenHaltState.isAbort) {
       throw new Error(
         'abortState cannot be used as a withOverriddenHaltState continuation — '
-        + 'abort never sits on the subroutine stack; transition to abortState directly (#239)',
+        + 'abort never sits on the subroutine stack; transition to abortState directly',
       );
     }
 
     // Unwrap `this` if it's itself a CallFrame — the chain's inner overrides
     // are dead at runtime anyway (only the outermost `.wohs()`'s override is
     // pushed onto the halt-stack on entry; verified empirically). Composite
-    // name reflects runtime behavior, not construction history. See #176.
+    // name reflects runtime behavior, not construction history.
     const bare = this instanceof CallFrame ? this.bare : this;
 
-    // Memoize by (bare, override) so identical args return the same instance
-    // (#175). The cache uses WeakMaps + WeakRefs so cached frames can be
+    // Memoize by (bare, override) so identical args return the same
+    // instance. The cache uses WeakMaps + WeakRefs so cached frames can be
     // GC'd when nothing else holds them. Compounds with the chain-collapse
     // above: `A.wohs(t1).wohs(t2)` keys as (A, t2) after the unwrap, hitting
     // the same cache slot as a direct `A.wohs(t2)`.
@@ -502,7 +501,7 @@ export default class State {
    * Package-private getter/setter view onto this State's private fields,
    * for sibling modules in `packages/machine/src` (currently `stateGraph.ts`
    * for `toGraph` / `fromGraph`, and the planned `stateCollect.ts` for
-   * #195's `collectStates`).
+   * `collectStates`).
    *
    * Read access is live — the getters close over `this`, so the view
    * stays in sync with subsequent mutations on this State. There's a
@@ -602,8 +601,8 @@ export default class State {
   /**
    * Walks the reachable State graph from `initialState` and returns a
    * serializable `Graph`. Thin delegate to `utilities/stateGraph.ts`'s
-   * `toGraph` (extracted in #180); see that module for the BFS shape and
-   * v7 callable-subtree emit semantics.
+   * `toGraph` (extracted out of this class); see that module for the BFS
+   * shape and v7 callable-subtree emit semantics.
    */
   static toGraph(initialState: State, tapeBlock: TapeBlock): Graph {
     return toGraphImpl(initialState, tapeBlock);
@@ -612,7 +611,7 @@ export default class State {
   /**
    * Inverse of `toGraph`: rebuilds a State graph and a fresh TapeBlock
    * from a serialized `Graph`. Thin delegate to `utilities/stateGraph.ts`'s
-   * `fromGraph` (extracted in #180); see that module for the
+   * `fromGraph` (extracted out of this class); see that module for the
    * reconstruction pass shape (Reference pre-create, bare build, wrapper
    * resolution via `withOverriddenHaltState`, ref binding).
    */
@@ -629,7 +628,7 @@ export default class State {
    * `GraphNode.id`, exposing the live `State` instance + per-pattern
    * Symbol references for each node so downstream tooling can mutate
    * `state.debug` by numeric id and set per-pattern breakpoints by
-   * `GraphTransition.id` (#195). Thin delegate to
+   * `GraphTransition.id`. Thin delegate to
    * `utilities/stateGraph.ts`'s `collectStates`; see that module for
    * the alignment contract, coverage rules, and halt-singleton warning.
    */
@@ -639,7 +638,7 @@ export default class State {
 }
 
 /**
- * Typed alias for the haltState singleton (#207). Narrows `debug` from
+ * Typed alias for the haltState singleton. Narrows `debug` from
  * the generic-State `DebugConfig | boolean` union to plain `boolean`,
  * giving compile-time type-safety at the singleton's call sites:
  *
@@ -663,7 +662,7 @@ export type HaltState = State & {
 export const haltState: HaltState = new State(null) as HaltState;
 
 /**
- * Typed alias for the abortState singleton (#239). Same narrowing rationale
+ * Typed alias for the abortState singleton. Same narrowing rationale
  * as `HaltState`: sentinel debug is a single boolean.
  */
 export type AbortState = State & {
@@ -675,8 +674,8 @@ reserveSentinelId(-1);
 export const abortState: AbortState = new State(null, 'abort') as AbortState;
 
 /**
- * A first-class call frame produced by `State.withOverriddenHaltState`
- * (#213). A `CallFrame` is a `State` — `instanceof State` holds, so it flows
+ * A first-class call frame produced by `State.withOverriddenHaltState`.
+ * A `CallFrame` is a `State` — `instanceof State` holds, so it flows
  * anywhere a `State` does (as a `nextState`, through `toGraph`/`fromGraph`,
  * etc.) — but it carries its own `bare` (the wrapped State) and `override`
  * (the continuation pushed onto the run-stack on entry). `instanceof
@@ -688,7 +687,7 @@ export const abortState: AbortState = new State(null, 'abort') as AbortState;
  * private `#symbolToDataMap`/`#debugRef` were physically shared with the
  * bare). `id`, `name` (composite `bare(override)`), and `tags` are its own
  * (inherited State fields) — so memoized frames sharing a bare keep
- * independent tags (#186), and the frame is never the halt singleton
+ * independent tags, and the frame is never the halt singleton
  * (fresh nonzero `#id` → `isHalt === false`).
  */
 export class CallFrame extends State {
