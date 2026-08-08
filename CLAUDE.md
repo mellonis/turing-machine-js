@@ -14,6 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `npm` >= 7 is required (workspaces). Node 24 is what CI uses.
 
+## Dependency notes
+
+- **`typescript` is held at `^6` on purpose — do not bump it to 7 yet.** `typescript-eslint` declares peer `typescript >=4.8.4 <6.1.0`, so the TS 7 native port breaks `npm run lint`. Re-attempt once a `typescript-eslint` release advertises TS 7 support.
+- **`@types/node`'s major tracks the Node version CI runs on** (currently 24, the active LTS), not npm's latest — the types should describe the runtime the suite actually tests, not advertise APIs from a newer Node. When CI moves to a new Node line, bump the types major in the same change. Same policy across the sibling repos (post-machine-js, machines-demo).
+
 ## Architecture
 
 This is an npm-workspaces monorepo (`packages/*`) with npm-native release scripts (`scripts/release-version.mjs` + `scripts/release-publish.mjs` — replaced lerna in #242; lerna's bundled nx subtree was the source of every Dependabot advisory). Versioning is **lockstep across the four engine/library packages** (engine + builder + library-binary-numbers + library-binary-numbers-bare share one version); **`visuals` versions independently** — additive consumer-package patches don't require coordinated peer-dep widening (see Versioning convention below). Five published packages:
