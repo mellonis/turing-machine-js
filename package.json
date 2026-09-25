@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "docs:states": "node ./scripts/build-states-md.mjs",
-    "lint": "eslint .",
+    "lint": "oxlint",
     "typecheck": "tsc --noEmit -p packages/machine/tsconfig.json && tsc --noEmit -p packages/builder/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers/tsconfig.json && tsc --noEmit -p packages/library-binary-numbers-bare/tsconfig.json && tsc --noEmit -p packages/visuals/tsconfig.json"
   },
   "author": "Ruslan Gilmullin <mellonis@yandex.ru>",
@@ -21,12 +21,11 @@
   ],
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.13",
-    "@types/node": "^24.13.3",
-    "@vitest/coverage-v8": "^4.1.9",
-    "eslint": "^10.6.0",
-    "rollup": "^4.62.2",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.1",
-    "vitest": "^4.1.9"
+    "@types/node": "^24.13.6",
+    "@vitest/coverage-v8": "^5.0.2",
+    "oxlint": "^1.85.0",
+    "rollup": "^4.63.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
   }
 }

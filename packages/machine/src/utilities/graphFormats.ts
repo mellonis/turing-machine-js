@@ -82,6 +82,7 @@ function frameSubgraphId(frameId: number): string {
 // `unescapeMermaidLabel` on each extracted leaf AFTER structural parsing,
 // so a literal `<br>` inside a state name (encoded as `&lt;br&gt;`)
 // survives the tag-split and decodes back at the leaf.
+// oxlint-disable-next-line no-control-regex -- matching control characters is the point
 const MERMAID_LABEL_ESCAPE_RE = /[&"<>\n\r\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069\uD800-\uDFFF]/g;
 function escapeMermaidLabel(s: string): string {
   return s.replace(MERMAID_LABEL_ESCAPE_RE, (ch) => {

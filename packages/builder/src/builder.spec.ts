@@ -8,7 +8,7 @@ describe('buildMachine', () => {
       const stateDeclarationRegExp = /\((.*?),(.*?)\)->\((.*?),(.*?),(.*?)\);/g;
       let match;
 
-      while (match = stateDeclarationRegExp.exec(stateDeclarations)) {
+      while ((match = stateDeclarationRegExp.exec(stateDeclarations))) {
         const [, stateName, currentSymbol, nextStateName, nextSymbol, nextMovement] = match;
 
         if (!Object.prototype.hasOwnProperty.call(states, stateName)) {
