@@ -5,10 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `npm run build` — TypeScript project-references build (`tsc --build tsconfig.build.json`) then `scripts/build-node-entries.mjs`, which uses Rollup to repackage each `packages/*/dist/index.js` into `index.mjs` (ES) and `index.cjs` (CJS). The Rollup step marks `@turing-machine-js/machine` as `external` for the dependent packages, so cross-package imports stay as runtime dependencies rather than being inlined.
-- `npm test` — Vitest (one-shot run via `vitest run`). Single root `vitest.config.ts`; tests are `*.spec.ts` colocated with source plus `test/**/*.spec.ts` for cross-package examples.
+- `npm test` — Vitest (one-shot run via `vitest run`). Single root `vitest.config.mts`; tests are `*.spec.ts` colocated with source plus `test/**/*.spec.ts` for cross-package examples.
 - `npm run test:watch` — Vitest in watch mode (`vitest`).
-- `npm run test:coverage` — `vitest run --coverage` using `@vitest/coverage-v8`. CI runs this and uploads `coverage/lcov.info` to Coveralls. Hard floors enforced in `vitest.config.ts`: 97% statements / 90% branches / 95% functions / 97% lines (set in PR #124, ~1-2pt below current real coverage).
-- `npm run lint` — ESLint (flat config, `typescript-eslint` recommended). `dist/` is ignored.
+- `npm run test:coverage` — `vitest run --coverage` using `@vitest/coverage-v8`. CI runs this and uploads `coverage/lcov.info` to Coveralls. Hard floors enforced in `vitest.config.mts`: 97% statements / 90% branches / 95% functions / 97% lines (set in PR #124, ~1-2pt below current real coverage).
+- `npm run lint` — oxlint, configured in `.oxlintrc.json` (the `typescript` and `oxc` plugins, which cover what `typescript-eslint` recommended used to check). `dist/` and `coverage/` are ignored.
 - `npm run docs:states` — runs `scripts/build-states-md.mjs`, which imports the built `dist/` of each binary-numbers library and regenerates `packages/library-binary-numbers/states.md` and `packages/library-binary-numbers-bare/states.md`. Requires a prior `npm run build`. Doc artifact is committed; refresh manually when state graphs change.
 - Run a single test: `npx vitest run packages/machine/src/classes/State.spec.ts` (or `-t "name"`). Vitest uses esbuild for TypeScript, so `.ts` runs without prior compilation; no babel toolchain.
 
@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Dependency notes
 
-- **`typescript` is held at `^6` on purpose — do not bump it to 7 yet.** `typescript-eslint` declares peer `typescript >=4.8.4 <6.1.0`, so the TS 7 native port breaks `npm run lint`. Re-attempt once a `typescript-eslint` release advertises TS 7 support.
+- **TypeScript is 7** (the native port). Linting is oxlint rather than ESLint, which is what made the move possible: `typescript-eslint` peers on `typescript <6.1.0`. The root tsconfig uses `moduleResolution: "bundler"`, since TS 7 removed `node10`.
 - **`@types/node`'s major tracks the Node version CI runs on** (currently 24, the active LTS), not npm's latest — the types should describe the runtime the suite actually tests, not advertise APIs from a newer Node. When CI moves to a new Node line, bump the types major in the same change. Same policy across the sibling repos (post-machine-js, machines-demo).
 
 ## Architecture
@@ -45,7 +45,7 @@ Engine + builder + libraries bump in lockstep — `node scripts/release-version.
 
 ### Source-vs-built imports (important)
 
-Dependent packages and tests import the bare package name — `import { ... } from '@turing-machine-js/machine'`. Inside the repo, Vitest's `resolve.alias` (in the single root `vitest.config.ts`) intercepts the bare specifier and routes it to the TypeScript source (`<rootDir>/packages/machine/src`), so a change in `packages/machine/src` is picked up by tests in `builder` / `library-binary-numbers` / `library-binary-numbers-bare` with no rebuild step. After publishing, Node resolves the same specifier to `dist/index.{mjs,cjs}` via the package's `exports` field. When adding a new internal package: add a `resolve.alias` entry in `vitest.config.ts` mapping the bare name to the package's `src/`, and add the package to `scripts/build-node-entries.mjs`'s `packages` array.
+Dependent packages and tests import the bare package name — `import { ... } from '@turing-machine-js/machine'`. Inside the repo, Vitest's `resolve.alias` (in the single root `vitest.config.mts`) intercepts the bare specifier and routes it to the TypeScript source (`<rootDir>/packages/machine/src`), so a change in `packages/machine/src` is picked up by tests in `builder` / `library-binary-numbers` / `library-binary-numbers-bare` with no rebuild step. After publishing, Node resolves the same specifier to `dist/index.{mjs,cjs}` via the package's `exports` field. When adding a new internal package: add a `resolve.alias` entry in `vitest.config.mts` mapping the bare name to the package's `src/`, and add the package to `scripts/build-node-entries.mjs`'s `packages` array.
 
 ### Runtime model (`packages/machine`)
 

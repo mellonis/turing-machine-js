@@ -25,7 +25,7 @@ export default defineConfig({
         '**/*.spec.ts',
         '**/*.d.ts',
         '**/dist/**',
-        'vitest.config.ts',
+        'vitest.config.mts',
       ],
       // Hard floor for `npm run test:coverage` (CI). Daily `npm test` is
       // unaffected (no coverage run). Numbers chosen as ~current floor with
